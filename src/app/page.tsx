@@ -18,6 +18,7 @@ import { JobCard } from "@/components/features/job-card";
 import { fetchTodayJobs, fetchAvailableTags, checkIn } from "@/lib/api";
 import { toast } from "sonner";
 import { Car, Tag, Loader2, RefreshCw } from "lucide-react";
+import { AppHeader } from "@/components/layout/app-header";
 
 // =============================================================================
 // SWR Fetcher Functions
@@ -204,34 +205,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* ヘッダー */}
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                ワイエムワークスデジタルガレージ
-              </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                整備工場業務管理システム
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleRefresh}
-                disabled={isJobsLoading}
-              >
-                <RefreshCw className={`h-4 w-4 ${isJobsLoading ? "animate-spin" : ""}`} />
-              </Button>
-              <Badge variant="outline" className="hidden sm:flex">
-                Phase 1: 受付
-              </Badge>
-            </div>
+      <AppHeader
+        hideBrandOnScroll={false}
+        rightArea={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isJobsLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${isJobsLoading ? "animate-spin" : ""}`} />
+            </Button>
+            <Badge variant="outline" className="hidden sm:flex">
+              Phase 1: 受付
+            </Badge>
           </div>
-        </div>
-      </header>
+        }
+      />
 
       {/* メインコンテンツ */}
       <main className="max-w-4xl mx-auto px-4 py-6">
