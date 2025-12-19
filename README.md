@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 整備工場DXプラットフォーム (Repair Shop DX Platform)
 
-## Getting Started
+**YM Works Edition**
 
-First, run the development server:
+自動車整備工場向けの業務管理Webアプリケーション。顧客と現場スタッフ（フロント・整備士）が利用する、受付から診断・見積・作業・報告までの一連のワークフローをサポートします。
+
+## 技術スタック
+
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript (Strict mode)
+- **Styling:** Tailwind CSS 4
+- **UI Library:** shadcn/ui (Radix UI)
+- **State Management:** SWR (data fetching)
+- **External Systems:**
+  - Zoho CRM (Transaction Hub)
+  - Google Sheets (Master Data Cache)
+  - Google Drive (File Storage)
+
+## 主要機能
+
+### スタッフ向け画面
+
+- **受付画面** (`/`): 本日の入庫予定案件一覧、チェックイン処理、スマートタグ紐付け
+- **診断画面** (`/mechanic/diagnosis/[id]`): 症状メモ、分解整備記録簿入力、作業項目提案、写真・動画撮影
+- **見積作成画面** (`/admin/estimate/[id]`): 診断結果を基にした見積作成・編集
+- **作業画面** (`/mechanic/work/[id]`): 作業実施、After写真撮影、完了報告
+
+### 顧客向け画面
+
+- **プレゼン画面** (`/presentation/[id]`): 診断結果・見積内容の提示
+- **承認画面** (`/customer/approval/[id]`): 見積承認・却下
+- **レポート画面** (`/customer/report/[id]`): 作業完了報告書の確認
+
+## セットアップ
+
+### 前提条件
+
+- Node.js 20以上
+- npm / yarn / pnpm / bun
+
+### インストール
 
 ```bash
+# 依存関係のインストール
+npm install
+
+# 開発サーバー起動
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ブラウザで [http://localhost:3000](http://localhost:3000) を開いてください。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### ビルド
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 本番ビルド
+npm run build
 
-## Learn More
+# 本番サーバー起動
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+### リント
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run lint
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## プロジェクト構成
 
-## Deploy on Vercel
+```
+src/
+├── app/                    # Next.js App Router ページ
+│   ├── page.tsx           # TOP (受付画面)
+│   ├── mechanic/          # 整備士向け画面
+│   ├── admin/             # 事務所向け画面
+│   └── customer/          # 顧客向け画面
+├── components/
+│   ├── features/          # 機能コンポーネント
+│   └── ui/                # UI基本コンポーネント (shadcn/ui)
+├── lib/
+│   ├── api.ts             # APIクライアント (Zoho CRM連携)
+│   ├── compress.ts        # 画像圧縮ユーティリティ
+│   └── utils.ts           # 汎用ユーティリティ
+└── types/
+    └── index.ts           # TypeScript型定義
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 開発ガイドライン
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+詳細な仕様は [`SPECIFICATION.md`](./SPECIFICATION.md) を参照してください。
+
+### 重要な制約
+
+- **画像圧縮:** アップロード画像はクライアントサイドで500KB以下に圧縮必須
+- **Zoho API:** 見積内容は `field13` (複数行テキスト) に保存。`field14`は使用禁止
+- **音声入力:** Web Speech APIを使用（ブラウザネイティブ）
+
+## ライセンス
+
+Private
