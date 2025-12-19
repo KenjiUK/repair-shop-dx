@@ -20,6 +20,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
+import { AppHeader } from "@/components/layout/app-header";
+import { User } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -430,36 +432,55 @@ export default function MechanicWorkPage() {
   const totalCount = workItems.length;
   const allCompleted = completedCount === totalCount;
 
+  const workTitle = "作業";
+  const vehicleName = mockJobData.vehicleName;
+  const licensePlate = mockJobData.licensePlate;
+  const customerName = mockJobData.customerName;
+  const tagId = mockJobData.tagId;
+
   return (
     <div className="min-h-screen bg-slate-100 pb-32">
       {/* ヘッダー */}
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-3">
+      <AppHeader maxWidthClassName="max-w-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-2">
+                <Wrench className="h-5 w-5" />
+                {workTitle}
+              </h1>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-sm px-2.5 py-1 h-7 rounded-full text-slate-700 bg-slate-50"
+                >
+                  作業待ち
+                </Badge>
+                <Badge variant="outline" className="gap-1 text-sm px-2.5 py-1 h-7 rounded-full">
+                  <Tag className="h-3.5 w-3.5" />
+                  タグ {tagId}
+                </Badge>
+              </div>
+            </div>
+            <p className="mt-1 text-sm sm:text-base text-slate-700 flex items-center gap-1.5">
+              <User className="h-4 w-4 text-slate-500" />
+              <span>{customerName} 様</span>
+            </p>
+            <p className="mt-1 text-sm sm:text-base text-slate-700 flex items-center gap-1.5">
+              <Car className="h-4 w-4 text-slate-500" />
+              <span>{vehicleName}</span>
+              {licensePlate && <span className="text-slate-400 ml-1">/ {licensePlate}</span>}
+            </p>
+          </div>
           <Link
             href="/"
-            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 mb-2"
+            className="inline-flex items-center gap-1.5 text-sm sm:text-base text-slate-600 hover:text-slate-900 shrink-0"
           >
             <ChevronLeft className="h-4 w-4" />
             戻る
           </Link>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Wrench className="h-5 w-5" />
-                作業実行
-              </h1>
-              <p className="text-sm text-slate-600">
-                {mockJobData.vehicleName} / {mockJobData.licensePlate}
-              </p>
-            </div>
-            <Badge variant="outline" className="gap-1 text-base px-3 py-1">
-              <Tag className="h-4 w-4" />
-              {mockJobData.tagId}
-            </Badge>
-          </div>
         </div>
-      </header>
+      </AppHeader>
 
       {/* メインコンテンツ */}
       <main className="max-w-2xl mx-auto px-4 py-4">
