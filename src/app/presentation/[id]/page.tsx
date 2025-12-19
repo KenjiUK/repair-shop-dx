@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import { ComparisonCard } from "@/components/features/presentation-page/comparison-card";
 import { CustomerInfoCard } from "@/components/features/presentation-page/customer-info-card";
+import { WorkSummaryTab } from "@/components/features/presentation-page/work-summary-tab";
 
 // =============================================================================
 // Types
@@ -236,39 +237,10 @@ export default function PresentationPage() {
 
           {/* 作業内容サマリー */}
           <TabsContent value="summary">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-green-600" />
-                  完了した作業
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockWorkItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                          <Check className="h-4 w-4 text-green-600" />
-                        </div>
-                        <span className="text-slate-800">{item.name}</span>
-                      </div>
-                      <span className="font-medium">¥{formatPrice(item.price)}</span>
-                    </div>
-                  ))}
-
-                  <Separator className="my-4" />
-
-                  <div className="flex items-center justify-between text-lg font-bold">
-                    <span>合計（税込）</span>
-                    <span className="text-primary">¥{formatPrice(mockJobData.totalAmount)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <WorkSummaryTab
+              items={mockWorkItems}
+              totalAmountText={formatPrice(mockJobData.totalAmount)}
+            />
           </TabsContent>
 
           {/* 請求書 */}
