@@ -18,19 +18,16 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Car,
-  Tag,
   Camera,
   FileText,
   LogOut,
   ChevronLeft,
   Check,
-  User,
-  Calendar,
   Download,
 } from "lucide-react";
 import Link from "next/link";
 import { ComparisonCard } from "@/components/features/presentation-page/comparison-card";
+import { CustomerInfoCard } from "@/components/features/presentation-page/customer-info-card";
 
 // =============================================================================
 // Types
@@ -198,45 +195,12 @@ export default function PresentationPage() {
       {/* メインコンテンツ */}
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* 顧客・車両情報カード */}
-        <Card className="mb-6 bg-gradient-to-r from-slate-800 to-slate-700 text-white">
-          <CardContent className="py-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
-                  <User className="h-7 w-7" />
-                </div>
-                <div>
-                  <p className="text-white/70 text-sm">お客様</p>
-                  <p className="text-2xl font-bold">{mockJobData.customerName} 様</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <Car className="h-5 w-5 text-white/70" />
-                  <div>
-                    <p className="text-white/70">車両</p>
-                    <p className="font-medium">{mockJobData.vehicleName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Tag className="h-5 w-5 text-white/70" />
-                  <div>
-                    <p className="text-white/70">タグ</p>
-                    <p className="font-medium">No.{mockJobData.tagId}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-white/70" />
-                  <div>
-                    <p className="text-white/70">完了日時</p>
-                    <p className="font-medium">{formatDate(mockJobData.completedAt)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <CustomerInfoCard
+          customerName={mockJobData.customerName}
+          vehicleName={mockJobData.vehicleName}
+          tagId={mockJobData.tagId}
+          completedAtText={formatDate(mockJobData.completedAt)}
+        />
 
         {/* タブナビゲーション */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
