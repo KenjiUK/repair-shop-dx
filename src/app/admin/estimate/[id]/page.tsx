@@ -37,6 +37,8 @@ import {
   AlertOctagon,
 } from "lucide-react";
 import Link from "next/link";
+import { AppHeader } from "@/components/layout/app-header";
+import { User } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -585,42 +587,54 @@ export default function EstimatePage() {
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId);
 
+  const estimateTitle = "見積作成";
+
   return (
     <div className="min-h-screen bg-slate-100">
       {/* ヘッダー */}
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                戻る
-              </Link>
-              <Separator orientation="vertical" className="h-6" />
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Calculator className="h-5 w-5" />
-                  見積作成
-                </h1>
-                <p className="text-sm text-slate-500">
-                  {customerName}様 / {vehicleName}
-                </p>
+      <AppHeader maxWidthClassName="max-w-7xl">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-2">
+                <Calculator className="h-6 w-6 sm:h-7 sm:w-7" />
+                {estimateTitle}
+              </h1>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-sm px-2.5 py-1 h-7 rounded-full text-slate-700 bg-slate-50"
+                >
+                  {job.field5 || "見積作成待ち"}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-sm px-2.5 py-1 h-7 rounded-full"
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  タグ {tagId}
+                </Badge>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="gap-1">
-                <Tag className="h-3 w-3" />
-                タグ {tagId}
-              </Badge>
-              <Badge variant="secondary">Phase 3: 見積</Badge>
-            </div>
+            <p className="mt-1 text-sm sm:text-base text-slate-700 flex items-center gap-1.5">
+              <User className="h-4 w-4 text-slate-500" />
+              <span>{customerName} 様</span>
+            </p>
+            <p className="mt-1 text-sm sm:text-base text-slate-700 flex items-center gap-1.5">
+              <Car className="h-4 w-4 text-slate-500" />
+              <span>{vehicleName}</span>
+              {licensePlate && <span className="text-slate-400 ml-1">/ {licensePlate}</span>}
+            </p>
           </div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm sm:text-base text-slate-600 hover:text-slate-900 shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            戻る
+          </Link>
         </div>
-      </header>
+      </AppHeader>
 
       {/* メインコンテンツ - 2カラムレイアウト */}
       <main className="max-w-7xl mx-auto px-4 py-4">
