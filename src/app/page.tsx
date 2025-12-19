@@ -210,7 +210,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                🔧 Repair Shop DX
+                ワイエムワークスデジタルガレージ
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
                 整備工場業務管理システム
@@ -279,7 +279,7 @@ export default function Home() {
 
       {/* フッター */}
       <footer className="mt-auto py-6 text-center text-sm text-slate-400">
-        <p>Repair Shop DX Platform v0.1.0</p>
+        <p>ワイエムワークスデジタルガレージ v0.1.0</p>
       </footer>
 
       {/* タグ選択ダイアログ */}

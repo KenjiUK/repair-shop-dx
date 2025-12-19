@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Repair Shop DX",
+  title: "ワイエムワークスデジタルガレージ",
   description: "整備工場業務管理システム",
 };
 
