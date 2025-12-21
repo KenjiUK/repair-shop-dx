@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { fetchJobById, updateJobStatus } from "@/lib/api";
+import { fetchJobById, fetchCustomerById, updateJobStatus } from "@/lib/api";
 import { findVehicleMasterById } from "@/lib/google-sheets";
 import { CoatingPreEstimateView } from "@/components/features/coating-pre-estimate-view";
 import { CoatingType, CoatingOptionId } from "@/lib/coating-config";
@@ -24,7 +24,8 @@ import { savePreEstimateData, loadPreEstimateData } from "@/lib/pre-estimate-sto
 
 async function jobFetcher(jobId: string): Promise<ZohoJob | null> {
   if (!jobId) return null;
-  return await fetchJobById(jobId);
+  const result = await fetchJobById(jobId);
+  return result.success && result.data ? result.data : null;
 }
 
 // =============================================================================
@@ -153,17 +154,25 @@ export default function CoatingPreEstimatePage() {
       }
 
       // 顧客のLINE User IDを取得
-      const customer = job.field4;
-      const lineUserId = customer?.Business_Messaging_Line_Id;
+      let lineUserId: string | undefined;
+      if (job.field4?.id) {
+        const customerResult = await fetchCustomerById(job.field4.id);
+        if (customerResult.success && customerResult.data) {
+          lineUserId = customerResult.data.Business_Messaging_Line_Id || undefined;
+        }
+      }
 
       // マジックリンクを生成
       let magicLinkUrl = "";
       try {
-        magicLinkUrl = await generateMagicLink({
+        const magicLinkResult = await generateMagicLink({
           jobId: job.id,
-          workOrderId: null, // 事前見積の場合はworkOrderIdはnull
+          workOrderId: undefined, // 事前見積の場合はworkOrderIdはundefined
           expiresIn: 7 * 24 * 60 * 60 * 1000, // 7日間有効
         });
+        if (magicLinkResult.success && magicLinkResult.url) {
+          magicLinkUrl = magicLinkResult.url;
+        }
       } catch (error) {
         console.error("[Coating Pre-Estimate] マジックリンク生成エラー:", error);
         // マジックリンク生成失敗時も見積送信は継続
@@ -172,12 +181,13 @@ export default function CoatingPreEstimatePage() {
       // LINE通知を送信
       if (lineUserId) {
         try {
+          const customerName = job.field4?.name || "お客様";
           await sendLineNotification({
             type: "estimate_sent",
             jobId: job.id,
             lineUserId,
-            additionalData: {
-              customerName: customer?.name || "お客様",
+            data: {
+              customerName,
               vehicleName: job.field6?.name ? (() => {
                 const parts = job.field6.name.split(" / ");
                 return parts[0] || job.field6.name;
@@ -199,7 +209,7 @@ export default function CoatingPreEstimatePage() {
 
       // ステータスを「顧客承認待ち」に更新
       try {
-        await updateJobStatus(job.id, "顧客承認待ち");
+        await updateJobStatus(job.id, "見積提示済み");
         await mutateJob();
       } catch (error) {
         console.error("[Coating Pre-Estimate] ステータス更新エラー:", error);
@@ -334,7 +344,7 @@ export default function CoatingPreEstimatePage() {
               <div className="flex items-center justify-between py-2">
                 <span className="text-slate-600">車両の寸法</span>
                 <span className="font-medium text-slate-900">
-                  {vehicleMaster.dimensions || "未設定"}（金額計算用）
+                  未設定（金額計算用）
                 </span>
               </div>
             )}

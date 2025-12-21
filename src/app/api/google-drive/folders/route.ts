@@ -76,8 +76,7 @@ async function createFolderInDrive(
     name: file.name,
     createdTime: file.createdTime,
     modifiedTime: file.modifiedTime,
-    webViewLink: file.webViewLink,
-    parents: file.parents,
+    parentId: file.parents?.[0],
   };
 }
 
@@ -121,8 +120,7 @@ async function findExistingFolder(
     name: folder.name,
     createdTime: folder.createdTime,
     modifiedTime: folder.modifiedTime,
-    webViewLink: folder.webViewLink,
-    parents: folder.parents,
+    parentId: folder.parents?.[0],
   };
 }
 

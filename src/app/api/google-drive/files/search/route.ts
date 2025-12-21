@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         id: f.id,
         name: f.name,
         mimeType: f.mimeType,
-        size: parseInt(f.size || "0", 10),
+        size: f.size || "0",
         createdTime: f.createdTime,
         modifiedTime: f.modifiedTime,
         webViewLink: f.webViewLink,

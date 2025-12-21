@@ -72,7 +72,7 @@ export async function GET(
       id: file.id,
       name: file.name,
       mimeType: file.mimeType,
-      size: parseInt(file.size || "0", 10),
+      size: file.size || "0",
       createdTime: file.createdTime,
       modifiedTime: file.modifiedTime,
       webViewLink: file.webViewLink,

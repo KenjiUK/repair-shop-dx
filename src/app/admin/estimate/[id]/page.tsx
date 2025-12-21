@@ -30,7 +30,7 @@ import { fetchJobById, createEstimate, updateJobStatus, updateJobBaseSystemId, f
 import { generateMagicLink, sendLineNotification } from "@/lib/line-api";
 import { searchInvoicePdf, getOrCreateJobFolder } from "@/lib/google-drive";
 import { toast } from "sonner";
-import { EstimatePriority, ZohoJob, ServiceKind, EstimateItem } from "@/types";
+import { EstimatePriority, ZohoJob, ServiceKind, EstimateItem, DriveFile, DiagnosisItem } from "@/types";
 import { LegalFeesCard } from "@/components/features/legal-fees-card";
 import { getLegalFees } from "@/lib/legal-fees";
 import { addDiagnosisItemsToEstimate, addTireDiagnosisItemsToEstimate, addMaintenanceDiagnosisItemsToEstimate, addTuningPartsDiagnosisItemsToEstimate, addCoatingDiagnosisItemsToEstimate } from "@/lib/diagnosis-to-estimate";
@@ -678,7 +678,7 @@ export default function EstimatePage() {
     if (!inspectionWorkOrder?.diagnosis?.items) return;
 
     // 診断結果を検査項目形式に変換
-    const inspectionItems: InspectionItem[] = inspectionWorkOrder.diagnosis.items.map((item) => {
+    const inspectionItems: InspectionItem[] = inspectionWorkOrder.diagnosis.items.map((item: DiagnosisItem) => {
       const templateItem = VEHICLE_INSPECTION_ITEMS.find((t) => t.id === item.id);
       return {
         ...(templateItem || { id: item.id, name: item.name, category: "other" as const, status: "unchecked" }),
@@ -736,7 +736,7 @@ export default function EstimatePage() {
     if (!tireWorkOrder?.diagnosis?.items) return;
 
     // 診断結果をタイヤ検査項目形式に変換
-    const tireInspectionItems: TireInspectionItem[] = tireWorkOrder.diagnosis.items.map((item) => {
+    const tireInspectionItems: TireInspectionItem[] = tireWorkOrder.diagnosis.items.map((item: DiagnosisItem) => {
       const templateItem = getInitialTireInspectionItems().find((t) => t.id === item.id);
       return {
         ...(templateItem || { id: item.id, name: item.name, category: "tire" as const, status: "unchecked" }),
@@ -801,7 +801,7 @@ export default function EstimatePage() {
     // 診断結果をメンテナンス検査項目形式に変換
     // 注意: 実際の実装では、診断データにメンテナンスメニュー情報を含める必要がある
     // 現時点では、簡易実装として最初の項目のカテゴリからメニューを推測
-    const maintenanceItems: MaintenanceInspectionItemState[] = maintenanceWorkOrder.diagnosis.items.map((item) => ({
+    const maintenanceItems: MaintenanceInspectionItemState[] = maintenanceWorkOrder.diagnosis.items.map((item: DiagnosisItem) => ({
       id: item.id,
       name: item.name,
       category: item.category || "other",
@@ -859,7 +859,7 @@ export default function EstimatePage() {
     // 診断結果をチューニング・パーツ取付検査項目形式に変換
     // 注意: 実際の実装では、診断データにチューニング・パーツ取付の種類情報を含める必要がある
     // 現時点では、簡易実装として診断項目から推測
-    const tuningPartsItems: TuningPartsInspectionItem[] = tuningPartsWorkOrder.diagnosis.items.map((item) => ({
+    const tuningPartsItems: TuningPartsInspectionItem[] = tuningPartsWorkOrder.diagnosis.items.map((item: DiagnosisItem) => ({
       id: item.id,
       name: item.name,
       category: item.category || "other",
@@ -915,7 +915,7 @@ export default function EstimatePage() {
     if (!coatingWorkOrder?.diagnosis?.items) return;
 
     // 診断結果を車体状態確認形式に変換
-    const bodyConditions: BodyConditionCheck[] = coatingWorkOrder.diagnosis.items.map((item) => {
+    const bodyConditions: BodyConditionCheck[] = coatingWorkOrder.diagnosis.items.map((item: DiagnosisItem) => {
       // 診断項目のstatusから車体状態を推測
       let condition: BodyConditionStatus = "unchecked";
       if (item.status === "red") {
@@ -1085,7 +1085,7 @@ export default function EstimatePage() {
   // 診断データ（ワークオーダーから取得、なければフォールバック）
   const photos = useMemo(() => {
     if (selectedWorkOrder?.diagnosis?.photos && selectedWorkOrder.diagnosis.photos.length > 0) {
-      return selectedWorkOrder.diagnosis.photos.map((photo, index) => ({
+      return selectedWorkOrder.diagnosis.photos.map((photo: { position: string; url: string }, index: number) => ({
         id: `photo-${index}`,
         position: photo.position as any,
         label: photo.position,
@@ -1098,8 +1098,8 @@ export default function EstimatePage() {
   const flaggedItems = useMemo(() => {
     if (selectedWorkOrder?.diagnosis?.items && selectedWorkOrder.diagnosis.items.length > 0) {
       return selectedWorkOrder.diagnosis.items
-        .filter((item) => item.status !== "green" && item.status !== "unchecked")
-        .map((item) => ({
+        .filter((item: DiagnosisItem) => item.status !== "green" && item.status !== "unchecked")
+        .map((item: DiagnosisItem) => ({
           id: item.id,
           name: item.name,
           category: item.category,
@@ -1214,7 +1214,7 @@ export default function EstimatePage() {
     
     // 見積項目を読み込む
     if (estimate.items && estimate.items.length > 0) {
-      const lineItems: EstimateLineItem[] = estimate.items.map((item) => ({
+      const lineItems: EstimateLineItem[] = estimate.items.map((item: EstimateItem) => ({
         id: item.id,
         name: item.name,
         price: item.price,
@@ -1238,10 +1238,9 @@ export default function EstimatePage() {
 
     // 修理・整備固有情報を読み込む
     if (estimate.repairInfo) {
-      if (estimate.repairInfo.audioUrl || estimate.repairInfo.audioFileId) {
+      if (estimate.repairInfo.audioUrl) {
         setAudioData({
           audioUrl: estimate.repairInfo.audioUrl,
-          fileId: estimate.repairInfo.audioFileId,
         });
       }
     }
@@ -1335,7 +1334,7 @@ export default function EstimatePage() {
         priority: item.priority,
         selected: item.priority === "required" || item.priority === "recommended",
         linkedPhotoUrls: item.linkedPhotoId
-          ? [photos.find((p) => p.id === item.linkedPhotoId)?.url || ""]
+          ? [photos.find((p: { id: string; url: string }) => p.id === item.linkedPhotoId)?.url || ""]
           : [],
         linkedVideoUrl: null as string | null,
         note: null as string | null,
@@ -1366,7 +1365,7 @@ export default function EstimatePage() {
       // 板金・塗装の場合、見積もり項目を追加
       if (isBodyPaint && bodyPaintEstimateData) {
         // 板金・塗装の見積もり項目を見積項目に追加
-        const bodyPaintEstimateItems = bodyPaintEstimateData.items.map((item) => ({
+        const bodyPaintEstimateItems = bodyPaintEstimateData.items.map((item: any) => ({
           id: item.id,
           name: item.name,
           price: item.amount,
@@ -1398,7 +1397,7 @@ export default function EstimatePage() {
         }));
 
         // レストアの部品リストを見積項目に追加
-        const restorePartsItems = restoreEstimateData.parts.map((part) => ({
+        const restorePartsItems = restoreEstimateData.parts.map((part: any) => ({
           id: part.id,
           name: `${part.name} × ${part.quantity}`,
           price: part.quantity * part.unitPrice,
@@ -1437,7 +1436,7 @@ export default function EstimatePage() {
       // その他の場合、見積もり項目と部品リストを追加
       if (isOther && otherEstimateData) {
         // その他の見積もり項目を見積項目に追加
-        const otherEstimateItems = otherEstimateData.items.map((item) => ({
+        const otherEstimateItems = otherEstimateData.items.map((item: any) => ({
           id: item.id,
           name: item.name,
           price: item.amount,
@@ -1449,7 +1448,7 @@ export default function EstimatePage() {
         }));
 
         // その他の部品リストを見積項目に追加
-        const otherPartsItems = (otherEstimateData.parts || []).map((part) => ({
+        const otherPartsItems = (otherEstimateData.parts || []).map((part: any) => ({
           id: part.id,
           name: `${part.name} × ${part.quantity}`,
           price: part.quantity * part.unitPrice,
@@ -1471,7 +1470,7 @@ export default function EstimatePage() {
       // 板金・塗装の場合、見積データを板金・塗装用の形式に変換
       if (isBodyPaint && bodyPaintEstimateData) {
         // 板金・塗装用の見積項目を見積データに追加
-        const bodyPaintEstimateItems = bodyPaintEstimateData.items.map((item) => ({
+        const bodyPaintEstimateItems = bodyPaintEstimateData.items.map((item: any) => ({
           id: item.id,
           name: item.name,
           price: item.amount,
@@ -1497,7 +1496,7 @@ export default function EstimatePage() {
         const total = subtotal + tax;
         
         // サービス種類固有の情報を準備
-        const estimateDataWithExtras: EstimateData = {
+        const estimateDataWithExtras: any = {
           items: estimateData,
           subtotal,
           tax,
@@ -1513,7 +1512,6 @@ export default function EstimatePage() {
           // 修理・整備固有情報
           repairInfo: isRepair ? {
             audioUrl: audioData?.audioUrl || undefined,
-            audioFileId: audioData?.fileId || undefined,
           } : undefined,
           // 板金・塗装固有情報
           bodyPaintInfo: isBodyPaint && bodyPaintEstimateData ? {
@@ -1524,7 +1522,7 @@ export default function EstimatePage() {
           // レストア固有情報
           restoreInfo: isRestore && restoreEstimateData ? {
             workDuration: restoreEstimateData.workDuration,
-            changeHistory: restoreEstimateData.changeHistory.map((history) => ({
+            changeHistory: restoreEstimateData.changeHistory.map((history: any) => ({
               changedAt: history.changedAt,
               description: history.description,
               previousTotal: history.previousTotal,
@@ -1554,7 +1552,7 @@ export default function EstimatePage() {
         const total = subtotal + tax;
         
         // サービス種類固有の情報を準備
-        const estimateDataWithExtras: EstimateData = {
+        const estimateDataWithExtras: any = {
           items: estimateData,
           subtotal,
           tax,
@@ -1570,7 +1568,6 @@ export default function EstimatePage() {
           // 修理・整備固有情報
           repairInfo: isRepair ? {
             audioUrl: audioData?.audioUrl || undefined,
-            audioFileId: audioData?.fileId || undefined,
           } : undefined,
           // 板金・塗装固有情報
           bodyPaintInfo: isBodyPaint && bodyPaintEstimateData ? {
@@ -1581,7 +1578,7 @@ export default function EstimatePage() {
           // レストア固有情報
           restoreInfo: isRestore && restoreEstimateData ? {
             workDuration: restoreEstimateData.workDuration,
-            changeHistory: restoreEstimateData.changeHistory.map((history) => ({
+            changeHistory: restoreEstimateData.changeHistory.map((history: any) => ({
               changedAt: history.changedAt,
               description: history.description,
               previousTotal: history.previousTotal,
@@ -1629,7 +1626,7 @@ export default function EstimatePage() {
               // 顧客情報と車両情報を取得
               const customerName = job.field4?.name || "お客様";
               const vehicleName = job.field6?.name || "車両";
-              const licensePlate = job.field6?.field44 || "";
+              const licensePlate = extractLicensePlate(job.field6?.name);
               const serviceKind = selectedWorkOrder?.serviceKind || serviceKinds[0] || "作業";
 
               // LINE通知を送信
@@ -1748,7 +1745,7 @@ export default function EstimatePage() {
     .filter((i) => i.priority === "optional")
     .reduce((sum, i) => sum + i.price, 0);
 
-  const selectedPhoto = photos.find((p) => p.id === selectedPhotoId);
+  const selectedPhoto = photos.find((p: DiagnosisPhoto) => p.id === selectedPhotoId);
 
   const estimateTitle = "見積作成";
   
@@ -1982,7 +1979,7 @@ export default function EstimatePage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-2">
-                  {photos.map((photo) => (
+                  {photos.map((photo: DiagnosisPhoto) => (
                     <PhotoCard
                       key={photo.id}
                       photo={photo}
@@ -2014,13 +2011,13 @@ export default function EstimatePage() {
                   <AlertCircle className="h-5 w-5 shrink-0" />
                   指摘項目
                   <Badge variant="destructive" className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                    {flaggedItems.filter((i) => i.status === "red").length}件 要交換
+                    {flaggedItems.filter((i: DiagnosisCheckItem) => i.status === "red").length}件 要交換
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {flaggedItems.map((item) => (
+                  {flaggedItems.map((item: DiagnosisCheckItem) => (
                     <div
                       key={item.id}
                       className={cn(

@@ -100,7 +100,6 @@ function parseVehicleMaster(rows: string[][]): MasterVehicle[] {
       型式: row[headerMap["型式"]] || "",
       車検有効期限: row[headerMap["車検有効期限"]] || "",
       次回点検日: row[headerMap["次回点検日"]] || "",
-      走行距離: row[headerMap["走行距離"]] || null,
     };
 
     if (!vehicle.車両ID) continue;

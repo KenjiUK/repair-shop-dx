@@ -107,8 +107,12 @@ export interface ZohoJob {
   tagId?: string | null;
   /** 入庫区分 (アプリ側で管理) */
   serviceKind?: ServiceKind | null;
+  /** 複数の入庫区分 (アプリ側で管理) */
+  field_service_kinds?: ServiceKind[] | null;
   /** 担当整備士名 (アプリ側で管理) */
   assignedMechanic?: string | null;
+  /** 基幹システム連携ID */
+  field_base_system_id?: string | null;
 }
 
 /**
@@ -424,6 +428,31 @@ export interface Mechanic {
   name: string;
 }
 
+/**
+ * オプションメニュー項目（12ヶ月点検用）
+ */
+export interface OptionMenuItem {
+  /** メニューID */
+  id: string;
+  /** メニュー名 */
+  name: string;
+  /** 説明 */
+  description: string;
+  /** 通常価格 */
+  originalPrice: number;
+  /** 割引後価格 */
+  discountedPrice: number;
+  /** バッジ情報（オプション） */
+  badge?: {
+    text: string;
+    color: "green" | "blue" | "orange" | "red";
+  };
+  /** 作業時間の目安 */
+  estimatedTime: string;
+  /** カテゴリ */
+  category: string;
+}
+
 // =============================================================================
 // F. API レスポンス型
 // =============================================================================
@@ -469,4 +498,158 @@ export interface ApiResponse<T> {
     code: string;
     message: string;
   };
+}
+
+// =============================================================================
+// G. Google Drive 型定義
+// =============================================================================
+
+/**
+ * Google Drive ファイル
+ */
+export interface DriveFile {
+  /** ファイルID */
+  id: string;
+  /** ファイル名 */
+  name: string;
+  /** MIMEタイプ */
+  mimeType: string;
+  /** ファイルサイズ（バイト） */
+  size?: string;
+  /** 作成日時 */
+  createdTime: string;
+  /** 更新日時 */
+  modifiedTime: string;
+  /** Webビューリンク */
+  webViewLink?: string;
+  /** Webコンテンツリンク（ダウンロード用） */
+  webContentLink?: string;
+  /** 親フォルダIDのリスト */
+  parents?: string[];
+}
+
+/**
+ * Google Drive フォルダ
+ */
+export interface DriveFolder {
+  /** フォルダID */
+  id: string;
+  /** フォルダ名 */
+  name: string;
+  /** 親フォルダID */
+  parentId?: string;
+  /** 作成日時 */
+  createdTime?: string;
+  /** 更新日時 */
+  modifiedTime?: string;
+}
+
+/**
+ * ファイルアップロードオプション
+ */
+export interface UploadFileOptions {
+  /** ファイル名 */
+  fileName: string;
+  /** MIMEタイプ */
+  mimeType: string;
+  /** ファイルデータ（Blob, File, またはBase64文字列） */
+  fileData: Blob | File | string;
+  /** 親フォルダID */
+  parentFolderId?: string;
+  /** 既存ファイルを置き換えるかどうか */
+  replaceExisting?: boolean;
+}
+
+/**
+ * フォルダ作成オプション
+ */
+export interface CreateFolderOptions {
+  /** フォルダ名 */
+  folderName: string;
+  /** 親フォルダID */
+  parentFolderId?: string;
+  /** 既存フォルダを返すかどうか */
+  returnExisting?: boolean;
+}
+
+/**
+ * ファイル検索オプション
+ */
+export interface SearchFileOptions {
+  /** 検索クエリ */
+  query: string;
+  /** 親フォルダID */
+  parentFolderId?: string;
+  /** MIMEタイプ */
+  mimeType?: string;
+  /** 最大結果数 */
+  maxResults?: number;
+}
+
+/**
+ * フォルダパス
+ */
+export interface FolderPath {
+  /** 顧客ID */
+  customerId: string;
+  /** 顧客名 */
+  customerName: string;
+  /** 車両ID */
+  vehicleId?: string;
+  /** 車両名 */
+  vehicleName?: string;
+  /** ジョブID */
+  jobId?: string;
+  /** ジョブ日付 */
+  jobDate?: string;
+  /** 作業指示書ID */
+  workOrderId?: string;
+}
+
+/**
+ * コーティング事前見積データ
+ */
+export interface PreEstimateData {
+  /** コーティング種類 */
+  coatingType: "ハイモースコート エッジ" | "ハイモースコート グロウ" | "ガードグレイズ";
+  /** 基本価格 */
+  basePrice: number;
+  /** 選択されたオプションIDリスト */
+  selectedOptions: string[];
+  /** オプション合計金額 */
+  optionsTotal: number;
+  /** 合計金額 */
+  total: number;
+  /** 作成日時 */
+  createdAt: string;
+  /** 送信日時 */
+  sentAt: string;
+}
+
+/**
+ * 使用状況アナリティクスイベント
+ */
+export interface UsageAnalytics {
+  /** イベント種別 */
+  eventType: string;
+  /** 画面ID */
+  screenId: string;
+  /** ユーザーロール */
+  userRole: string;
+  /** タイムスタンプ */
+  timestamp: number;
+  /** 所要時間（ms） */
+  duration?: number;
+  /** 追加データ */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * ページビューイベント
+ */
+export interface PageViewEvent extends UsageAnalytics {
+  /** ページパス */
+  path?: string;
+  /** ページタイトル */
+  title?: string;
 }

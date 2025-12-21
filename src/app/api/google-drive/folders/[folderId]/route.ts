@@ -76,10 +76,9 @@ export async function GET(
     const folder: DriveFolder = {
       id: file.id,
       name: file.name,
+      parentId: file.parents?.[0],
       createdTime: file.createdTime,
       modifiedTime: file.modifiedTime,
-      webViewLink: file.webViewLink,
-      parents: file.parents,
     };
 
     const apiResponse: ApiResponse<DriveFolder> = {

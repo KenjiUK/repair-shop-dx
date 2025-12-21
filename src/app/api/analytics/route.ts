@@ -43,7 +43,7 @@ async function saveAnalyticsEvents(events: UsageAnalytics[]): Promise<void> {
       event.eventType,            // イベント種別
       event.screenId,             // 画面ID
       event.userRole,             // ユーザーロール
-      event.timestamp,            // タイムスタンプ
+      event.timestamp.toString(), // タイムスタンプ
       event.duration?.toString() || "", // 所要時間（ms）
       metadataJson,               // 追加データ（JSON形式）
       pagePath,                   // ページパス（page_viewの場合）

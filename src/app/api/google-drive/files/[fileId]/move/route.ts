@@ -94,7 +94,7 @@ async function moveFileInDrive(
     id: updatedFile.id,
     name: updatedFile.name,
     mimeType: updatedFile.mimeType,
-    size: parseInt(updatedFile.size || "0", 10),
+    size: updatedFile.size || "0",
     createdTime: updatedFile.createdTime,
     modifiedTime: updatedFile.modifiedTime,
     webViewLink: updatedFile.webViewLink,

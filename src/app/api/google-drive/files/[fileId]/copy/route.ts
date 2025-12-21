@@ -76,7 +76,7 @@ async function copyFileInDrive(
     id: copiedFile.id,
     name: copiedFile.name,
     mimeType: copiedFile.mimeType,
-    size: parseInt(copiedFile.size || "0", 10),
+    size: copiedFile.size || "0",
     createdTime: copiedFile.createdTime,
     modifiedTime: copiedFile.modifiedTime,
     webViewLink: copiedFile.webViewLink,
