@@ -570,11 +570,11 @@ export default function CustomerApprovalPage() {
               </>
             )}
           </div>
-          {!isExpired && estimateData?.expiresAt && (
+          {!isExpired && estimateData?.expiresAt && typeof estimateData.expiresAt === "string" ? (
             <p className="text-xs text-slate-500 mt-2">
-              有効期限: {new Date(estimateData.expiresAt).toLocaleDateString("ja-JP")}
+              有効期限: {new Date(estimateData.expiresAt as string).toLocaleDateString("ja-JP")}
             </p>
-          )}
+          ) : null}
         </div>
       </header>
 
