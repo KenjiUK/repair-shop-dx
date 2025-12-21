@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -707,7 +707,6 @@ export default function Home() {
               {/* 2. 入庫区分別 */}
               <ServiceKindSummaryCard
                 jobs={jobs ?? []}
-                selectedServiceKind={selectedServiceKind}
                 onServiceKindClick={(serviceKind) => {
                   setSelectedServiceKind(serviceKind);
                   // フィルター適用時にスクロール（最初のカードが見える位置に）
@@ -803,18 +802,6 @@ export default function Home() {
                 if (newValue.trim()) {
                   addSearchHistory(newValue);
                 }
-              }}
-              jobs={jobs ?? []}
-              showSuggestions={showSearchSuggestions}
-              onSuggestionSelect={(query) => {
-                setSearchQuery(query);
-                addSearchHistory(query);
-              }}
-              onScanClick={() => setIsQrScanDialogOpen(true)}
-              onScanResult={(scannedValue) => {
-                // スキャン結果を検索バーに設定
-                setSearchQuery(scannedValue);
-                addSearchHistory(scannedValue);
               }}
             />
           </div>
