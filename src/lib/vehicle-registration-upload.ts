@@ -64,14 +64,10 @@ export async function uploadVehicleRegistration(
 
     // ファイルをアップロード
     const uploadedFile = await uploadFile({
-      file,
       fileName,
-      folderId: documentsFolder.id,
-      metadata: {
-        vehicleId,
-        documentType: "vehicle_registration",
-        uploadedAt: new Date().toISOString(),
-      },
+      mimeType: file.type || "application/pdf",
+      fileData: file,
+      parentFolderId: documentsFolder.id,
     });
 
     return {

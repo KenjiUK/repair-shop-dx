@@ -287,7 +287,6 @@ export async function addToSyncQueue(
   const queueEntry: SyncQueueEntry = {
     ...entry,
     timestamp: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
     retryCount: 0,
   };
   await saveToIndexedDB(STORE_NAMES.SYNC_QUEUE, queueEntry as SyncQueueEntry & { id: string });
@@ -321,7 +320,7 @@ export async function updateSyncQueueStatus(
   status: SyncQueueEntry["status"],
   error?: string
 ): Promise<void> {
-  const entry = await getFromIndexedDB<SyncQueueEntry & { id: number }>(
+  const entry = await getFromIndexedDB<SyncQueueEntry & { id: string }>(
     STORE_NAMES.SYNC_QUEUE,
     id.toString()
   );
@@ -332,7 +331,6 @@ export async function updateSyncQueueStatus(
   if (status === "syncing") {
     entry.retryCount = (entry.retryCount || 0) + 1;
   }
-  entry.updatedAt = new Date().toISOString();
 
   await saveToIndexedDB(STORE_NAMES.SYNC_QUEUE, entry as SyncQueueEntry & { id: string });
 }

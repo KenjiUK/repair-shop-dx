@@ -34,7 +34,7 @@ export function convertZohoJobToBaseJob(zohoJob: ZohoJob): {
   }
 
   // field_work_orders（Multi-Line JSON）からワークオーダーリストを取得
-  const workOrders = parseWorkOrdersFromZoho(zohoJob.field_work_orders || null);
+  const workOrders = parseWorkOrdersFromZoho((zohoJob as any).field_work_orders || null);
 
   // field_base_system_idから基幹システム連携IDを取得
   const baseSystemId = zohoJob.field_base_system_id || undefined;

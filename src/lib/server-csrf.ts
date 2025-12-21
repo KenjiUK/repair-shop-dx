@@ -50,7 +50,7 @@ export function validateCSRFToken(
  * API Routeハンドラーで使用
  */
 export function withCSRFProtection<T extends unknown[]>(
-  handler: (...args: T) => Promise<Response>,
+  handler: (request: NextRequest, ...args: T) => Promise<Response>,
   options?: {
     /** 期待されるトークン（オプション） */
     expectedToken?: string;
@@ -87,7 +87,7 @@ export function withCSRFProtection<T extends unknown[]>(
       );
     }
 
-    return handler(request, ...args);
+    return handler(request, ...args) as ReturnType<typeof handler>;
   };
 }
 
