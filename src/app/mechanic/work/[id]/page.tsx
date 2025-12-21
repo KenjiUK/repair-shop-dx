@@ -1039,12 +1039,10 @@ export default function MechanicWorkPage() {
         return "コーティング作業";
       } else if (serviceKind === "レストア") {
         return "レストア作業";
-      } else if (serviceKind === "その他") {
-        return "その他作業";
-      } else if (serviceKind === "故障診断") {
-        return "故障診断作業";
       } else if (serviceKind === "修理・整備") {
         return "修理・整備作業";
+      } else if (serviceKind === "故障診断") {
+        return "故障診断作業";
       } else {
         return `${serviceKind}作業`;
       }
@@ -1165,7 +1163,7 @@ export default function MechanicWorkPage() {
           tagId={tagId || undefined}
           serviceKind={serviceKinds.length > 0 ? serviceKinds[0] : undefined}
           currentWorkOrderName={currentWorkOrderName}
-          assignedMechanic={job?.assignedMechanic}
+          assignedMechanic={job?.assignedMechanic || undefined}
           backHref="/"
           courtesyCars={courtesyCars}
         />
