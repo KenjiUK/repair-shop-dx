@@ -281,7 +281,7 @@ export default function CustomerDashboardPage() {
     data: customer,
     error: customerError,
     isLoading: isCustomerLoading,
-  } = useSWR(customerId ? `customer-${customerId}` : null, () => fetchCustomerById(customerId), {
+  } = useSWR(customerId ? `customer-${customerId}` : null, customerId ? () => fetchCustomerById(customerId) : null, {
     revalidateOnFocus: false,
   });
 
@@ -289,7 +289,7 @@ export default function CustomerDashboardPage() {
     data: jobs,
     error: jobsError,
     isLoading: isJobsLoading,
-  } = useSWR(customerId ? `customer-jobs-${customerId}` : null, () => customerJobsFetcher(customerId), {
+  } = useSWR(customerId ? `customer-jobs-${customerId}` : null, customerId ? () => customerJobsFetcher(customerId) : null, {
     revalidateOnFocus: false,
   });
 
