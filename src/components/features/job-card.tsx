@@ -310,19 +310,18 @@ export function JobCard({ job, onCheckIn, isCheckingIn = false, courtesyCars = [
         return <Droplet className="h-3.5 w-3.5 text-emerald-600" />;
       case "タイヤ交換・ローテーション":
         return <Circle className="h-3.5 w-3.5 text-emerald-600" />;
-      case "その他のメンテナンス":
+      case "その他":
         return <Wrench className="h-3.5 w-3.5 text-emerald-600" />;
       case "レストア":
         return <Sparkles className="h-3.5 w-3.5 text-violet-600" />;
       case "チューニング":
-      case "チューニング・パーツ取付":
+      case "チューニング":
+      case "パーツ取付":
         return <Zap className="h-3.5 w-3.5 text-violet-600" />;
       case "パーツ取付":
         return <Package className="h-3.5 w-3.5 text-violet-600" />;
       case "コーティング":
         return <Shield className="h-3.5 w-3.5 text-violet-600" />;
-      case "板金・塗装":
-        return <Paintbrush className="h-3.5 w-3.5 text-orange-600" />;
       default:
         return <FileText className="h-3.5 w-3.5 text-slate-600" />;
     }
@@ -688,7 +687,7 @@ export function JobCard({ job, onCheckIn, isCheckingIn = false, courtesyCars = [
                 )}
                 
                 {/* 作業内容（承認済み見積明細） */}
-                {job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "作業中" || job.field5 === "出庫待ち" || job.field5 === "出庫済み") && (
+                {job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み") && (
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
