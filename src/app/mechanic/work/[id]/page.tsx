@@ -516,17 +516,17 @@ export default function MechanicWorkPage() {
 
   // コーティング用の状態管理
   const [coatingDryingProcess, setCoatingDryingProcess] = useState<CoatingDryingProcess | undefined>(
-    selectedWorkOrder?.work?.coatingInfo?.dryingProcess
+    selectedWorkOrder?.work?.coatingInfo?.dryingProcess as CoatingDryingProcess | undefined
   );
   const [coatingMaintenancePeriod, setCoatingMaintenancePeriod] = useState<CoatingMaintenancePeriod | undefined>(
-    selectedWorkOrder?.work?.coatingInfo?.maintenancePeriod
+    selectedWorkOrder?.work?.coatingInfo?.maintenancePeriod as CoatingMaintenancePeriod | undefined
   );
 
   // コーティング用：既存データの読み込み
   useEffect(() => {
     if (isCoating && selectedWorkOrder?.work?.coatingInfo) {
-      setCoatingDryingProcess(selectedWorkOrder.work.coatingInfo.dryingProcess);
-      setCoatingMaintenancePeriod(selectedWorkOrder.work.coatingInfo.maintenancePeriod);
+      setCoatingDryingProcess(selectedWorkOrder.work.coatingInfo.dryingProcess as CoatingDryingProcess | undefined);
+      setCoatingMaintenancePeriod(selectedWorkOrder.work.coatingInfo.maintenancePeriod as CoatingMaintenancePeriod | undefined);
     } else if (isCoating && !selectedWorkOrder?.work?.coatingInfo) {
       // 初期化（既存データがない場合）
       setCoatingDryingProcess({
@@ -832,12 +832,12 @@ export default function MechanicWorkPage() {
         // 作業完了のLINE通知を送信
         try {
           const customer = await fetchCustomerById(job.field4?.id || "");
-          if (customer.success && customer.data?.lineUserId) {
+          if (customer.success && customer.data?.Business_Messaging_Line_Id) {
             const serviceKinds = job.field_service_kinds || (job.serviceKind ? [job.serviceKind] : []);
             const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
             
             await sendLineNotification({
-              lineUserId: customer.data.lineUserId,
+              lineUserId: customer.data.Business_Messaging_Line_Id || "",
               type: "work_complete",
               jobId,
               data: {
@@ -936,12 +936,12 @@ export default function MechanicWorkPage() {
         // 作業完了のLINE通知を送信
         try {
           const customer = await fetchCustomerById(job.field4?.id || "");
-          if (customer.success && customer.data?.lineUserId) {
+          if (customer.success && customer.data?.Business_Messaging_Line_Id) {
             const serviceKinds = job.field_service_kinds || (job.serviceKind ? [job.serviceKind] : []);
             const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
             
             await sendLineNotification({
-              lineUserId: customer.data.lineUserId,
+              lineUserId: customer.data.Business_Messaging_Line_Id || "",
               type: "work_complete",
               jobId,
               data: {

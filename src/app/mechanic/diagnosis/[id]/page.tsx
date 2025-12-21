@@ -2281,7 +2281,7 @@ export default function DiagnosisPage() {
           tagId={tagId !== "---" ? tagId : undefined}
           serviceKind={serviceKinds.length > 0 ? serviceKinds[0] : undefined}
           currentWorkOrderName={currentWorkOrderName}
-          assignedMechanic={job.assignedMechanic}
+          assignedMechanic={job.assignedMechanic || undefined}
           backHref="/"
           courtesyCars={courtesyCars}
         />
@@ -2570,7 +2570,7 @@ export default function DiagnosisPage() {
             audioData={faultAudioData}
             onAudioCapture={handleFaultAudioCapture}
             onAudioRemove={handleFaultAudioRemove}
-            errorLampInfo={errorLampInfo}
+            errorLampInfo={errorLampInfo || undefined}
             notes={faultNotes}
             onNotesChange={setFaultNotes}
             disabled={isSubmitting}
