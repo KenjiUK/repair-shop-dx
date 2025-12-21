@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+// このページは動的レンダリングが必要（URLパラメータを使用するため）
+export const dynamic = 'force-dynamic';
+
+import { useState, useMemo, useEffect } from "react";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -453,7 +456,12 @@ function CustomerDashboardContent() {
   );
 }
 
+// Next.js 16では、クライアントコンポーネントでwindow.locationを使用する場合、
+// 静的生成をスキップするためにloading.tsxを使用します
 export default CustomerDashboardContent;
+
+// 静的生成を無効化するために、このページを動的ルートとして扱います
+// このページは常にクライアント側でレンダリングされます
 
 
 
