@@ -145,12 +145,12 @@ export function OptionMenuSelector({
                         variant="outline"
                         className={cn(
                           "text-xs",
-                          menu.badge.color === "green"
+                          menu.badge?.color === "green"
                             ? "border-green-500 text-green-700 dark:text-green-400"
                             : "border-blue-500 text-blue-700 dark:text-blue-400"
                         )}
                       >
-                        {menu.badge.text}
+                        {menu.badge?.text}
                       </Badge>
                       <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                         <Clock className="h-3 w-3" />

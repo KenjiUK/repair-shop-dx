@@ -64,12 +64,6 @@ const serviceKindConfig: Record<
     bgColor: "bg-emerald-50",
     label: "タイヤ",
   },
-  "その他のメンテナンス": {
-    icon: Wrench,
-    color: "text-emerald-600", // メンテナンス系
-    bgColor: "bg-emerald-50",
-    label: "メンテナンス",
-  },
   故障診断: {
     icon: Activity,
     color: "text-rose-600", // 診断・トラブル系
@@ -82,11 +76,17 @@ const serviceKindConfig: Record<
     bgColor: "bg-orange-50",
     label: "修理・整備",
   },
-  "チューニング": {
+  チューニング: {
     icon: Zap,
     color: "text-violet-600", // カスタマイズ系
     bgColor: "bg-violet-50",
     label: "チューニング",
+  },
+  パーツ取付: {
+    icon: Package,
+    color: "text-violet-600", // カスタマイズ系
+    bgColor: "bg-violet-50",
+    label: "パーツ取付",
   },
   コーティング: {
     icon: Shield,
@@ -105,19 +105,6 @@ const serviceKindConfig: Record<
     color: "text-slate-600", // その他
     bgColor: "bg-slate-50",
     label: "その他",
-  },
-  // レガシー対応
-  チューニング: {
-    icon: Zap,
-    color: "text-violet-600", // カスタマイズ系
-    bgColor: "bg-violet-50",
-    label: "チューニング",
-  },
-  パーツ取付: {
-    icon: Package,
-    color: "text-violet-600", // カスタマイズ系
-    bgColor: "bg-violet-50",
-    label: "パーツ取付",
   },
 };
 
