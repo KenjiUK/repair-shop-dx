@@ -655,6 +655,40 @@ export interface PageViewEvent extends UsageAnalytics {
 }
 
 /**
+ * アクションイベント
+ */
+export interface ActionEvent extends UsageAnalytics {
+  /** アクション名 */
+  actionName?: string;
+  /** 結果 */
+  result?: string;
+  /** リソースID */
+  resourceId?: string;
+}
+
+/**
+ * エラーイベント
+ */
+export interface ErrorEvent extends UsageAnalytics {
+  /** エラーコード */
+  errorCode?: string;
+  /** エラーメッセージ */
+  errorMessage?: string;
+  /** 発生場所 */
+  location?: string;
+}
+
+/**
+ * タイミングイベント
+ */
+export interface TimingEvent extends UsageAnalytics {
+  /** 測定項目名 */
+  timingName?: string;
+  /** 対象 */
+  target?: string;
+}
+
+/**
  * ワークオーダーステータス
  */
 export type WorkOrderStatus =

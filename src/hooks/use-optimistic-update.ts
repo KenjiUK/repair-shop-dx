@@ -110,7 +110,7 @@ export function useOptimisticUpdate() {
         const rollback =
           rollbackData !== undefined
             ? typeof rollbackData === "function"
-              ? rollbackData(currentData)
+              ? (rollbackData as (currentData: T | undefined) => T)(currentData)
               : rollbackData
             : currentData;
 
