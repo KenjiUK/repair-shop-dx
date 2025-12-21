@@ -113,7 +113,6 @@ const serviceKindConfig: Record<
  */
 export function ServiceKindSummaryCard({
   jobs,
-  selectedServiceKind,
   onServiceKindClick,
 }: ServiceKindSummaryCardProps) {
   // 入庫区分別の件数を集計
@@ -181,7 +180,7 @@ export function ServiceKindSummaryCard({
               if (!config) return null;
 
               const Icon = config.icon;
-              const isSelected = selectedServiceKind === serviceKind;
+              const isSelected = false; // TODO: selectedServiceKindが追加されたら実装
 
               return (
                 <div

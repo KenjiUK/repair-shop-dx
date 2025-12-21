@@ -507,6 +507,30 @@ export async function fetchAllCourtesyCars(): Promise<ApiResponse<CourtesyCar[]>
 }
 
 /**
+ * タグIDからジョブを取得
+ */
+export async function fetchJobByTagId(tagId: string): Promise<ApiResponse<ZohoJob>> {
+  await delay();
+  const jobsResult = await fetchTodayJobs();
+  if (!jobsResult.success || !jobsResult.data) {
+    return error("NOT_FOUND", "ジョブの取得に失敗しました");
+  }
+  const job = jobsResult.data.find((j) => j.tagId === tagId);
+  if (!job) {
+    return error("NOT_FOUND", `タグID ${tagId} に関連付けられた案件が見つかりません`);
+  }
+  return success(job);
+}
+
+/**
+ * QRコードからジョブを取得（タグIDとして検索）
+ */
+export async function fetchJobByQrCode(qrCode: string): Promise<ApiResponse<ZohoJob>> {
+  // QRコードはタグIDとして扱う
+  return fetchJobByTagId(qrCode);
+}
+
+/**
  * 代車を返却する
  */
 export async function returnCourtesyCar(
