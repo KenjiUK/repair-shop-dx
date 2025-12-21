@@ -911,6 +911,28 @@ export function getVehicleById(vehicleId: string): ZohoVehicle | undefined {
 }
 
 /**
+ * 車両IDから車両マスタデータを取得（モック実装）
+ * 実際の実装では、Google Sheetsから取得する
+ */
+export function getVehicleMasterById(vehicleId: string): import("@/types").MasterVehicle | null {
+  const vehicle = getVehicleById(vehicleId);
+  if (!vehicle) {
+    return null;
+  }
+  // ZohoVehicleからMasterVehicleに変換（簡易実装）
+  // 実際のマスタデータ構造に合わせて変換する必要がある
+  return {
+    車両ID: vehicle.Name || vehicle.vehicleId || vehicleId,
+    顧客ID: vehicle.ID1 || vehicle.customerId || "",
+    登録番号連結: vehicle.field44 || vehicle.licensePlate || "",
+    車名: vehicle.Name || "",
+    型式: "",
+    車検有効期限: vehicle.field7 || vehicle.inspectionExpiry || "",
+    次回点検日: "",
+  };
+}
+
+/**
  * ジョブIDからジョブデータを取得
  */
 export function getJobById(jobId: string): ZohoJob | undefined {

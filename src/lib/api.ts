@@ -127,6 +127,28 @@ export async function updateJobStatus(
 }
 
 /**
+ * ジョブの基幹システム連携IDを更新
+ */
+export async function updateJobBaseSystemId(
+  id: string,
+  baseSystemId: string
+): Promise<ApiResponse<ZohoJob>> {
+  await delay();
+  
+  const jobIndex = jobs.findIndex((j) => j.id === id);
+  if (jobIndex === -1) {
+    console.log("[API] updateJobBaseSystemId: NOT FOUND", id);
+    return error("NOT_FOUND", `Job ${id} が見つかりません`);
+  }
+  
+  // 基幹システム連携IDを更新（モックなので直接変更）
+  (jobs[jobIndex] as any).field_base_system_id = baseSystemId;
+  
+  console.log("[API] updateJobBaseSystemId:", id, "→", baseSystemId);
+  return success({ ...jobs[jobIndex] });
+}
+
+/**
  * チェックイン処理（タグ紐付け + ステータス更新 + 代車貸出）
  */
 export async function checkIn(
@@ -421,6 +443,20 @@ export async function fetchVehiclesByCustomerId(
   );
   console.log("[API] fetchVehiclesByCustomerId:", customerId, customerVehicles.length, "件");
   return success(customerVehicles);
+}
+
+/**
+ * 顧客IDでジョブを検索
+ */
+export async function fetchJobsByCustomerId(
+  customerId: string
+): Promise<ApiResponse<ZohoJob[]>> {
+  await delay();
+  const customerJobs = jobs.filter(
+    (j) => j.field4?.id === customerId || j.customer?.id === customerId
+  );
+  console.log("[API] fetchJobsByCustomerId:", customerId, customerJobs.length, "件");
+  return success(customerJobs);
 }
 
 // =============================================================================
