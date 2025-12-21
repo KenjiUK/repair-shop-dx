@@ -290,7 +290,7 @@ export function JobCard({ job, onCheckIn, isCheckingIn = false, courtesyCars = [
   const actionConfig = getActionConfig(job, handleCheckIn);
   
   // 承認済み作業内容があるかチェック
-  const hasApprovedWorkItems = job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "作業中" || job.field5 === "出庫待ち" || job.field5 === "出庫済み");
+  const hasApprovedWorkItems = job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み");
   
   // 詳細情報があるかチェック
   const hasDetails = hasPreInput || hasWorkOrder || hasChangeRequest || hasApprovedWorkItems;

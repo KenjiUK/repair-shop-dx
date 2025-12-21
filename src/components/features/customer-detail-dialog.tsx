@@ -188,20 +188,7 @@ export function CustomerDetailDialog({
                   ) : null}
 
                   {/* メールアドレス */}
-                  {customer.Email || customer.email ? (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        メールアドレス
-                      </p>
-                      <button
-                        onClick={() => handleEmailClick(customer.Email || customer.email || "")}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline break-all text-left"
-                      >
-                        {customer.Email || customer.email}
-                      </button>
-                    </div>
-                  ) : null}
+                  {/* メールアドレス - TODO: ZohoCustomer型にemailプロパティが追加されたら実装 */}
 
                   {/* LINE ID */}
                   {customer.Business_Messaging_Line_Id || customer.lineId ? (
