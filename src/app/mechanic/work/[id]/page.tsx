@@ -483,10 +483,11 @@ export default function MechanicWorkPage() {
   const serviceKinds = job?.field_service_kinds || (job?.serviceKind ? [job.serviceKind] : []);
   const isInspection = serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
   const isTireReplacement = serviceKinds.includes("タイヤ交換・ローテーション" as ServiceKind);
-  const isMaintenance = serviceKinds.includes("その他のメンテナンス" as ServiceKind);
-  const isTuningParts = serviceKinds.includes("チューニング・パーツ取付" as ServiceKind) ||
+  const isMaintenance = serviceKinds.includes("その他" as ServiceKind);
+  const isTuningParts = (
     serviceKinds.includes("チューニング" as ServiceKind) ||
-    serviceKinds.includes("パーツ取付" as ServiceKind);
+    serviceKinds.includes("パーツ取付" as ServiceKind)
+  );
   const isCoating = serviceKinds.includes("コーティング" as ServiceKind);
   const isBodyPaint = serviceKinds.includes("板金・塗装" as ServiceKind);
   const isRestore = serviceKinds.includes("レストア" as ServiceKind);
@@ -1025,9 +1026,9 @@ export default function MechanicWorkPage() {
         return "エンジンオイル交換作業";
       } else if (serviceKind === "タイヤ交換・ローテーション") {
         return "タイヤ交換・ローテーション作業";
-      } else if (serviceKind === "その他のメンテナンス") {
+      } else if (serviceKind === "その他") {
         return "その他のメンテナンス作業";
-      } else if (serviceKind === "チューニング・パーツ取付" || serviceKind === "チューニング" || serviceKind === "パーツ取付") {
+      } else if (serviceKind === "チューニング" || serviceKind === "パーツ取付") {
         return "チューニング・パーツ取付作業";
       } else if (serviceKind === "コーティング") {
         return "コーティング作業";
@@ -1054,11 +1055,12 @@ export default function MechanicWorkPage() {
       return "エンジンオイル交換作業";
     } else if (serviceKinds.includes("タイヤ交換・ローテーション" as ServiceKind)) {
       return "タイヤ交換・ローテーション作業";
-    } else if (serviceKinds.includes("その他のメンテナンス" as ServiceKind)) {
+    } else if (serviceKinds.includes("その他" as ServiceKind)) {
       return "その他のメンテナンス作業";
-    } else if (serviceKinds.includes("チューニング・パーツ取付" as ServiceKind) ||
+    } else if (
       serviceKinds.includes("チューニング" as ServiceKind) ||
-      serviceKinds.includes("パーツ取付" as ServiceKind)) {
+      serviceKinds.includes("パーツ取付" as ServiceKind)
+    ) {
       return "チューニング・パーツ取付作業";
     } else if (serviceKinds.includes("コーティング" as ServiceKind)) {
       return "コーティング作業";

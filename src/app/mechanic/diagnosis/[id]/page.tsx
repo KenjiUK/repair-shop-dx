@@ -584,9 +584,10 @@ export default function DiagnosisPage() {
     return serviceKinds.includes("その他のメンテナンス" as ServiceKind);
   }, [serviceKinds]);
   const isTuningParts = useMemo(() => {
-    return serviceKinds.includes("チューニング・パーツ取付" as ServiceKind) ||
+    return (
       serviceKinds.includes("チューニング" as ServiceKind) ||
-      serviceKinds.includes("パーツ取付" as ServiceKind);
+      serviceKinds.includes("パーツ取付" as ServiceKind)
+    );
   }, [serviceKinds]);
   const isCoating = useMemo(() => {
     return serviceKinds.includes("コーティング" as ServiceKind);

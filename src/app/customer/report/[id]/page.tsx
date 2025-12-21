@@ -176,7 +176,7 @@ export default function CustomerReportPage() {
     data: jobResult,
     error: jobError,
     isLoading: isJobLoading,
-  } = useSWR(reportId ? `job-${reportId}` : null, () => fetchJobById(reportId), {
+  } = useSWR(reportId ? `job-${reportId}` : null, reportId ? () => fetchJobById(reportId) : null, {
     revalidateOnFocus: false,
   });
 
@@ -208,7 +208,7 @@ export default function CustomerReportPage() {
     // すべてのワークオーダーから作業データを取得
     workOrders.forEach((workOrder) => {
       if (workOrder.work?.records) {
-        (workOrder.work.records as Array<{ photos?: Array<{ type: string; url: string }>; content?: string }>).forEach((record, index) => {
+        (workOrder.work.records as Array<{ photos?: Array<{ type: string; url: string; fileId?: string }>; content?: string }>).forEach((record, index) => {
           if (record.photos && record.photos.length > 0) {
             // Before/After写真を分類
             const beforePhotos = record.photos.filter((p) => p.type === "before");
@@ -314,7 +314,7 @@ export default function CustomerReportPage() {
     // すべてのワークオーダーから作業データを取得して写真のファイルIDを取得
     workOrders?.forEach((workOrder) => {
       if (workOrder.work?.records) {
-        workOrder.work.records.forEach((record, recordIndex) => {
+        (workOrder.work.records as Array<{ photos?: Array<{ type: string; url: string; fileId?: string }>; content?: string }>).forEach((record, recordIndex) => {
           if (record.photos && record.photos.length > 0) {
             record.photos.forEach((photo, photoIndex) => {
               const itemId = `${workOrder.id}-${recordIndex}-${photoIndex}`;
@@ -323,7 +323,7 @@ export default function CustomerReportPage() {
               photos.push({
                 id: `${itemId}-${photo.type}`,
                 url: photo.url,
-                type: photo.type,
+                type: photo.type as "before" | "after" | "general",
                 caption: `${itemName} (${photo.type === "before" ? "Before" : "After"})`,
                 fileId: photo.fileId, // ファイルIDを設定
               });
@@ -347,13 +347,14 @@ export default function CustomerReportPage() {
     
     // すべてのワークオーダーから診断データを取得して動画を取得
     workOrders?.forEach((workOrder) => {
-      if (workOrder.diagnosis?.videos && workOrder.diagnosis.videos.length > 0) {
-        workOrder.diagnosis.videos.forEach((video, videoIndex) => {
+      const diagnosisVideos = workOrder.diagnosis?.videos as Array<{ url: string; type?: string; position?: string }> | undefined;
+      if (diagnosisVideos && diagnosisVideos.length > 0) {
+        diagnosisVideos.forEach((video, videoIndex) => {
           videos.push({
             id: `${workOrder.id}-video-${videoIndex}`,
             url: video.url,
             title: `${workOrder.serviceKind}作業動画`,
-            position: video.position,
+            position: video.position || "general",
           });
         });
       }
@@ -786,7 +787,7 @@ export default function CustomerReportPage() {
         <Separator />
 
         {/* 次回点検案内 */}
-        {job?.field6?.field7 && (
+        {false && (
           <section>
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="py-4">

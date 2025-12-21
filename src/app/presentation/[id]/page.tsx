@@ -103,7 +103,7 @@ export default function PresentationPage() {
     data: jobResult,
     error: jobError,
     isLoading: isJobLoading,
-  } = useSWR(jobId ? `job-${jobId}` : null, () => fetchJobById(jobId), {
+  } = useSWR(jobId ? `job-${jobId}` : null, jobId ? () => fetchJobById(jobId) : null, {
     revalidateOnFocus: false,
   });
 
@@ -130,7 +130,7 @@ export default function PresentationPage() {
     
     workOrders.forEach((workOrder) => {
       if (workOrder.work?.records) {
-        workOrder.work.records.forEach((record, index) => {
+        (workOrder.work.records as Array<{ photos?: Array<{ type: string; url: string; fileId?: string }>; content?: string }>).forEach((record, index) => {
           if (record.photos && record.photos.length > 0) {
             const beforePhotos = record.photos.filter((p) => p.type === "before");
             const afterPhotos = record.photos.filter((p) => p.type === "after");
@@ -317,7 +317,7 @@ export default function PresentationPage() {
           {/* Before/Afterギャラリー */}
           <TabsContent value="gallery" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {mockPhotos.map((photo) => (
+              {photos.map((photo) => (
                 <ComparisonCard
                   key={photo.id}
                   itemName={photo.itemName}
@@ -340,7 +340,7 @@ export default function PresentationPage() {
           {/* 請求書 */}
           <TabsContent value="invoice">
             <InvoiceTab
-              customerName={mockJobData.customerName}
+              customerName={customerName}
               onShowInvoice={handleShowInvoice}
             />
           </TabsContent>
