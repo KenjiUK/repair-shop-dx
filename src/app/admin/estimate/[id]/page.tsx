@@ -552,14 +552,15 @@ export default function EstimatePage() {
 
   // その他のメンテナンスかどうかを判定
   const isMaintenance = useMemo(() => {
-    return serviceKinds.includes("その他のメンテナンス" as ServiceKind);
+    return serviceKinds.includes("その他" as ServiceKind);
   }, [serviceKinds]);
 
   // チューニング・パーツ取付かどうかを判定
   const isTuningParts = useMemo(() => {
-    return serviceKinds.includes("チューニング・パーツ取付" as ServiceKind) ||
+    return (
       serviceKinds.includes("チューニング" as ServiceKind) ||
-      serviceKinds.includes("パーツ取付" as ServiceKind);
+      serviceKinds.includes("パーツ取付" as ServiceKind)
+    );
   }, [serviceKinds]);
 
   // コーティングかどうかを判定
@@ -787,7 +788,7 @@ export default function EstimatePage() {
 
     // その他のメンテナンスのワークオーダーを取得
     const maintenanceWorkOrder = workOrders.find(
-      (wo) => wo.serviceKind === "その他のメンテナンス"
+      (wo) => wo.serviceKind === "その他"
     );
 
     if (!maintenanceWorkOrder?.diagnosis?.items) return;
@@ -851,7 +852,7 @@ export default function EstimatePage() {
 
     // チューニング・パーツ取付のワークオーダーを取得
     const tuningPartsWorkOrder = workOrders.find(
-      (wo) => wo.serviceKind === "チューニング・パーツ取付" || wo.serviceKind === "チューニング" || wo.serviceKind === "パーツ取付"
+      (wo) => wo.serviceKind === "チューニング" || wo.serviceKind === "パーツ取付"
     );
 
     if (!tuningPartsWorkOrder?.diagnosis?.items) return;
@@ -1226,29 +1227,41 @@ export default function EstimatePage() {
 
     // 故障診断固有情報を読み込む
     if (estimate.faultDiagnosisInfo) {
-      setCauseExplanation(estimate.faultDiagnosisInfo.causeExplanation || "");
-      setRepairProposal(estimate.faultDiagnosisInfo.repairProposal || "");
-      if (estimate.faultDiagnosisInfo.diagnosticToolResultFileId || estimate.faultDiagnosisInfo.diagnosticToolResultUrl) {
+      const faultInfo = estimate.faultDiagnosisInfo as {
+        causeExplanation?: string;
+        repairProposal?: string;
+        diagnosticToolResultFileId?: string;
+        diagnosticToolResultUrl?: string;
+      };
+      setCauseExplanation(faultInfo.causeExplanation || "");
+      setRepairProposal(faultInfo.repairProposal || "");
+      if (faultInfo.diagnosticToolResultFileId || faultInfo.diagnosticToolResultUrl) {
         setDiagnosticToolResult({
-          fileId: estimate.faultDiagnosisInfo.diagnosticToolResultFileId,
-          fileUrl: estimate.faultDiagnosisInfo.diagnosticToolResultUrl,
+          fileId: faultInfo.diagnosticToolResultFileId,
+          fileUrl: faultInfo.diagnosticToolResultUrl,
         });
       }
     }
 
     // 修理・整備固有情報を読み込む
     if (estimate.repairInfo) {
-      if (estimate.repairInfo.audioUrl) {
+      const repairInfo = estimate.repairInfo as { audioUrl?: string };
+      if (repairInfo.audioUrl) {
         setAudioData({
-          audioUrl: estimate.repairInfo.audioUrl,
+          audioUrl: repairInfo.audioUrl,
         });
       }
     }
 
     // 板金・塗装固有情報を読み込む
     if (estimate.bodyPaintInfo) {
-      setBodyPaintHasInsurance(estimate.bodyPaintInfo.hasInsurance || false);
-      setBodyPaintInsuranceCompany(estimate.bodyPaintInfo.insuranceCompany || "");
+      const bodyPaintInfo = estimate.bodyPaintInfo as {
+        hasInsurance?: boolean;
+        insuranceCompany?: string;
+        [key: string]: unknown;
+      };
+      setBodyPaintHasInsurance(bodyPaintInfo.hasInsurance || false);
+      setBodyPaintInsuranceCompany(bodyPaintInfo.insuranceCompany || "");
       // bodyPaintEstimateDataは別途読み込む必要がある（見積項目から復元）
     }
 

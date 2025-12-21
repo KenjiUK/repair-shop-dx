@@ -131,7 +131,7 @@ export async function GET(
     }
 
     // 顧客IDを取得（field4.idまたはfield4.nameから顧客IDを抽出）
-    const customer = job.field4;
+    const customer = job.success && job.data ? job.data.field4 : null;
     if (!customer) {
       return errorResponse("顧客情報が見つかりません", "CUSTOMER_NOT_FOUND", 404);
     }

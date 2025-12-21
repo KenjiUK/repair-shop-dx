@@ -81,7 +81,7 @@ async function getNotificationHistoryEntry(
     const rows = data.values || [];
 
     if (rows.length === 0) {
-      return null;
+      return { entry: null, rowIndex: -1 };
     }
 
     // ヘッダー行を取得
@@ -296,9 +296,9 @@ export async function POST(
       type: historyEntry.type,
       jobId: historyEntry.jobId,
       data: {
-        customerName: customer?.name || customer?.Last_Name || "",
-        vehicleName: vehicle?.field44 || vehicle?.name || "",
-        licensePlate: vehicle?.field44 || undefined,
+        customerName: customer?.name || "",
+        vehicleName: vehicle?.name || "",
+        licensePlate: undefined,
         serviceKind: job.field_service_kinds?.[0] || "その他",
         // 通知タイプに応じて追加データを設定
         ...(historyEntry.type === "estimate" && {
