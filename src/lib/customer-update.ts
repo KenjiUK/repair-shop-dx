@@ -171,6 +171,9 @@ export async function markChangeRequestCompleted(
     const { removeChangeRequestsFromDescription } = await import(
       "./customer-description-append"
     );
+    if (!customer) {
+      throw new Error("顧客情報が見つかりません");
+    }
     const updatedDescription = removeChangeRequestsFromDescription(customer.Description);
 
     // Descriptionを更新

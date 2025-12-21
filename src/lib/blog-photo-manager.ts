@@ -447,9 +447,7 @@ export async function getBlogPublishedFlag(
     
     // WorkOrder IDを取得（指定されていない場合は最初のワークオーダーを使用）
     let targetWorkOrderId = workOrderId;
-    if (!targetWorkOrderId && job.workOrders && job.workOrders.length > 0) {
-      targetWorkOrderId = job.workOrders[0].id;
-    }
+    // TODO: ZohoJob型にworkOrdersプロパティが追加されたら実装
     if (!targetWorkOrderId) {
       // ワークオーダーIDが取得できない場合は、jobIdを使用
       targetWorkOrderId = jobId;
