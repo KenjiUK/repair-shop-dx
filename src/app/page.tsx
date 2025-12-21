@@ -181,7 +181,7 @@ function JobList({
         >
           <JobCard
             job={job}
-            onCheckIn={onCheckIn}
+            onCheckIn={() => onCheckIn(job.id)}
             courtesyCars={courtesyCars}
           />
         </div>
@@ -354,9 +354,7 @@ export default function Home() {
         updateFn: async () => {
           const result = await checkIn(
             selectedJob.id,
-            selectedTagId,
-            carId || undefined,
-            errorLampInfo || undefined
+            selectedTagId
           );
           if (!result.success) {
             throw new Error(result.error?.message || "チェックインに失敗しました");
@@ -365,12 +363,12 @@ export default function Home() {
           // 入庫完了のLINE通知を送信
           try {
             const customer = await fetchCustomerById(selectedJob.field4?.id || "");
-            if (customer.success && customer.data?.lineUserId) {
+            if (customer.success && customer.data?.Business_Messaging_Line_Id) {
               const serviceKinds = selectedJob.field_service_kinds || (selectedJob.serviceKind ? [selectedJob.serviceKind] : []);
               const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
               
               await sendLineNotification({
-                lineUserId: customer.data.lineUserId,
+                lineUserId: customer.data.Business_Messaging_Line_Id || "",
                 type: "check_in",
                 jobId: selectedJob.id,
                 data: {
@@ -705,18 +703,6 @@ export default function Home() {
               {/* 1. 本日の状況 */}
               <TodaySummaryCard 
                 jobs={jobs ?? []}
-                selectedStatus={selectedStatus}
-                onStatusClick={(filterValue) => {
-                  // filterValueは既にZoho CRMのステータス値（field5）に変換済み
-                  setSelectedStatus(filterValue);
-                  // フィルター適用時にスクロール
-                  setTimeout(() => {
-                    const jobsSection = document.getElementById("jobs-section");
-                    if (jobsSection) {
-                      jobsSection.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }
-                  }, 100);
-                }}
               />
               {/* 2. 入庫区分別 */}
               <ServiceKindSummaryCard
