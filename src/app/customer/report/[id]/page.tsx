@@ -787,29 +787,7 @@ export default function CustomerReportPage() {
         <Separator />
 
         {/* 次回点検案内 */}
-        {false && (
-          <section>
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="py-4">
-                <div className="flex items-start gap-3">
-                  <Calendar className="h-6 w-6 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-blue-900">次回車検予定</p>
-                    <p className="text-blue-700">
-                      {new Date(job.field6.field7).toLocaleDateString("ja-JP", {
-                        year: "numeric",
-                        month: "long",
-                      })}
-                    </p>
-                    <p className="text-sm text-blue-600 mt-1">
-                      時期が近づきましたらご案内いたします
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-        )}
+        {/* TODO: 車検有効期限はZohoVehicleから取得する必要があります */}
 
         {/* ブログ用写真公開 */}
         <section>
