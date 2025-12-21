@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 /**
  * ページ遷移時のFOUC対策プロバイダー
@@ -9,7 +9,6 @@ import { usePathname, useSearchParams } from "next/navigation";
  */
 export function NavigationProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     // ページ遷移開始時にbodyにdata属性を設定
@@ -34,7 +33,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       document.body.removeAttribute("data-navigating");
       document.body.removeAttribute("data-loading");
     };
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   return <>{children}</>;
 }
