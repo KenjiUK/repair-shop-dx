@@ -464,6 +464,7 @@ export default function CustomerApprovalPage() {
         name: item.name,
         price: item.price,
         priority: item.priority,
+        selected: true,
         linkedPhotoUrls: item.photoUrl ? [item.photoUrl] : [],
         linkedVideoUrl: null,
         note: item.comment || null,
@@ -502,7 +503,7 @@ export default function CustomerApprovalPage() {
   const optionalTotal = optionalItems.filter((i) => i.selected).reduce((s, i) => s + i.price, 0);
 
   // 有効期限チェック（見積データから取得、デフォルトは7日間）
-  const expiresAt = estimateData?.expiresAt 
+  const expiresAt = estimateData?.expiresAt && typeof estimateData.expiresAt === "string"
     ? new Date(estimateData.expiresAt).toISOString()
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7日後
   const isExpired = isEstimateExpired(expiresAt);
