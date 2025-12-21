@@ -333,7 +333,7 @@ export async function publishBlogPhotos(
       }
 
       const job = jobResult.data;
-      const customerId = job.field4?.ID1 || job.field4?.id || "";
+      const customerId = job.field4?.id || "";
       const customerName = job.field4?.name || "";
       const vehicleId = job.field6?.id || "";
       const vehicleName = job.field6?.name || "";
@@ -341,9 +341,7 @@ export async function publishBlogPhotos(
       
       // WorkOrder IDを取得（指定されていない場合は最初のワークオーダーを使用）
       let workOrderId = request.workOrderId;
-      if (!workOrderId && job.workOrders && job.workOrders.length > 0) {
-        workOrderId = job.workOrders[0].id;
-      }
+      // TODO: ZohoJob型にworkOrdersプロパティが追加されたら実装
       if (!workOrderId) {
         // ワークオーダーIDが取得できない場合は、jobIdを使用
         workOrderId = request.jobId;
@@ -441,7 +439,7 @@ export async function getBlogPublishedFlag(
     }
 
     const job = jobResult.data;
-    const customerId = job.field4?.ID1 || job.field4?.id || "";
+    const customerId = job.field4?.id || "";
     const customerName = job.field4?.name || "";
     const vehicleId = job.field6?.id || "";
     const vehicleName = job.field6?.name || "";
