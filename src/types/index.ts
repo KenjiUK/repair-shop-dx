@@ -667,6 +667,54 @@ export type WorkOrderStatus =
   | "完了";
 
 /**
+ * スマートタグステータス
+ */
+export type TagStatus = "available" | "in_use" | "maintenance" | "retired";
+
+/**
+ * セッションステータス
+ */
+export type SessionStatus = "active" | "closed";
+
+/**
+ * スマートタグシート行（Google Sheets）
+ */
+export interface TagSheetRow {
+  /** タグID */
+  タグID: string;
+  /** QRコード */
+  QRコード: string;
+  /** ステータス */
+  ステータス: TagStatus;
+  /** 作成日時 */
+  作成日時: string;
+  /** 更新日時 */
+  更新日時: string;
+}
+
+/**
+ * セッションシート行（Google Sheets）
+ */
+export interface SessionSheetRow {
+  /** セッションID */
+  セッションID: string;
+  /** タグID */
+  タグID: string;
+  /** Job ID */
+  JobID: string;
+  /** 紐付け日時 */
+  紐付け日時: string;
+  /** 解除日時 */
+  解除日時: string | null;
+  /** ステータス */
+  ステータス: SessionStatus;
+  /** 作成日時 */
+  作成日時: string;
+  /** 更新日時 */
+  更新日時: string;
+}
+
+/**
  * ワークオーダー
  */
 export interface WorkOrder {

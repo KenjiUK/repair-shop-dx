@@ -301,7 +301,7 @@ export async function POST(
         licensePlate: undefined,
         serviceKind: job.field_service_kinds?.[0] || "その他",
         // 通知タイプに応じて追加データを設定
-        ...(historyEntry.type === "estimate" && {
+        ...(historyEntry.type === "estimate_sent" && {
           magicLinkUrl: undefined, // マジックリンクは再生成が必要な場合がある
         }),
       },

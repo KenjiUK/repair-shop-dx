@@ -22,7 +22,7 @@ function errorResponse(
   message: string,
   code: string,
   status: number = 500
-): NextResponse {
+): NextResponse<ApiResponse<BatchUpdateResult>> {
   return NextResponse.json(
     {
       success: false,
@@ -133,9 +133,9 @@ async function handlePOST(
             {
               location: "handlePOST (batch update)",
               request: {
-                resourceType: entry.resourceType,
-                resourceId: entry.resourceId,
-                data: entry.data,
+                url: entry.resourceId,
+                method: "PUT",
+                body: entry.data,
               },
             }
           );
