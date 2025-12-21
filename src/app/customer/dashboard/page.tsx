@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -233,7 +233,7 @@ function CustomerJobCard({ job }: { job: ZohoJob }) {
 // Main Page Component
 // =============================================================================
 
-export default function CustomerDashboardPage() {
+function CustomerDashboardContent() {
   const searchParams = useSearchParams();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [isLoadingCustomerId, setIsLoadingCustomerId] = useState(true);
@@ -449,6 +449,21 @@ export default function CustomerDashboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function CustomerDashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <Skeleton className="h-8 w-48 mx-auto mb-4" />
+          <Skeleton className="h-4 w-64 mx-auto" />
+        </div>
+      </div>
+    }>
+      <CustomerDashboardContent />
+    </Suspense>
   );
 }
 

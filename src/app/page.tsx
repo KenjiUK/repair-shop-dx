@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useMemo, useRef, useEffect } from "react";
 import useSWR from "swr";
 import { Badge } from "@/components/ui/badge";
