@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { MasterVehicle } from "@/types";
+import { getVehicleById } from "@/lib/mock-db";
 
 // =============================================================================
 // 設定
