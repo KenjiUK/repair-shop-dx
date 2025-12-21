@@ -887,10 +887,15 @@ export default function MechanicWorkPage() {
             completedAt: new Date().toISOString(),
             mechanicName: job.assignedMechanic || undefined,
             // コーティング固有情報
-            coatingInfo: isCoating ? {
-              dryingProcess: coatingDryingProcess,
-              maintenancePeriod: coatingMaintenancePeriod,
+            coatingInfo: isCoating && (coatingDryingProcess || coatingMaintenancePeriod) ? {
+              dryingProcess: JSON.stringify(coatingDryingProcess) as unknown as string,
+              maintenancePeriod: JSON.stringify(coatingMaintenancePeriod) as unknown as string,
             } : undefined,
+          } as {
+            records: Array<{ time: string; content: string; photos: Array<{ type: string; url: string; fileId?: string }> }>;
+            completedAt: string;
+            mechanicName?: string;
+            coatingInfo?: { [key: string]: unknown; dryingProcess?: string; maintenancePeriod?: string };
           };
 
           const updateResult = await updateWorkOrder(jobId, selectedWorkOrder.id, {
@@ -1032,8 +1037,6 @@ export default function MechanicWorkPage() {
         return "チューニング・パーツ取付作業";
       } else if (serviceKind === "コーティング") {
         return "コーティング作業";
-      } else if (serviceKind === "板金・塗装") {
-        return "板金・塗装作業";
       } else if (serviceKind === "レストア") {
         return "レストア作業";
       } else if (serviceKind === "その他") {
