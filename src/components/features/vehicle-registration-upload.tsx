@@ -198,7 +198,7 @@ export function VehicleRegistrationUpload({
             {/* エラーメッセージ */}
             {uploadError && (
               <ErrorMessage
-                code="UPLOAD_ERROR"
+                code={undefined}
                 message={uploadError}
                 category={ErrorCategory.CLIENT_ERROR}
               />

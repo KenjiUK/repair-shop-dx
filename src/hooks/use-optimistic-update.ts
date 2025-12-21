@@ -75,7 +75,7 @@ export function useOptimisticUpdate() {
       // 楽観的更新データを計算
       const newData =
         typeof optimisticData === "function"
-          ? optimisticData(currentData)
+          ? (optimisticData as (currentData: T | undefined) => T)(currentData)
           : optimisticData;
 
       // 即座にUIを更新（楽観的更新）

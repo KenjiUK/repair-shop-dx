@@ -9,10 +9,8 @@ import {
   login as loginApi,
   logout as logoutApi,
   refreshSession,
-  User,
-  Session,
 } from "@/lib/auth";
-import { LoginRequest } from "@/types/auth";
+import { LoginRequest, User, Session } from "@/types/auth";
 
 /**
  * 認証フック
