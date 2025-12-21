@@ -1,8 +1,5 @@
 "use client";
 
-// このページは動的レンダリングが必要（URLパラメータを使用するため）
-export const dynamic = 'force-dynamic';
-
 import { useState, useMemo, useEffect } from "react";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
