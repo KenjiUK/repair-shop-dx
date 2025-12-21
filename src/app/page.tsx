@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
 import useSWR from "swr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -194,7 +194,7 @@ function JobList({
 // Main Page Component
 // =============================================================================
 
-export default function Home() {
+function HomeContent() {
 
   // SWRでデータ取得
   const {
@@ -1039,5 +1039,17 @@ export default function Home() {
         }}
       />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
