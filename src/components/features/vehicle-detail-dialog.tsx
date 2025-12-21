@@ -222,7 +222,7 @@ export function VehicleDetailDialog({
                     </div>
                   )}
                   {/* 走行距離セクション */}
-                  {(reportedMileage !== null && reportedMileage !== undefined) || vehicleMaster.走行距離 ? (
+                  {(reportedMileage !== null && reportedMileage !== undefined) ? (
                     <div className="col-span-2 space-y-2 pt-2 border-t border-slate-200">
                       <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
                         <Gauge className="h-3 w-3" />
@@ -238,19 +238,7 @@ export function VehicleDetailDialog({
                           </p>
                         </div>
                       )}
-                      {vehicleMaster.走行距離 && (
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">
-                            前回作業時点（車両DB）
-                          </p>
-                          <p className="text-sm font-medium text-slate-600">
-                            {(() => {
-                              const mileage = parseFloat(vehicleMaster.走行距離);
-                              return isNaN(mileage) ? vehicleMaster.走行距離 : mileage.toLocaleString();
-                            })()} km
-                          </p>
-                        </div>
-                      )}
+                      {/* TODO: MasterVehicle型に走行距離プロパティが追加されたら実装 */}
                     </div>
                   ) : null}
                 </div>
