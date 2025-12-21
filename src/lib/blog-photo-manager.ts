@@ -336,7 +336,7 @@ export async function publishBlogPhotos(
       const customerId = job.field4?.ID1 || job.field4?.id || "";
       const customerName = job.field4?.name || "";
       const vehicleId = job.field6?.Name || job.field6?.id || "";
-      const vehicleName = job.field6?.field44 || job.field6?.name || "";
+      const vehicleName = job.field6?.name || "";
       const jobDate = job.field22 ? new Date(job.field22).toISOString().slice(0, 10).replace(/-/g, "") : request.workDate;
       
       // WorkOrder IDを取得（指定されていない場合は最初のワークオーダーを使用）

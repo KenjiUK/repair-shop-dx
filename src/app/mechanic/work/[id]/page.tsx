@@ -842,7 +842,7 @@ export default function MechanicWorkPage() {
               data: {
                 customerName: job.field4?.name || "お客様",
                 vehicleName: job.field6?.name || "車両",
-                licensePlate: job.field6?.field44 || undefined,
+                licensePlate: job.field6?.name ? job.field6.name.split(" / ")[1] || undefined : undefined,
                 serviceKind,
               },
             });
@@ -946,7 +946,7 @@ export default function MechanicWorkPage() {
               data: {
                 customerName: job.field4?.name || "お客様",
                 vehicleName: job.field6?.name || "車両",
-                licensePlate: job.field6?.field44 || undefined,
+                licensePlate: job.field6?.name ? job.field6.name.split(" / ")[1] || undefined : undefined,
                 serviceKind,
               },
             });

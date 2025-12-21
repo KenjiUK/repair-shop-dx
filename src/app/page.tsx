@@ -376,7 +376,7 @@ export default function Home() {
                 data: {
                   customerName: selectedJob.field4?.name || "お客様",
                   vehicleName: selectedJob.field6?.name || "車両",
-                  licensePlate: selectedJob.field6?.field44 || undefined,
+                  licensePlate: selectedJob.field6?.name ? selectedJob.field6.name.split(" / ")[1] || undefined : undefined,
                   serviceKind,
                 },
               });

@@ -208,7 +208,7 @@ export default function CustomerReportPage() {
     // すべてのワークオーダーから作業データを取得
     workOrders.forEach((workOrder) => {
       if (workOrder.work?.records) {
-        workOrder.work.records.forEach((record: { photos?: Array<{ type: string; url: string }> }, index) => {
+        (workOrder.work.records as Array<{ photos?: Array<{ type: string; url: string }>; content?: string }>).forEach((record, index) => {
           if (record.photos && record.photos.length > 0) {
             // Before/After写真を分類
             const beforePhotos = record.photos.filter((p) => p.type === "before");
@@ -284,7 +284,7 @@ export default function CustomerReportPage() {
     const firstWorkOrder = workOrders[0];
     if (firstWorkOrder.work?.records && firstWorkOrder.work.records.length > 0) {
       // 最後の作業記録をコメントとして使用
-      const lastRecord = firstWorkOrder.work.records[firstWorkOrder.work.records.length - 1];
+      const lastRecord = firstWorkOrder.work.records[firstWorkOrder.work.records.length - 1] as { content?: string };
       return lastRecord.content || "";
     }
 
