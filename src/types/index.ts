@@ -653,3 +653,63 @@ export interface PageViewEvent extends UsageAnalytics {
   /** ページタイトル */
   title?: string;
 }
+
+/**
+ * ワークオーダーステータス
+ */
+export type WorkOrderStatus =
+  | "未開始"
+  | "診断中"
+  | "見積作成待ち"
+  | "顧客承認待ち"
+  | "作業待ち"
+  | "作業中"
+  | "完了";
+
+/**
+ * ワークオーダー
+ */
+export interface WorkOrder {
+  /** ワークオーダーID */
+  id: string;
+  /** ジョブID */
+  jobId: string;
+  /** 入庫区分 */
+  serviceKind: ServiceKind;
+  /** ステータス */
+  status: WorkOrderStatus;
+  /** 診断データ */
+  diagnosis?: {
+    items?: DiagnosisItem[];
+    photos?: { position: string; url: string }[];
+    mileage?: number;
+    [key: string]: unknown;
+  } | null;
+  /** 見積データ */
+  estimate?: {
+    items?: EstimateItem[];
+    [key: string]: unknown;
+  } | null;
+  /** 作業データ */
+  work?: {
+    mechanicName?: string;
+    completedAt?: string;
+    coatingInfo?: {
+      dryingProcess?: string;
+      maintenancePeriod?: string;
+      [key: string]: unknown;
+    };
+    records?: unknown[];
+    [key: string]: unknown;
+  } | null;
+  /** 基幹システム連携ID */
+  baseSystemItemId?: string | null;
+  /** コスト情報 */
+  cost?: {
+    [key: string]: unknown;
+  } | null;
+  /** 作成日時 */
+  createdAt: string;
+  /** 更新日時 */
+  updatedAt: string;
+}
