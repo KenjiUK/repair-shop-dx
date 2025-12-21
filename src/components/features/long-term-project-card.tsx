@@ -90,8 +90,6 @@ function getServiceIcon(serviceKind: ServiceKind) {
   switch (serviceKind) {
     case "レストア":
       return <Sparkles className="h-5 w-5" />;
-    case "板金・塗装":
-      return <Paintbrush className="h-5 w-5" />;
     default:
       return <TrendingUp className="h-5 w-5" />;
   }
@@ -104,8 +102,6 @@ function getServiceColor(serviceKind: ServiceKind): string {
   switch (serviceKind) {
     case "レストア":
       return "text-purple-600";
-    case "板金・塗装":
-      return "text-blue-600";
     default:
       return "text-slate-600";
   }
@@ -364,7 +360,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [] }: Lon
               )}
               
               {/* 顧客の連絡先情報（携帯電話とメールアドレス） */}
-              {customerData && (customerData.Mobile || customerData.Email || customerData.email) && (
+               {customerData && customerData.Mobile && (
                 <div className="flex flex-wrap items-center gap-2">
                   {customerData.Mobile && (
                     <a
@@ -379,19 +375,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [] }: Lon
                       <span>{customerData.Mobile}</span>
                     </a>
                   )}
-                  {(customerData.Email || customerData.email) && (
-                    <a
-                      href={`mailto:${customerData.Email || customerData.email}`}
-                      className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-blue-600 transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        triggerHapticFeedback("light");
-                      }}
-                    >
-                      <Mail className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                      <span>{customerData.Email || customerData.email}</span>
-                    </a>
-                  )}
+                  {/* メールアドレス - TODO: ZohoCustomer型にemailプロパティが追加されたら実装 */}
                 </div>
               )}
             </div>

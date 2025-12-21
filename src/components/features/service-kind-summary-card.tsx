@@ -82,7 +82,7 @@ const serviceKindConfig: Record<
     bgColor: "bg-orange-50",
     label: "修理・整備",
   },
-  "チューニング・パーツ取付": {
+  "チューニング": {
     icon: Zap,
     color: "text-violet-600", // カスタマイズ系
     bgColor: "bg-violet-50",
@@ -93,12 +93,6 @@ const serviceKindConfig: Record<
     color: "text-violet-600", // カスタマイズ系
     bgColor: "bg-violet-50",
     label: "コーティング",
-  },
-  "板金・塗装": {
-    icon: Paintbrush,
-    color: "text-orange-600", // 修理・整備系
-    bgColor: "bg-orange-50",
-    label: "板金・塗装",
   },
   レストア: {
     icon: Sparkles,
