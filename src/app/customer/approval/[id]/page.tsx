@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { EstimatePriority } from "@/types";
+import { EstimatePriority, EstimateItem } from "@/types";
+import { toast } from "sonner";
+import { fetchJobById, approveEstimate } from "@/lib/api";
+import { useWorkOrders } from "@/hooks/use-work-orders";
+import useSWR from "swr";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Car,
   Check,
@@ -24,6 +29,7 @@ import {
   PartyPopper,
   MessageCircle,
   Phone,
+  Loader2,
 } from "lucide-react";
 
 // =============================================================================
@@ -41,17 +47,15 @@ interface EstimateLineItem {
 }
 
 // =============================================================================
-// Mock Data
+// Helper Functions
 // =============================================================================
 
-const mockEstimateData = {
-  estimateId: "est-20241217-001",
-  customerName: "田中 太郎",
-  vehicleName: "BMW X3",
-  licensePlate: "品川 300 あ 1234",
-  createdAt: "2024-12-17T12:00:00+09:00",
-  expiresAt: "2024-12-24T23:59:59+09:00",
-};
+/**
+ * 見積もりの有効期限をチェック
+ */
+function isEstimateExpired(expiresAt: string): boolean {
+  return new Date() > new Date(expiresAt);
+}
 
 const initialItems: EstimateLineItem[] = [
   // 必須整備（松）
@@ -183,7 +187,7 @@ function EstimateItemCard({
           <div className="pt-0.5">
             {isLocked ? (
               <div className="flex h-5 w-5 items-center justify-center rounded bg-primary text-white">
-                <Lock className="h-3 w-3" />
+                <Lock className="h-3 w-3 shrink-0" />
               </div>
             ) : (
               <Checkbox
@@ -230,9 +234,9 @@ function EstimateItemCard({
                   />
                 </div>
                 <span className="flex items-center gap-1">
-                  <ImageIcon className="h-4 w-4" />
+                  <ImageIcon className="h-4 w-4 shrink-0" />
                   写真を確認
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 shrink-0" />
                 </span>
               </button>
             )}
@@ -292,7 +296,7 @@ function ThankYouScreen({ customerName }: { customerName: string }) {
 
       <PartyPopper className="h-12 w-12 text-amber-500 mb-4" />
 
-      <h1 className="text-2xl font-bold text-slate-900 mb-2">
+      <h1 className="text-xl font-bold text-slate-900 mb-2">
         ご依頼ありがとうございます！
       </h1>
 
@@ -306,11 +310,11 @@ function ThankYouScreen({ customerName }: { customerName: string }) {
           <p className="text-sm text-slate-500 mb-3">ご不明点がございましたら</p>
           <div className="space-y-2">
             <Button variant="outline" className="w-full justify-start gap-2">
-              <Phone className="h-4 w-4" />
+              <Phone className="h-4 w-4 shrink-0" />
               お電話でのお問い合わせ
             </Button>
             <Button variant="outline" className="w-full justify-start gap-2 text-green-600 border-green-200 hover:bg-green-50">
-              <MessageCircle className="h-4 w-4" />
+              <MessageCircle className="h-4 w-4 shrink-0" />
               LINEでお問い合わせ
             </Button>
           </div>
@@ -329,14 +333,58 @@ function ThankYouScreen({ customerName }: { customerName: string }) {
 // =============================================================================
 
 export default function CustomerApprovalPage() {
+  // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
   const params = useParams();
-  const estimateId = params.id as string;
+  const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
+
+  // Jobデータを取得
+  const { data: jobResult, isLoading: isJobLoading } = useSWR(
+    jobId ? `job-${jobId}` : null,
+    async () => {
+      if (!jobId) return null;
+      return await fetchJobById(jobId);
+    }
+  );
+
+  const job = jobResult?.data;
+
+  // ワークオーダーを取得（最初のワークオーダーから見積データを取得）
+  const { workOrders, isLoading: isLoadingWorkOrders } = useWorkOrders(jobId);
+  const selectedWorkOrder = workOrders && workOrders.length > 0 ? workOrders[0] : null;
+
+  // 見積データを取得
+  const estimateData = selectedWorkOrder?.estimate;
+  
+  // 顧客情報と車両情報を取得
+  const customerName = job?.field4?.name || "お客様";
+  const vehicleName = job?.field6?.name || "車両";
+  const licensePlate = job?.field6?.field44 || "";
 
   // 状態管理
-  const [items, setItems] = useState<EstimateLineItem[]>(initialItems);
+  const [items, setItems] = useState<EstimateLineItem[]>([]);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
   const [displayTotal, setDisplayTotal] = useState(0);
+  const [isApproving, setIsApproving] = useState(false);
+
+  // 見積データをEstimateLineItem形式に変換
+  useEffect(() => {
+    if (estimateData && estimateData.items) {
+      const convertedItems: EstimateLineItem[] = estimateData.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        priority: item.priority,
+        selected: true, // デフォルトで選択状態
+        photoUrl: item.linkedPhotoUrls && item.linkedPhotoUrls.length > 0 ? item.linkedPhotoUrls[0] : null,
+        comment: item.note || null,
+      }));
+      setItems(convertedItems);
+    } else if (!isJobLoading && !isLoadingWorkOrders && !estimateData) {
+      // 見積データがない場合は空の配列を設定
+      setItems([]);
+    }
+  }, [estimateData, isJobLoading, isLoadingWorkOrders]);
 
   // 合計金額を計算
   const calculateTotal = () => {
@@ -393,17 +441,55 @@ export default function CustomerApprovalPage() {
   };
 
   /**
-   * 注文確定
+   * 注文確定（見積もり承認）
    */
-  const handleOrder = () => {
-    const selectedItems = items.filter((i) => i.selected);
-    console.log("=== 注文確定 ===");
-    console.log("Estimate ID:", estimateId);
-    console.log("Selected Items:", selectedItems.map((i) => i.name));
-    console.log("Total:", calculateTotal());
+  const handleOrder = async () => {
+    if (!jobId) {
+      toast.error("ジョブIDが取得できませんでした");
+      return;
+    }
 
-    alert("注文が確定しました！");
-    setIsCompleted(true);
+    const selectedItems = items.filter((i) => i.selected);
+    
+    if (selectedItems.length === 0) {
+      toast.error("少なくとも1つの項目を選択してください");
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      // EstimateItem形式に変換
+      const estimateItems: EstimateItem[] = selectedItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        priority: item.priority,
+        linkedPhotoUrls: item.photoUrl ? [item.photoUrl] : [],
+        linkedVideoUrl: null,
+        note: item.comment || null,
+      }));
+
+      // 承認APIを呼び出す
+      const result = await approveEstimate(jobId, estimateItems);
+      
+      if (result.success) {
+        // 承認完了の通知
+        toast.success("見積もりを承認しました", {
+          description: `${selectedItems.length}項目、合計¥${formatPrice(calculateTotal())}`,
+        });
+
+        setIsCompleted(true);
+      } else {
+        throw new Error(result.error?.message || "承認処理に失敗しました");
+      }
+    } catch (error) {
+      console.error("承認エラー:", error);
+      toast.error("承認処理に失敗しました", {
+        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+      });
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   // セクション別の計算
@@ -415,9 +501,46 @@ export default function CustomerApprovalPage() {
   const recommendedTotal = recommendedItems.filter((i) => i.selected).reduce((s, i) => s + i.price, 0);
   const optionalTotal = optionalItems.filter((i) => i.selected).reduce((s, i) => s + i.price, 0);
 
+  // 有効期限チェック（見積データから取得、デフォルトは7日間）
+  const expiresAt = estimateData?.expiresAt 
+    ? new Date(estimateData.expiresAt).toISOString()
+    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7日後
+  const isExpired = isEstimateExpired(expiresAt);
+
+  // ローディング中
+  if (isJobLoading || isLoadingWorkOrders) {
+    return (
+      <div className="min-h-screen bg-slate-50 pb-32">
+        <div className="max-w-lg mx-auto px-4 py-8">
+          <Skeleton className="h-8 w-48 mb-4" />
+          <Skeleton className="h-4 w-32 mb-8" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // エラーまたは見積データがない場合
+  if (!job || !estimateData || !estimateData.items || estimateData.items.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 pb-32 flex items-center justify-center">
+        <Card className="max-w-lg mx-4">
+          <CardContent className="py-8 text-center">
+            <p className="text-slate-600 mb-4">見積データが見つかりませんでした</p>
+            <p className="text-sm text-slate-500">見積が作成されていないか、既に承認済みの可能性があります。</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // 完了画面
   if (isCompleted) {
-    return <ThankYouScreen customerName={mockEstimateData.customerName} />;
+    return <ThankYouScreen customerName={customerName} />;
   }
 
   return (
@@ -425,16 +548,32 @@ export default function CustomerApprovalPage() {
       {/* ヘッダー */}
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-4">
-          <p className="text-sm text-slate-500">お見積り</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-slate-500">お見積り</p>
+            {isExpired && (
+              <Badge variant="destructive" className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                有効期限切れ
+              </Badge>
+            )}
+          </div>
           <h1 className="text-xl font-bold text-slate-900">
-            {mockEstimateData.customerName} 様
+            {customerName} 様
           </h1>
           <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
-            <Car className="h-4 w-4" />
-            <span>{mockEstimateData.vehicleName}</span>
-            <span className="text-slate-300">|</span>
-            <span>{mockEstimateData.licensePlate}</span>
+            <Car className="h-4 w-4 shrink-0" />
+            <span>{vehicleName}</span>
+            {licensePlate && (
+              <>
+                <span className="text-slate-300">|</span>
+                <span>{licensePlate}</span>
+              </>
+            )}
           </div>
+          {!isExpired && estimateData?.expiresAt && (
+            <p className="text-xs text-slate-500 mt-2">
+              有効期限: {new Date(estimateData.expiresAt).toLocaleDateString("ja-JP")}
+            </p>
+          )}
         </div>
       </header>
 
@@ -458,7 +597,7 @@ export default function CustomerApprovalPage() {
             ))}
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-            <Lock className="h-3 w-3" />
+            <Lock className="h-3 w-3 shrink-0" />
             <span>必須項目は変更できません</span>
           </div>
         </section>
@@ -512,7 +651,7 @@ export default function CustomerApprovalPage() {
           {/* 合計金額 */}
           <div className="flex items-center justify-between mb-3">
             <span className="text-slate-600">合計（税込）</span>
-            <span className="text-2xl font-bold text-primary">
+            <span className="text-xl font-bold text-primary">
               ¥{formatPrice(displayTotal)}
             </span>
           </div>
@@ -522,14 +661,29 @@ export default function CustomerApprovalPage() {
             onClick={handleOrder}
             size="lg"
             className="w-full h-14 text-lg font-bold gap-2 bg-primary hover:bg-primary/90"
+            disabled={items.filter((i) => i.selected).length === 0 || isExpired || isApproving}
           >
-            <ShoppingCart className="h-5 w-5" />
-            この内容で作業を依頼する
+            {isApproving ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+                処理中...
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="h-5 w-5 shrink-0" />
+                {isExpired ? "有効期限切れ" : "この内容で作業を依頼する"}
+              </>
+            )}
           </Button>
 
           <p className="text-xs text-center text-slate-400 mt-2">
             ボタンを押すと注文が確定します
           </p>
+          {items.filter((i) => i.selected).length === 0 && (
+            <p className="text-xs text-center text-red-500 mt-1">
+              少なくとも1つの項目を選択してください
+            </p>
+          )}
         </div>
       </div>
 

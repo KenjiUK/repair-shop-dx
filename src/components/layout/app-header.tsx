@@ -40,10 +40,41 @@ export function AppHeader({
 }: AppHeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const [currentDateTime, setCurrentDateTime] = useState<{ date: string; time: string }>({
+    date: "",
+    time: "",
+  });
   const headerRef = useRef<HTMLElement>(null);
   const rafIdRef = useRef<number | null>(null);
   const lastScrollYRef = useRef<number>(0);
   const prevIsScrolledRef = useRef<boolean>(false);
+
+  // 日付と時間を更新（日本時間）
+  // 注意: システムはすべて日本時間（JST）で動作します
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
+      // 日本時間で日付と時刻をフォーマット
+      const dateStr = now.toLocaleDateString("ja-JP", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "long",
+        timeZone: "Asia/Tokyo", // 明示的に日本時間を指定
+      });
+      const timeStr = now.toLocaleTimeString("ja-JP", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Tokyo", // 明示的に日本時間を指定
+      });
+      setCurrentDateTime({ date: dateStr, time: timeStr });
+    };
+
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 1000); // 1秒ごとに更新
+
+    return () => clearInterval(interval);
+  }, []);
 
   // スクロール位置を検知
   useEffect(() => {
@@ -159,7 +190,7 @@ export function AppHeader({
             <Link href="/" className="flex items-center gap-3">
               <div className="relative h-9 w-36 sm:h-10 sm:w-44">
                 <Image
-                  src="/YM_WORKS_logo.png.png"
+                  src="/Ymuk-logo.png"
                   alt="YM Works"
                   fill
                   className="object-contain"
@@ -171,11 +202,20 @@ export function AppHeader({
               </span>
             </Link>
 
-            {rightArea && (
-              <div className="flex items-center gap-2">
-                {rightArea}
+            {/* 右側エリア: 日付・時間 + rightArea */}
+            <div className="flex items-center gap-4">
+              {/* 日付と時間（アイコンなし） */}
+              <div className="hidden sm:flex flex-col items-end text-sm">
+                <span className="text-xs text-slate-500">{currentDateTime.date}</span>
+                <span className="font-medium text-slate-600">{currentDateTime.time}</span>
               </div>
-            )}
+
+              {rightArea && (
+                <div className="flex items-center gap-2">
+                  {rightArea}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -189,11 +229,18 @@ export function AppHeader({
                 <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">
                   {pageTitle}
                 </h1>
-                {rightArea && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    {rightArea}
+                <div className="flex items-center gap-4">
+                  {/* 日付と時間（スクロール時も表示、アイコンなし） */}
+                  <div className="hidden sm:flex flex-col items-end text-sm">
+                    <span className="text-xs text-slate-500">{currentDateTime.date}</span>
+                    <span className="font-medium text-slate-600">{currentDateTime.time}</span>
                   </div>
-                )}
+                  {rightArea && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {rightArea}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : null}
           </>

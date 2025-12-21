@@ -11,6 +11,7 @@ import {
   ZohoVehicle,
   JobStage,
   SmartTag,
+  CourtesyCar,
   DiagnosisItem,
   EstimateItem,
   ApiResponse,
@@ -21,6 +22,7 @@ import {
   customers,
   vehicles,
   smartTags,
+  courtesyCars,
   sampleDiagnosisItems,
   sampleEstimateItems,
   getJobById,
@@ -28,6 +30,8 @@ import {
   getVehicleById,
   getAvailableTags,
   getTodayJobs,
+  getAvailableCourtesyCars,
+  getAllCourtesyCars,
 } from "./mock-db";
 
 // =============================================================================
@@ -123,12 +127,13 @@ export async function updateJobStatus(
 }
 
 /**
- * チェックイン処理（タグ紐付け + ステータス更新）
+ * チェックイン処理（タグ紐付け + ステータス更新 + 代車貸出）
  */
 export async function checkIn(
   jobId: string,
-  tagId: string
-): Promise<ApiResponse<{ job: ZohoJob; tag: SmartTag }>> {
+  tagId: string,
+  courtesyCarId?: string | null
+): Promise<ApiResponse<{ job: ZohoJob; tag: SmartTag; car?: CourtesyCar }>> {
   await delay();
   
   // ジョブを検索
@@ -151,20 +156,46 @@ export async function checkIn(
     return error("TAG_IN_USE", `Tag ${tagId} は既に使用中です`);
   }
   
+  // 代車の貸出処理（指定されている場合）
+  let rentedCar: CourtesyCar | undefined;
+  if (courtesyCarId) {
+    const carIndex = courtesyCars.findIndex((c) => c.carId === courtesyCarId);
+    if (carIndex === -1) {
+      console.log("[API] checkIn: CAR NOT FOUND", courtesyCarId);
+      return error("NOT_FOUND", `代車 ${courtesyCarId} が見つかりません`);
+    }
+    
+    if (courtesyCars[carIndex].status !== "available") {
+      console.log("[API] checkIn: CAR NOT AVAILABLE", courtesyCarId);
+      return error("CAR_NOT_AVAILABLE", `代車 ${courtesyCarId} は利用できません`);
+    }
+    
+    // 代車を貸出中に更新
+    courtesyCars[carIndex].jobId = jobId;
+    courtesyCars[carIndex].rentedAt = new Date().toISOString();
+    courtesyCars[carIndex].status = "in_use";
+    rentedCar = { ...courtesyCars[carIndex] };
+    console.log("[API] checkIn: Car rented", courtesyCarId, "→ Job", jobId);
+  }
+  
   // ジョブにタグを紐付け
+  const checkInDateTime = new Date().toISOString();
   jobs[jobIndex].tagId = tagId;
-  jobs[jobIndex].field5 = "見積作成待ち";
-  jobs[jobIndex].stage = "見積作成待ち";
+  jobs[jobIndex].field22 = checkInDateTime; // 入庫時の正確な日時を保存
+  jobs[jobIndex].arrivalDateTime = checkInDateTime;
+  jobs[jobIndex].field5 = "入庫済み";
+  jobs[jobIndex].stage = "入庫済み";
   
   // タグの状態を更新
   smartTags[tagIndex].jobId = jobId;
   smartTags[tagIndex].linkedAt = new Date().toISOString();
   smartTags[tagIndex].status = "in_use";
   
-  console.log("[API] checkIn:", jobId, "← Tag", tagId);
+  console.log("[API] checkIn:", jobId, "← Tag", tagId, courtesyCarId ? `+ Car ${courtesyCarId}` : "");
   return success({
     job: { ...jobs[jobIndex] },
     tag: { ...smartTags[tagIndex] },
+    car: rentedCar,
   });
 }
 
@@ -413,6 +444,102 @@ export async function fetchAllTags(): Promise<ApiResponse<SmartTag[]>> {
   await delay();
   console.log("[API] fetchAllTags:", smartTags.length, "件");
   return success([...smartTags]);
+}
+
+// =============================================================================
+// Courtesy Car API
+// =============================================================================
+
+/**
+ * 利用可能な代車を取得
+ */
+export async function fetchAvailableCourtesyCars(): Promise<ApiResponse<CourtesyCar[]>> {
+  await delay();
+  const available = getAvailableCourtesyCars();
+  console.log("[API] fetchAvailableCourtesyCars:", available.length, "件");
+  return success(available);
+}
+
+/**
+ * 全代車を取得
+ */
+export async function fetchAllCourtesyCars(): Promise<ApiResponse<CourtesyCar[]>> {
+  await delay();
+  const all = getAllCourtesyCars();
+  console.log("[API] fetchAllCourtesyCars:", all.length, "件");
+  return success(all);
+}
+
+/**
+ * 代車を返却する
+ */
+export async function returnCourtesyCar(
+  carId: string
+): Promise<ApiResponse<CourtesyCar>> {
+  await delay();
+  
+  const carIndex = courtesyCars.findIndex((c) => c.carId === carId);
+  if (carIndex === -1) {
+    console.log("[API] returnCourtesyCar: CAR NOT FOUND", carId);
+    return error("NOT_FOUND", `代車 ${carId} が見つかりません`);
+  }
+  
+  // 代車を返却状態に更新
+  courtesyCars[carIndex].jobId = null;
+  courtesyCars[carIndex].rentedAt = null;
+  courtesyCars[carIndex].status = "available";
+  
+  console.log("[API] returnCourtesyCar:", carId);
+  return success({ ...courtesyCars[carIndex] });
+}
+
+// =============================================================================
+// Mechanic Assignment API
+// =============================================================================
+
+/**
+ * 担当整備士を割り当てる
+ */
+export async function assignMechanic(
+  jobId: string,
+  mechanicName: string
+): Promise<ApiResponse<ZohoJob>> {
+  await delay();
+  
+  const jobIndex = jobs.findIndex((j) => j.id === jobId);
+  if (jobIndex === -1) {
+    console.log("[API] assignMechanic: JOB NOT FOUND", jobId);
+    return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
+  }
+  
+  // 整備士を割り当て
+  jobs[jobIndex].assignedMechanic = mechanicName;
+  
+  console.log("[API] assignMechanic:", jobId, "→", mechanicName);
+  return success({ ...jobs[jobIndex] });
+}
+
+/**
+ * 作業指示を更新する
+ */
+export async function updateWorkOrder(
+  jobId: string,
+  workOrder: string
+): Promise<ApiResponse<ZohoJob>> {
+  await delay();
+  
+  const jobIndex = jobs.findIndex((j) => j.id === jobId);
+  if (jobIndex === -1) {
+    console.log("[API] updateWorkOrder: JOB NOT FOUND", jobId);
+    return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
+  }
+  
+  // 作業指示を更新（モックなので直接変更）
+  jobs[jobIndex].field = workOrder || null;
+  jobs[jobIndex].workOrder = workOrder || null;
+  
+  console.log("[API] updateWorkOrder:", jobId, "→", workOrder ? `${workOrder.substring(0, 50)}...` : "(削除)");
+  return success({ ...jobs[jobIndex] });
 }
 
 // =============================================================================

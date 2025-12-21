@@ -23,6 +23,22 @@ export type JobStage =
   | '出庫済み';
 
 /**
+ * 入庫区分 (Service Kind)
+ */
+export type ServiceKind =
+  | '車検'
+  | '修理・整備'
+  | 'レストア'
+  | 'チューニング'
+  | 'パーツ取付'
+  | 'コーティング'
+  | 'その他'
+  | '12ヵ月点検'
+  | 'エンジンオイル交換'
+  | 'タイヤ交換・ローテーション'
+  | '故障診断';
+
+/**
  * Zoho CRM 入庫管理モジュール (CustomModule2)
  * メインの案件(Job)データ
  */
@@ -89,6 +105,10 @@ export interface ZohoJob {
   // --- アプリ拡張フィールド ---
   /** スマートタグID (アプリ側で管理) */
   tagId?: string | null;
+  /** 入庫区分 (アプリ側で管理) */
+  serviceKind?: ServiceKind | null;
+  /** 担当整備士名 (アプリ側で管理) */
+  assignedMechanic?: string | null;
 }
 
 /**
@@ -286,6 +306,25 @@ export interface SmartTag {
 }
 
 /**
+ * 代車（レンタカー）
+ * 顧客への貸出用車両
+ */
+export interface CourtesyCar {
+  /** 代車ID (例: "CAR-001", "CAR-002") */
+  carId: string;
+  /** 車名 */
+  name: string;
+  /** ナンバープレート */
+  licensePlate: string | null;
+  /** 紐付け中のJob ID (null = 空き) */
+  jobId: string | null;
+  /** 貸出開始日時 */
+  rentedAt: string | null; // DateTime (ISO 8601)
+  /** ステータス */
+  status: 'available' | 'in_use' | 'inspection';
+}
+
+/**
  * 診断チェック項目
  * 信号機方式（🟢緑/🟡黄/🔴赤）
  */
@@ -373,6 +412,16 @@ export interface UploadImage {
   uploadStatus: 'pending' | 'uploading' | 'completed' | 'error';
   /** アップロード先URL (Drive) */
   uploadedUrl: string | null;
+}
+
+/**
+ * 整備士
+ */
+export interface Mechanic {
+  /** 整備士ID */
+  id: string;
+  /** 整備士名 */
+  name: string;
 }
 
 // =============================================================================

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { NavigationProvider } from "@/components/providers/navigation-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,11 +25,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
-        {children}
+        <NavigationProvider>
+          {children}
+        </NavigationProvider>
         <Toaster richColors position="top-center" />
       </body>
     </html>

@@ -1,6 +1,63 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* FOUC対策: ページ遷移時のレイアウトシフトを防ぐ */
+html {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ページ遷移時のスムーズなトランジション */
+.page-transition {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* FOUC対策: ページ遷移時に古いコンテンツを非表示 */
+[data-nextjs-router-state] {
+  opacity: 1;
+  transition: opacity 0.1s ease-in-out;
+}
+
+/* ページ遷移中の状態 */
+body[data-loading="true"] {
+  overflow: hidden;
+}
+
+/* 古いコンテンツを即座に非表示 */
+body[data-navigating="true"] main {
+  opacity: 0 !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* より強力なFOUC対策: ページ遷移時にすべてのコンテンツを非表示 */
+body[data-navigating="true"] > *:not(script):not(style) {
+  opacity: 0 !important;
+  transition: opacity 0s !important;
+}
+
+/* ローディング状態の表示 */
+body[data-navigating="true"]::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(248, 250, 252, 0.95);
+  z-index: 9999;
+  pointer-events: none;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -121,5 +178,24 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* 横スクロール用のスタイル */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+  
+  /* スムーズなスナップスクロール */
+  .snap-x {
+    scroll-snap-type: x mandatory;
+  }
+  .snap-start {
+    scroll-snap-align: start;
   }
 }
