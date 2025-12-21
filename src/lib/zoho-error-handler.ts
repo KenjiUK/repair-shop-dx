@@ -273,24 +273,17 @@ export async function fallbackToGoogleDrive<T>(
       mimeType: "application/json",
       parentFolderId: errorLogsFolder.id,
       replaceExisting: false, // タイムスタンプ付きなので重複しない
-      metadata: {
-        resourceType,
-        resourceId,
-        operation: context.operation,
-        timestamp: now.toISOString(),
-      },
     });
 
     // エラーログを記録
-    await logError({
-      code: ErrorCodes.FALLBACK_TO_DRIVE,
-      message: `Zoho CRM APIへの保存に失敗したため、Google Driveにフォールバックしました: ${uploadedFile.id}`,
-      context: {
-        ...context,
-        fallbackFileId: uploadedFile.id,
-        fallbackFileName: fileName,
-      },
-    });
+    const errorEntry = createErrorLogEntry(
+      new Error(`Zoho CRM APIへの保存に失敗したため、Google Driveにフォールバックしました: ${uploadedFile.id}`),
+      ErrorCodes.FALLBACK_TO_DRIVE,
+      {
+        location: "saveErrorLogEntry",
+      }
+    );
+    await logError(errorEntry);
 
     return {
       success: true,
@@ -303,14 +296,14 @@ export async function fallbackToGoogleDrive<T>(
   } catch (error) {
     // エラーログ保存自体が失敗した場合もエラーを記録
     console.error("Google Driveへのフォールバック保存に失敗しました:", error);
-    await logError({
-      code: ErrorCodes.FALLBACK_TO_DRIVE,
-      message: `Google Driveへのフォールバック保存に失敗しました: ${error instanceof Error ? error.message : "Unknown error"}`,
-      context: {
-        ...context,
-        originalError: error instanceof Error ? error.message : String(error),
-      },
-    });
+    const errorLogEntry = createErrorLogEntry(
+      error instanceof Error ? error : new Error(String(error)),
+      ErrorCodes.FALLBACK_TO_DRIVE,
+      {
+        location: "fallbackToGoogleDrive",
+      }
+    );
+    await logError(errorLogEntry);
 
     return handleError(error, context);
   }
