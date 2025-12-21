@@ -270,7 +270,7 @@ export default function PresentationPage() {
                   整備完了レポート
                 </h1>
                 <p className="text-sm text-slate-600">
-                  {mockJobData.customerName}様へのご説明用
+                  {customerName}様へのご説明用
                 </p>
               </div>
             </div>
@@ -332,8 +332,8 @@ export default function PresentationPage() {
           {/* 作業内容サマリー */}
           <TabsContent value="summary">
             <WorkSummaryTab
-              items={mockWorkItems}
-              totalAmountText={formatPrice(mockJobData.totalAmount)}
+              items={workItems}
+              totalAmountText={formatPrice(totalAmount)}
             />
           </TabsContent>
 

@@ -820,7 +820,12 @@ export default function Home() {
           {!isJobsLoading && jobs && sortedJobs.length > 0 && (
             <JobList
               jobs={sortedJobs}
-              onCheckIn={handleCheckIn}
+              onCheckIn={(jobId: string) => {
+                const job = jobs?.find(j => j.id === jobId);
+                if (job) {
+                  handleCheckIn(job);
+                }
+              }}
               courtesyCars={courtesyCars ?? []}
             />
           )}
