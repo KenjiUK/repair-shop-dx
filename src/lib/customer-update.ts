@@ -226,6 +226,9 @@ export async function checkChangeRequests(
     }
 
     const customer = data.data;
+    if (!customer) {
+      throw new Error("顧客情報が見つかりません");
+    }
     const hasRequests = hasChangeRequests(customer.Description);
 
     // 変更要求の数をカウント

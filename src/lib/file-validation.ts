@@ -92,12 +92,12 @@ export function detectFileType(file: File): FileType | null {
   const extension = getFileExtension(file.name);
   const mimeType = file.type;
 
-  for (const [type, config] of Object.entries(ALLOWED_FILE_TYPES)) {
+  for (const [type, config] of Object.entries(ALLOWED_FILE_TYPES) as Array<[FileType, { extensions: readonly string[]; mimeTypes: readonly string[]; maxSize: number }]>) {
     if (
       config.extensions.includes(extension) ||
       config.mimeTypes.includes(mimeType)
     ) {
-      return type as FileType;
+      return type;
     }
   }
 

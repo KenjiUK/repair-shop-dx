@@ -180,12 +180,14 @@ export async function uploadFile(
   }
 
   // ファイルデータを追加
-  if (options.fileData instanceof Blob || options.fileData instanceof File) {
-    formData.append("file", options.fileData);
-  } else {
+  const fileData = options.fileData;
+  if (typeof fileData === "string") {
     // Base64文字列の場合はBlobに変換
-    const blob = await fetch(options.fileData).then((r) => r.blob());
+    const blob = await fetch(fileData).then((r) => r.blob());
     formData.append("file", blob);
+  } else {
+    // BlobまたはFileの場合
+    formData.append("file", fileData as Blob | File);
   }
 
   const response = await fetch(`${DRIVE_API_BASE_URL}/files`, {

@@ -52,12 +52,17 @@ export async function completeInspectionDelivery(
     }
 
     // 2. Jobフォルダを取得または作成
+    // jobDateをYYYYMMDD形式で生成（dataに含まれている場合はそれを使用、なければ現在日付）
+    const jobDate = data.inspectionDate 
+      ? data.inspectionDate.replace(/-/g, "")
+      : new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const jobFolder = await getOrCreateJobFolder(
       customerId,
       customerName,
       vehicleId,
       vehicleName,
-      jobId
+      jobId,
+      jobDate
     );
 
     // 3. 書類フォルダを取得または作成
