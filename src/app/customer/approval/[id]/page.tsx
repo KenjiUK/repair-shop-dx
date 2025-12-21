@@ -358,7 +358,7 @@ export default function CustomerApprovalPage() {
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || "お客様";
   const vehicleName = job?.field6?.name || "車両";
-  const licensePlate = job?.field6?.field44 || "";
+  const licensePlate = job?.field6?.name ? job.field6.name.split(" / ")[1] || "" : "";
 
   // 状態管理
   const [items, setItems] = useState<EstimateLineItem[]>([]);

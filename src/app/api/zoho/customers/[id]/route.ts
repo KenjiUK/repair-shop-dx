@@ -65,10 +65,10 @@ async function handlePATCH(
   const result = await updateCustomer(customerId, updateData);
 
   if (!result.success) {
-    return NextResponse.json(result, { status: 400 });
+    return NextResponse.json(result as ApiResponse<ZohoCustomer>, { status: 400 });
   }
 
-  return NextResponse.json(result);
+  return NextResponse.json(result as ApiResponse<ZohoCustomer>);
 }
 
 // エラーハンドリングラッパーでラップ
