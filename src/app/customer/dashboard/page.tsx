@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -234,7 +233,6 @@ function CustomerJobCard({ job }: { job: ZohoJob }) {
 // =============================================================================
 
 function CustomerDashboardContent() {
-  const searchParams = useSearchParams();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [isLoadingCustomerId, setIsLoadingCustomerId] = useState(true);
 
@@ -244,22 +242,25 @@ function CustomerDashboardContent() {
       setIsLoadingCustomerId(true);
       
       try {
-        // 1. URLパラメータから顧客IDを取得
-        const customerIdParam = searchParams.get("customerId");
-        if (customerIdParam) {
-          setCustomerId(customerIdParam);
-          setIsLoadingCustomerId(false);
-          return;
-        }
-
-        // 2. マジックリンクトークンから顧客IDを取得
-        const token = searchParams.get("token");
-        if (token) {
-          const id = await getCustomerIdFromMagicLink(token);
-          if (id) {
-            setCustomerId(id);
+        // 1. URLパラメータから顧客IDを取得（クライアント側で取得）
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const customerIdParam = params.get("customerId");
+          if (customerIdParam) {
+            setCustomerId(customerIdParam);
             setIsLoadingCustomerId(false);
             return;
+          }
+
+          // 2. マジックリンクトークンから顧客IDを取得
+          const token = params.get("token");
+          if (token) {
+            const id = await getCustomerIdFromMagicLink(token);
+            if (id) {
+              setCustomerId(id);
+              setIsLoadingCustomerId(false);
+              return;
+            }
           }
         }
 
@@ -274,7 +275,7 @@ function CustomerDashboardContent() {
     };
 
     loadCustomerId();
-  }, [searchParams]);
+  }, []);
 
   // SWRでデータ取得
   const {
@@ -452,20 +453,7 @@ function CustomerDashboardContent() {
   );
 }
 
-export default function CustomerDashboardPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <Skeleton className="h-8 w-48 mx-auto mb-4" />
-          <Skeleton className="h-4 w-64 mx-auto" />
-        </div>
-      </div>
-    }>
-      <CustomerDashboardContent />
-    </Suspense>
-  );
-}
+export default CustomerDashboardContent;
 
 
 
