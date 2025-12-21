@@ -188,7 +188,7 @@ export default function CustomerReportPage() {
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || "お客様";
   const vehicleName = job?.field6?.name || "車両";
-  const licensePlate = job?.field6?.field44 || "";
+  const licensePlate = job?.field6?.name ? job.field6.name.split(" / ")[1] || "" : "";
 
   // ブログ用写真選択の状態管理
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
@@ -208,7 +208,7 @@ export default function CustomerReportPage() {
     // すべてのワークオーダーから作業データを取得
     workOrders.forEach((workOrder) => {
       if (workOrder.work?.records) {
-        workOrder.work.records.forEach((record, index) => {
+        workOrder.work.records.forEach((record: { photos?: Array<{ type: string; url: string }> }, index) => {
           if (record.photos && record.photos.length > 0) {
             // Before/After写真を分類
             const beforePhotos = record.photos.filter((p) => p.type === "before");
