@@ -205,8 +205,8 @@ export function OtherServiceEstimateView({
       {/* 見積もり項目（カスタマイズ可能） */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Calculator className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Calculator className="h-5 w-5 shrink-0" />
             見積もり項目
             {items.length > 0 && (
               <Badge variant="secondary" className="ml-2">
@@ -223,22 +223,21 @@ export function OtherServiceEstimateView({
                 className="p-4 border border-slate-200 rounded-lg space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-slate-900 text-sm">
+                  <h4 className="font-medium text-slate-900 text-base">
                     項目 #{index + 1}
                   </h4>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => handleRemoveItem(item.id)}
                     disabled={disabled || items.length <= 1}
-                    className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                    className="h-6 w-6 p-0 text-slate-700 hover:text-red-600"
                   >
                     ×
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">項目名</Label>
+                  <Label className="text-base text-slate-700">項目名</Label>
                   <Input
                     value={item.name}
                     onChange={(e) =>
@@ -246,13 +245,13 @@ export function OtherServiceEstimateView({
                     }
                     placeholder="見積項目名を入力"
                     disabled={disabled}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">数量</Label>
+                    <Label className="text-base text-slate-700">数量</Label>
                     <Input
                       type="number"
                       value={item.quantity}
@@ -262,13 +261,13 @@ export function OtherServiceEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                       min="0"
                       step="0.01"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">単価</Label>
+                    <Label className="text-base text-slate-700">単価</Label>
                     <Input
                       type="number"
                       value={item.unitPrice}
@@ -278,24 +277,24 @@ export function OtherServiceEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                       min="0"
                       step="1"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">金額</Label>
+                    <Label className="text-base text-slate-700">金額</Label>
                     <Input
                       type="number"
                       value={item.amount}
                       disabled
-                      className="text-sm bg-slate-50"
+                      className="text-base bg-slate-50"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">備考</Label>
+                    <Label className="text-base text-slate-700">備考</Label>
                   <Textarea
                     value={item.note || ""}
                     onChange={(e) =>
@@ -304,7 +303,7 @@ export function OtherServiceEstimateView({
                     placeholder="備考を入力..."
                     disabled={disabled}
                     rows={2}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
               </div>
@@ -313,7 +312,6 @@ export function OtherServiceEstimateView({
 
           <Button
             variant="outline"
-            size="sm"
             onClick={handleAddItem}
             disabled={disabled}
             className="w-full"
@@ -327,7 +325,7 @@ export function OtherServiceEstimateView({
       {/* 部品リスト（必要に応じて） */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Package className="h-5 w-5" />
             部品リスト（任意）
             {parts.length > 0 && (
@@ -351,13 +349,13 @@ export function OtherServiceEstimateView({
       {/* 合計金額 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">見積金額</CardTitle>
+          <CardTitle className="text-lg font-semibold">見積金額</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
             {items.length > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">見積もり項目</span>
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-700">見積もり項目</span>
                 <span className="font-medium text-slate-900">
                   ¥
                   {items
@@ -367,8 +365,8 @@ export function OtherServiceEstimateView({
               </div>
             )}
             {parts.length > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">部品</span>
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-700">部品</span>
                 <span className="font-medium text-slate-900">
                   ¥
                   {parts

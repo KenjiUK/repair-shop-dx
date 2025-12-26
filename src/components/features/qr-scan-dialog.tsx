@@ -145,7 +145,7 @@ export function QrScanDialog({
             className="w-full rounded-md border border-slate-200 overflow-hidden"
             style={{ minHeight: "300px" }}
           />
-          <p className="text-xs text-slate-500 text-center mt-2">
+          <p className="text-base text-slate-700 text-center mt-2">
             QRコードをカメラに向けてください
           </p>
         </div>

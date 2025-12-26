@@ -2,6 +2,7 @@
 
 import { use, useMemo, useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,11 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BlogPhotoSelector, BlogPhotoItem } from "@/components/features/blog-photo-selector";
-import { publishBlogPhotos } from "@/lib/blog-photo-manager";
+import { publishBlogPhotos, listBlogPhotosFromJobFolder } from "@/lib/blog-photo-manager";
 import { CustomerProgressView } from "@/components/features/customer-progress-view";
-import { fetchJobById } from "@/lib/api";
-import { useWorkOrders } from "@/hooks/use-work-orders";
+import { fetchJobById, fetchVehicleById } from "@/lib/api";
+import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
+import { WorkOrder } from "@/types";
 import { searchInvoicePdf, getOrCreateJobFolder } from "@/lib/google-drive";
 import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,48 +78,62 @@ function formatPrice(price: number): string {
  */
 function BeforeAfterCard({ item }: { item: BeforeAfterItem }) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2 bg-slate-50">
+    <Card className="overflow-hidden border border-slate-300 rounded-xl shadow-md">
+      <CardHeader className="pb-3 bg-slate-50">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">{item.category}</Badge>
+          <Badge variant="outline" className="text-base font-medium px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">{item.category}</Badge>
           <CardTitle className="text-lg font-semibold text-slate-900">{item.itemName}</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {/* Before */}
-        <div className="relative">
-          <img
-            src={item.beforeUrl}
-            alt="Before"
-            className="w-full aspect-[3/2] object-cover"
-          />
-          <Badge className="absolute top-3 left-3 bg-slate-800/90">Before</Badge>
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-            <p className="text-white text-sm">{item.beforeCaption}</p>
+        {/* 作業前 */}
+        {item.beforeUrl && (
+          <div className="relative aspect-[3/2]">
+            <Image
+              src={item.beforeUrl}
+              alt="作業前"
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 768px"
+            />
+            <Badge className="absolute top-3 left-3 bg-slate-800/90 text-base font-medium px-2.5 py-1">作業前</Badge>
+            {item.beforeCaption && (
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                <p className="text-white text-base">{item.beforeCaption}</p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* 矢印 */}
-        <div className="flex items-center justify-center py-2 bg-slate-100">
-          <div className="flex items-center gap-2 text-slate-500">
-            <ArrowRight className="h-5 w-5 shrink-0" />
-            <span className="text-sm font-medium">交換・整備</span>
-            <ArrowRight className="h-5 w-5 shrink-0" />
+        {(item.beforeUrl || item.afterUrl) && (
+          <div className="flex items-center justify-center py-2 bg-slate-100">
+            <div className="flex items-center gap-2 text-slate-700">
+              <ArrowRight className="h-5 w-5 shrink-0" />
+              <span className="text-base font-medium">交換・整備</span>
+              <ArrowRight className="h-5 w-5 shrink-0" />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* After */}
-        <div className="relative">
-          <img
-            src={item.afterUrl}
-            alt="After"
-            className="w-full aspect-[3/2] object-cover"
-          />
-          <Badge className="absolute top-3 left-3 bg-green-600">After ✓</Badge>
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-            <p className="text-white text-sm">{item.afterCaption}</p>
+        {/* 作業後 */}
+        {item.afterUrl && (
+          <div className="relative aspect-[3/2]">
+            <Image
+              src={item.afterUrl}
+              alt="作業後"
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 768px"
+            />
+            <Badge className="absolute top-3 left-3 bg-green-600 text-base font-medium px-2.5 py-1">作業後 ✓</Badge>
+            {item.afterCaption && (
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                <p className="text-white text-base">{item.afterCaption}</p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -148,12 +164,12 @@ function MechanicCommentBubble({
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1">
           <span className="font-bold text-slate-800">{mechanicName}</span>
-          <Badge variant="secondary" className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">整備士</Badge>
+          <Badge variant="secondary" className="text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">整備士</Badge>
         </div>
         <div className="relative bg-slate-100 rounded-2xl rounded-tl-none p-4">
           {/* 吹き出しの三角 */}
           <div className="absolute -left-2 top-0 w-0 h-0 border-t-[12px] border-t-slate-100 border-l-[12px] border-l-transparent" />
-          <p className="text-slate-700 text-sm whitespace-pre-line leading-relaxed">
+          <p className="text-slate-800 text-base whitespace-pre-line leading-relaxed">
             {comment}
           </p>
         </div>
@@ -183,12 +199,28 @@ export default function CustomerReportPage() {
   const job = jobResult?.data;
 
   // ワークオーダーを取得
-  const { workOrders, isLoading: isLoadingWorkOrders } = useWorkOrders(reportId);
+  const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(reportId);
 
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || "お客様";
   const vehicleName = job?.field6?.name || "車両";
   const licensePlate = job?.field6?.name ? job.field6.name.split(" / ")[1] || "" : "";
+  
+  // 車両情報を取得（車検有効期限のため）
+  const vehicleId = job?.field6?.id;
+  const {
+    data: vehicleResult,
+    error: vehicleError,
+  } = useSWR(
+    vehicleId ? `vehicle-${vehicleId}` : null,
+    vehicleId ? () => fetchVehicleById(vehicleId) : null,
+    {
+      revalidateOnFocus: false,
+    }
+  );
+  
+  const vehicle = vehicleResult?.data;
+  const inspectionExpiryDate = vehicle?.field7 || null; // 車検有効期限
 
   // ブログ用写真選択の状態管理
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
@@ -307,7 +339,16 @@ export default function CustomerReportPage() {
     return firstWorkOrder.work?.completedAt || null;
   }, [workOrders]);
 
-  // ブログ用写真リストを生成（Before/After写真から）
+  // ジョブフォルダ内の一時保存されたブログ用写真を取得
+  const { data: temporaryBlogPhotos } = useSWR(
+    reportId ? `temporary-blog-photos-${reportId}` : null,
+    async () => {
+      if (!reportId) return [];
+      return await listBlogPhotosFromJobFolder(reportId);
+    }
+  );
+
+  // ブログ用写真リストを生成（Before/After写真 + 受付時に撮影した写真）
   const blogPhotos: BlogPhotoItem[] = useMemo(() => {
     const photos: BlogPhotoItem[] = [];
     
@@ -339,7 +380,7 @@ export default function CustomerReportPage() {
     );
 
     return uniquePhotos;
-  }, [beforeAfterItems, workOrders]);
+  }, [workOrders, temporaryBlogPhotos]);
 
   // 作業動画リストを生成（診断データから）
   const workVideos = useMemo(() => {
@@ -370,10 +411,10 @@ export default function CustomerReportPage() {
 
       try {
         // 顧客情報と車両情報を取得
-        const customerId = (job.field4 as any)?.ID1 || (job.field4 as any)?.id || "";
-        const customerName = (job.field4 as any)?.Last_Name || (job.field4 as any)?.name || "顧客";
-        const vehicleId = (job.field6 as any)?.Name || (job.field6 as any)?.id || "";
-        const vehicleName = (job.field6 as any)?.Name || "車両";
+        const customerId = job.field4?.ID1 || job.field4?.id || "";
+        const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+        const vehicleId = job.field6?.Name || job.field6?.id || "";
+        const vehicleName = job.field6?.Name || "車両";
         const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
 
         // Jobフォルダを取得
@@ -430,11 +471,10 @@ export default function CustomerReportPage() {
    * Googleレビュー
    */
   const handleGoogleReview = () => {
+    window.open('https://g.page/r/CSXeoOUFHHupEBM/review', '_blank');
     toast.success("Googleマップが開きます", {
       description: "レビューのご協力ありがとうございます！",
     });
-    // 実際の実装ではGoogle Maps URLを開く
-    // window.open('https://g.page/r/xxx/review', '_blank');
   };
 
   /**
@@ -494,6 +534,34 @@ export default function CustomerReportPage() {
         throw new Error(result.error?.message || "写真の公開に失敗しました");
       }
 
+      // ワークオーダーのblogPhotosを更新
+      if (workOrders && workOrders.length > 0) {
+        try {
+          // 最初のワークオーダーを更新（複数ワークオーダーの場合は最初のもののみ）
+          const firstWorkOrder = workOrders[0];
+          const updatedBlogPhotos = selectedPhotos.map((photo) => ({
+            fileId: photo.fileId || "",
+            url: photo.url || "", // beforeUrl/afterUrlではなくurlプロパティを使用
+            type: photo.type,
+            publishedAt: new Date().toISOString(),
+            published: true,
+          }));
+          
+          await updateWorkOrder(reportId, firstWorkOrder.id, {
+            blogPhotos: [
+              ...((firstWorkOrder as WorkOrder & { blogPhotos?: Array<{ fileId: string; url: string; type: string; publishedAt: string; published: boolean }> }).blogPhotos || []),
+              ...updatedBlogPhotos,
+            ],
+          } as Partial<WorkOrder> & { blogPhotos: Array<{ fileId: string; url: string; type: string; publishedAt: string; published: boolean }> });
+          // ワークオーダーリストを再取得
+          await mutateWorkOrders();
+        } catch (error) {
+          console.error("ワークオーダー更新エラー:", error);
+          // エラーが発生しても公開処理は続行
+          toast.warning("写真の公開は完了しましたが、ワークオーダーの更新に失敗しました");
+        }
+      }
+
       toast.success("ブログ用に公開しました", {
         description: `${selectedIds.length}枚の写真を公開しました`,
       });
@@ -512,7 +580,7 @@ export default function CustomerReportPage() {
   if (isJobLoading || isLoadingWorkOrders) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="max-w-lg mx-auto px-4 py-8">
+        <div className="max-w-5xl mx-auto px-4 py-8">
           <Skeleton className="h-8 w-48 mb-4" />
           <Skeleton className="h-4 w-32 mb-8" />
           <div className="space-y-4">
@@ -529,10 +597,10 @@ export default function CustomerReportPage() {
   if (!job || !workOrders || workOrders.length === 0) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Card className="max-w-lg mx-4">
+        <Card className="max-w-5xl mx-4 border border-slate-300 rounded-xl shadow-md">
           <CardContent className="py-8 text-center">
-            <p className="text-slate-600 mb-4">データが見つかりませんでした</p>
-            <p className="text-sm text-slate-500">作業が完了していないか、データが存在しない可能性があります。</p>
+            <p className="text-base text-slate-700 mb-4">データが見つかりませんでした</p>
+            <p className="text-base text-slate-700">作業が完了していないか、データが存在しない可能性があります。</p>
           </CardContent>
         </Card>
       </div>
@@ -552,36 +620,36 @@ export default function CustomerReportPage() {
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
       <header className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-lg mx-auto px-4 py-5">
+        <div className="max-w-5xl mx-auto px-4 py-5">
           {/* タイトル */}
           <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-5 w-5 text-slate-600 shrink-0" />
+            <Shield className="h-5 w-5 text-slate-700 shrink-0" />
             <h1 className="text-xl font-bold text-slate-900">
               整備完了報告書
             </h1>
           </div>
-          <p className="text-sm text-slate-500 mb-4">デジタル整備手帳</p>
+          <p className="text-base text-slate-700 mb-4">デジタル整備手帳</p>
 
           {/* 車両情報 */}
           <Card className="bg-gradient-to-r from-slate-800 to-slate-700">
             <CardContent className="py-4 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-white/70 text-sm">お客様</p>
+                  <p className="text-white/80 text-base">お客様</p>
                   <p className="text-xl font-bold">{customerName} 様</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-white/70 text-sm">車両</p>
+                  <p className="text-white/80 text-base">車両</p>
                   <p className="font-medium">{vehicleName}</p>
                   {licensePlate && (
-                    <p className="text-sm text-white/70">{licensePlate}</p>
+                    <p className="text-base text-white/80">{licensePlate}</p>
                   )}
                 </div>
               </div>
 
               <Separator className="my-3 bg-white/20" />
 
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-base">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-white/70 shrink-0" />
                   <span>整備完了日: {completedAtFormatted}</span>
@@ -596,46 +664,16 @@ export default function CustomerReportPage() {
         </div>
       </header>
 
-      {/* 作業進捗セクション */}
-      {job && (
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <CustomerProgressView job={job} />
-        </div>
-      )}
-
       {/* メインコンテンツ */}
-      <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
-        {/* Before/Afterギャラリー */}
+      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* 作業内容と料金 */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-            <h2 className="text-xl font-bold text-slate-900">整備内容（Before/After）</h2>
-          </div>
-          <div className="space-y-4">
-            {beforeAfterItems.length > 0 ? (
-              beforeAfterItems.map((item) => (
-                <BeforeAfterCard key={item.id} item={item} />
-              ))
-            ) : (
-              <Card>
-                <CardContent className="py-8 text-center text-slate-500">
-                  <p>Before/After写真はありません</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </section>
-
-        <Separator />
-
-        {/* 実施内容・請求情報 */}
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <FileText className="h-5 w-5 text-slate-600 shrink-0" />
-            <h2 className="text-xl font-bold text-slate-900">実施内容・ご請求</h2>
+            <FileText className="h-5 w-5 text-slate-700 shrink-0" />
+            <h2 className="text-xl font-bold text-slate-900">作業内容と料金</h2>
           </div>
 
-          <Card>
+          <Card className="border border-slate-300 rounded-xl shadow-md">
             <CardContent className="py-4">
               <div className="space-y-2">
                 {workItems.length > 0 ? (
@@ -646,24 +684,24 @@ export default function CustomerReportPage() {
                         className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
                       >
                         <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                          <span className="text-slate-700">{item.name}</span>
+                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                          <span className="text-base text-slate-700">{item.name}</span>
                         </div>
-                        <span className="font-medium">¥{formatPrice(item.price)}</span>
+                        <span className="text-base font-medium tabular-nums">¥{formatPrice(item.price)}</span>
                       </div>
                     ))}
 
                     <Separator className="my-3" />
 
                     <div className="flex items-center justify-between text-lg">
-                      <span className="font-bold">合計（税込）</span>
-                      <span className="font-bold text-primary">
+                      <span className="font-bold text-slate-900">合計（税込）</span>
+                      <span className="font-bold text-primary tabular-nums">
                         ¥{formatPrice(totalAmount)}
                       </span>
                     </div>
                   </>
                 ) : (
-                  <p className="text-center text-slate-500 py-4">作業項目がありません</p>
+                  <p className="text-center text-base text-slate-700 py-4">作業項目がありません</p>
                 )}
               </div>
             </CardContent>
@@ -675,19 +713,19 @@ export default function CustomerReportPage() {
               <Button
                 onClick={handleShowInvoice}
                 variant="outline"
-                size="lg"
-                className="w-full mt-4 h-14 text-base gap-2"
+                className="w-full mt-4 h-12 text-base font-medium gap-2"
+                aria-label="請求書PDFを表示"
               >
-                <Download className="h-5 w-5 shrink-0" />
-                <FileText className="h-5 w-5 shrink-0" />
+                <Download className="h-5 w-5 shrink-0" aria-hidden="true" />
+                <FileText className="h-5 w-5 shrink-0" aria-hidden="true" />
                 請求書PDFを表示
               </Button>
-              <p className="text-xs text-center text-slate-400 mt-2">
+              <p className="text-base text-center text-slate-700 mt-2">
                 {existingInvoice.fileName}
               </p>
             </>
           ) : (
-            <p className="text-xs text-center text-slate-400 mt-4">
+            <p className="text-base text-center text-slate-700 mt-4">
               請求書PDFはまだ生成されていません
             </p>
           )}
@@ -699,12 +737,12 @@ export default function CustomerReportPage() {
         {workVideos.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-4">
-              <Video className="h-5 w-5 text-slate-600 shrink-0" />
+              <Video className="h-5 w-5 text-slate-700 shrink-0" />
               <h2 className="text-xl font-bold text-slate-900">作業動画</h2>
             </div>
             <div className="space-y-3">
               {workVideos.map((video) => (
-                <Card key={video.id} className="overflow-hidden">
+                <Card key={video.id} className="overflow-hidden border border-slate-300 rounded-xl shadow-md">
                   <CardContent className="p-0">
                     <div className="relative aspect-video bg-slate-900">
                       <video
@@ -714,7 +752,7 @@ export default function CustomerReportPage() {
                       />
                     </div>
                     <div className="p-4">
-                      <p className="font-medium text-slate-800 mb-2">{video.title}</p>
+                      <p className="text-base font-medium text-slate-800 mb-2">{video.title}</p>
                       <Button
                         onClick={() => {
                           setSelectedVideoUrl(video.url);
@@ -722,10 +760,10 @@ export default function CustomerReportPage() {
                           setIsVideoShareOpen(true);
                         }}
                         variant="outline"
-                        size="sm"
-                        className="w-full gap-2"
+                        className="w-full h-12 text-base font-medium gap-2"
+                        aria-label={`${video.title}の動画を共有`}
                       >
-                        <Share2 className="h-4 w-4 shrink-0" />
+                        <Share2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                         動画を共有
                       </Button>
                     </div>
@@ -740,20 +778,21 @@ export default function CustomerReportPage() {
 
         {/* ビデオ通話セクション */}
         <section>
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-xl shadow-md">
             <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-blue-900 mb-1">ビデオ通話でご質問</p>
-                  <p className="text-sm text-blue-700">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-base font-bold text-blue-900 mb-1">ビデオ通話でご質問</p>
+                  <p className="text-base text-blue-800">
                     作業内容について、ビデオ通話で直接ご説明いたします
                   </p>
                 </div>
                 <Button
                   onClick={() => setIsVideoCallOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                  className="bg-primary hover:bg-primary/90 text-white h-12 text-base font-medium gap-2 shrink-0"
+                  aria-label="ビデオ通話を開始"
                 >
-                  <Video className="h-4 w-4 shrink-0" />
+                  <Video className="h-4 w-4 shrink-0" aria-hidden="true" />
                   ビデオ通話を開始
                 </Button>
               </div>
@@ -763,10 +802,33 @@ export default function CustomerReportPage() {
 
         <Separator />
 
+        {/* 整備前後の写真 */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle2 className="h-5 w-5 text-green-700 shrink-0" />
+            <h2 className="text-xl font-bold text-slate-900">整備前後の写真</h2>
+          </div>
+          <div className="space-y-4">
+            {beforeAfterItems.length > 0 ? (
+              beforeAfterItems.map((item) => (
+                <BeforeAfterCard key={item.id} item={item} />
+              ))
+            ) : (
+              <Card className="border border-slate-300 rounded-xl shadow-md">
+                <CardContent className="py-8 text-center">
+                  <p className="text-base text-slate-700">作業前後の写真はありません</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </section>
+
+        <Separator />
+
         {/* メカニックからのコメント */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <MessageCircle className="h-5 w-5 text-slate-600 shrink-0" />
+            <MessageCircle className="h-5 w-5 text-slate-700 shrink-0" />
             <h2 className="text-xl font-bold text-slate-900">整備士からのメッセージ</h2>
           </div>
 
@@ -776,9 +838,9 @@ export default function CustomerReportPage() {
               comment={mechanicComment}
             />
           ) : (
-            <Card>
-              <CardContent className="py-8 text-center text-slate-500">
-                <p>整備士からのメッセージはありません</p>
+            <Card className="border border-slate-300 rounded-xl shadow-md">
+              <CardContent className="py-8 text-center">
+                <p className="text-base text-slate-700">整備士からのメッセージはありません</p>
               </CardContent>
             </Card>
           )}
@@ -787,7 +849,63 @@ export default function CustomerReportPage() {
         <Separator />
 
         {/* 次回点検案内 */}
-        {/* TODO: 車検有効期限はZohoVehicleから取得する必要があります */}
+        {inspectionExpiryDate && (
+          <section>
+            <Card className="bg-blue-50 border border-blue-300 rounded-xl shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-blue-900">
+                  <Calendar className="h-5 w-5 shrink-0" />
+                  次回点検案内
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-base text-blue-900">
+                    車検有効期限: <span className="font-semibold tabular-nums">{new Date(inspectionExpiryDate).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</span>
+                  </p>
+                  {(() => {
+                    const expiryDate = new Date(inspectionExpiryDate);
+                    const today = new Date();
+                    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysUntilExpiry < 0) {
+                      return (
+                        <p className="text-base text-red-700 font-medium">
+                          ⚠️ 車検が期限切れです。早急に更新をお願いします。
+                        </p>
+                      );
+                    } else if (daysUntilExpiry <= 30) {
+                      return (
+                        <p className="text-base text-amber-900 font-medium">
+                          ⚠️ 車検有効期限まであと<span className="tabular-nums">{daysUntilExpiry}</span>日です。更新をご検討ください。
+                        </p>
+                      );
+                    } else if (daysUntilExpiry <= 90) {
+                      return (
+                        <p className="text-base text-blue-800">
+                          車検有効期限まであと<span className="tabular-nums">{daysUntilExpiry}</span>日です。
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* 作業履歴セクション */}
+        {job && (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <h2 className="text-xl font-bold text-slate-900">作業履歴</h2>
+            </div>
+            <CustomerProgressView job={job} />
+          </section>
+        )}
+
+        <Separator />
 
         {/* ブログ用写真公開 */}
         <section>
@@ -805,30 +923,60 @@ export default function CustomerReportPage() {
 
         {/* Googleレビューボタン */}
         <section className="pt-4">
-          <Card className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 overflow-hidden">
+          <Card className="bg-gradient-to-r from-amber-50 to-amber-50 border border-amber-300 rounded-xl shadow-md overflow-hidden">
             <CardContent className="py-6 text-center">
               <div className="flex justify-center gap-1 mb-3">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <Star
                     key={i}
-                    className="h-6 w-6 text-amber-400 fill-amber-400 shrink-0"
+                    className="h-6 w-6 text-amber-500 fill-amber-500 shrink-0"
                   />
                 ))}
               </div>
-              <p className="text-slate-700 mb-1">
+              <p className="text-base text-slate-700 mb-1">
                 サービスはいかがでしたか？
               </p>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-base text-slate-700 mb-4">
                 お客様の声が私たちの励みになります
               </p>
               <Button
                 onClick={handleGoogleReview}
-                size="lg"
-                className="w-full h-14 text-base font-bold gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white shadow-lg"
+                className="w-full h-12 text-base font-bold gap-2 bg-gradient-to-r from-amber-500 to-amber-500 hover:from-amber-600 hover:to-amber-600 text-white shadow-lg"
+                aria-label="Googleでレビューを書く（新しいウィンドウで開く）"
               >
-                <Star className="h-5 w-5" />
+                <Star className="h-5 w-5 shrink-0" aria-hidden="true" />
                 Googleでレビューを書く
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
+        <Separator />
+
+        {/* お客様アンケート */}
+        <section className="pt-4">
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-xl shadow-md overflow-hidden">
+            <CardContent className="py-6 text-center">
+              <h3 className="text-lg font-bold text-blue-900 mb-2">
+                お客様アンケート
+              </h3>
+              <p className="text-base text-blue-800 mb-1 font-medium">
+                アンケートご回答で500円分QUOカードプレゼント
+              </p>
+              <p className="text-base text-blue-700 mb-4">
+                ※所要時間：約1分
+              </p>
+              <Button
+                onClick={() => {
+                  window.open("https://tally.so/r/mVapBN", "_blank");
+                }}
+                className="w-full h-12 text-base font-bold gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                aria-label="アンケートに回答する（新しいウィンドウで開く）"
+              >
+                <FileText className="h-5 w-5 shrink-0" aria-hidden="true" />
+                アンケートに回答する
+                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Button>
             </CardContent>
           </Card>
@@ -836,14 +984,14 @@ export default function CustomerReportPage() {
 
         {/* フッター */}
         <footer className="pt-6 pb-8 text-center">
-          <div className="flex items-center justify-center gap-2 text-slate-400 mb-2">
+          <div className="flex items-center justify-center gap-2 text-slate-700 mb-2">
             <Heart className="h-4 w-4 shrink-0" />
-            <span className="text-sm">YM Works Auto Service</span>
+            <span className="text-base">YM Works Auto Service</span>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-base text-slate-700">
             このページはお客様専用のデジタル整備手帳です
           </p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-base text-slate-700 mt-1">
             Report ID: {reportId}
           </p>
         </footer>

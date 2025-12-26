@@ -69,7 +69,7 @@ export function InspectionCategoryTabs({
       onValueChange={(value) => onCategoryChange(value as InspectionCategory)}
       className="w-full"
     >
-      <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-slate-100">
+      <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-slate-100 overflow-x-auto">
         {categories.map((category) => {
           const Icon = CATEGORY_ICON_MAP[category];
           const progress = calculateCategoryProgress(category, items);
@@ -82,24 +82,25 @@ export function InspectionCategoryTabs({
               value={category}
               disabled={disabled}
               className={cn(
-                "flex flex-col items-center gap-1 px-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm",
-                "text-xs sm:text-sm",
+                "flex flex-col items-center gap-1.5 px-2 sm:px-3 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm",
+                "text-base font-medium",
+                "min-w-0 shrink-0",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             >
-              <div className="flex items-center gap-1">
-                <Icon className="h-4 w-4" />
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Icon className="h-4 w-4 shrink-0" />
                 {isCompleted && (
-                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  <CheckCircle2 className="h-4 w-4 text-green-700 shrink-0" />
                 )}
               </div>
-              <span className="text-center leading-tight">
+              <span className="text-center leading-tight truncate w-full px-0.5 text-base">
                 {CATEGORY_DISPLAY_NAMES[category]}
               </span>
               {hasIncomplete && !isCompleted && (
                 <Badge
                   variant="outline"
-                  className="h-5 min-w-5 px-1 text-xs bg-amber-100 text-amber-700 border-amber-300"
+                  className="h-5 min-w-5 px-1.5 text-base font-medium bg-amber-100 text-amber-700 border-amber-400 shrink-0 whitespace-nowrap"
                 >
                   {progress.total - progress.completed}
                 </Badge>

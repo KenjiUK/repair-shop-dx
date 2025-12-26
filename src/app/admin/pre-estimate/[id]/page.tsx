@@ -15,7 +15,7 @@ import { generateMagicLink, sendLineNotification } from "@/lib/line-api";
 import { ChevronLeft, Car, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
-import { ZohoJob, PreEstimateData } from "@/types";
+import { ZohoJob, PreEstimateData, ServiceKind } from "@/types";
 import { savePreEstimateData, loadPreEstimateData } from "@/lib/pre-estimate-storage";
 
 // =============================================================================
@@ -233,7 +233,7 @@ export default function CoatingPreEstimatePage() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <AppHeader />
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-6 w-full">
+        <main className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full">
           <div className="space-y-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-64 w-full" />
@@ -249,12 +249,12 @@ export default function CoatingPreEstimatePage() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <AppHeader />
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-6 w-full">
-          <Card>
+        <main className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full">
+          <Card className="border border-slate-300 rounded-xl shadow-md">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-red-600">
+              <div className="flex items-center gap-2 text-red-700">
                 <AlertCircle className="h-5 w-5 shrink-0" />
-                <p>ジョブ情報の取得に失敗しました</p>
+                <p className="text-base">ジョブ情報の取得に失敗しました</p>
               </div>
             </CardContent>
           </Card>
@@ -265,22 +265,22 @@ export default function CoatingPreEstimatePage() {
 
   // コーティングでない場合のエラー
   const serviceKinds = job.field_service_kinds || (job.serviceKind ? [job.serviceKind] : []);
-  const isCoating = serviceKinds.includes("コーティング" as any);
+  const isCoating = serviceKinds.includes("コーティング" as ServiceKind);
   
   if (!isCoating) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <AppHeader />
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-6 w-full">
-          <Card>
+        <main className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full">
+          <Card className="border border-slate-300 rounded-xl shadow-md">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-red-600">
+              <div className="flex items-center gap-2 text-red-700">
                 <AlertCircle className="h-5 w-5 shrink-0" />
-                <p>このジョブはコーティングではありません</p>
+                <p className="text-base">このジョブはコーティングではありません</p>
               </div>
               <Button
                 variant="outline"
-                className="mt-4"
+                className="mt-4 h-12 text-base font-medium"
                 onClick={() => router.push(`/admin/estimate/${job.id}`)}
               >
                 見積画面に戻る
@@ -295,63 +295,63 @@ export default function CoatingPreEstimatePage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <AppHeader />
-      <main className="flex-1 max-w-4xl mx-auto px-4 py-6 w-full">
+      <main className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full">
         {/* ヘッダー */}
         <div className="flex items-center gap-4 mb-6">
           <Link href={`/admin/estimate/${job.id}`}>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-12 w-12">
               <ChevronLeft className="h-5 w-5 shrink-0" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">
+            <h1 className="text-2xl font-bold text-slate-900">
               {job.field4?.name || "お客様"} {job.field6?.name ? (() => {
                 const parts = job.field6.name.split(" / ");
                 return parts[0] || job.field6.name;
               })() : "車両"} コーティング事前見積
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-base text-slate-700 mt-1">
               入庫前に見積もりを提示し、顧客の承認を得てから入庫します
             </p>
           </div>
         </div>
 
         {/* 車両情報カード */}
-        <Card className="mb-6">
+        <Card className="mb-6 border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
               <Car className="h-5 w-5 shrink-0" />
               車両情報
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-slate-600">登録番号</span>
-              <span className="font-medium text-slate-900">
+            <div className="flex items-center justify-between py-2 border-b border-slate-200">
+              <span className="text-base font-medium text-slate-700">登録番号</span>
+              <span className="text-base font-medium text-slate-900">
                 {job.field6?.name ? (() => {
                   const parts = job.field6.name.split(" / ");
                   return parts[1] || parts[0] || "未設定";
                 })() : "未設定"}
               </span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-slate-600">車台番号</span>
-              <span className="font-medium text-slate-900">
+            <div className="flex items-center justify-between py-2 border-b border-slate-200">
+              <span className="text-base font-medium text-slate-700">車台番号</span>
+              <span className="text-base font-medium text-slate-900">
                 {job.field6?.id || "未設定"}
               </span>
             </div>
             {vehicleMaster && (
               <div className="flex items-center justify-between py-2">
-                <span className="text-slate-600">車両の寸法</span>
-                <span className="font-medium text-slate-900">
+                <span className="text-base font-medium text-slate-700">車両の寸法</span>
+                <span className="text-base font-medium text-slate-900">
                   未設定（金額計算用）
                 </span>
               </div>
             )}
             {!vehicleMaster && !isVehicleLoading && (
               <div className="flex items-center justify-between py-2">
-                <span className="text-slate-600">車両の寸法</span>
-                <span className="text-sm text-slate-500">
+                <span className="text-base font-medium text-slate-700">車両の寸法</span>
+                <span className="text-base text-slate-600">
                   車両マスタから取得できませんでした（参考価格を使用）
                 </span>
               </div>
@@ -371,15 +371,15 @@ export default function CoatingPreEstimatePage() {
         />
 
         {/* 注意事項 */}
-        <Card className="mt-6">
+        <Card className="mt-6 border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-semibold text-slate-900">注意事項</CardTitle>
+            <CardTitle className="text-xl font-bold text-slate-900">注意事項</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-slate-700">
-            <p>• 乾燥時間は数日かかります</p>
-            <p>• 車両を預ける必要があります</p>
-            <p>• 効果の持続期間は1年から3年です</p>
-            <p>• 下地処理はコーティング費用に含まれます</p>
+          <CardContent className="space-y-2">
+            <p className="text-base text-slate-700">• 乾燥時間は数日かかります</p>
+            <p className="text-base text-slate-700">• 車両を預ける必要があります</p>
+            <p className="text-base text-slate-700">• 効果の持続期間は1年から3年です</p>
+            <p className="text-base text-slate-700">• 下地処理はコーティング費用に含まれます</p>
           </CardContent>
         </Card>
       </main>

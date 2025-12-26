@@ -164,11 +164,41 @@ export function getTireInspectionCategoryName(category: TireInspectionItem["cate
 
 /**
  * 法定基準値（タイヤ溝深さ）
+ * 設定値から取得、設定値がない場合はデフォルト値を使用
+ */
+export function getLegalTreadDepthThreshold(): number {
+  try {
+    const { getNumericalMasterConfig } = require("@/lib/numerical-master-config");
+    const config = getNumericalMasterConfig();
+    return config.thresholds.tireInspection.legalThreshold;
+  } catch {
+    return 1.6; // フォールバック: デフォルト値
+  }
+}
+
+/**
+ * 推奨基準値（タイヤ溝深さ）
+ * 設定値から取得、設定値がない場合はデフォルト値を使用
+ */
+export function getRecommendedTreadDepthThreshold(): number {
+  try {
+    const { getNumericalMasterConfig } = require("@/lib/numerical-master-config");
+    const config = getNumericalMasterConfig();
+    return config.thresholds.tireInspection.recommendedThreshold;
+  } catch {
+    return 3.0; // フォールバック: デフォルト値
+  }
+}
+
+/**
+ * 法定基準値（タイヤ溝深さ）
+ * @deprecated getLegalTreadDepthThreshold() を使用してください
  */
 export const LEGAL_TREAD_DEPTH_THRESHOLD = 1.6; // mm
 
 /**
  * 推奨基準値（タイヤ溝深さ）
+ * @deprecated getRecommendedTreadDepthThreshold() を使用してください
  */
 export const RECOMMENDED_TREAD_DEPTH_THRESHOLD = 3.0; // mm
 

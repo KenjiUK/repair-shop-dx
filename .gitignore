@@ -40,7 +40,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# build outputs
+build-output.txt
+*.json.bak
+
 # secrets
 service-account.json
 **/service-account.json
 
+# 会社情報（GITにはアップしない）
+docs/会社情報.md
+
+
+.vercel

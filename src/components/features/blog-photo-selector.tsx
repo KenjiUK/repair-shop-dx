@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,8 +102,8 @@ export function BlogPhotoSelector({
     <Card className={cn(className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ImageIcon className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <ImageIcon className="h-5 w-5 shrink-0" />
             ブログ用写真の公開
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -111,15 +112,13 @@ export function BlogPhotoSelector({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   onClick={allSelected ? handleDeselectAll : handleSelectAll}
                   disabled={disabled || isPublishing}
-                  className="h-7 text-xs"
                 >
                   {allSelected ? "すべて解除" : "すべて選択"}
                 </Button>
                 {selectedPhotoIds.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-base">
                     {selectedPhotoIds.length}枚選択中
                   </Badge>
                 )}
@@ -149,10 +148,12 @@ export function BlogPhotoSelector({
                   >
                     {/* 写真 */}
                     <div className="aspect-square relative bg-slate-100">
-                      <img
+                      <Image
                         src={photo.url}
                         alt={photo.caption || "写真"}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        unoptimized
                       />
                       {/* オーバーレイ */}
                       <div
@@ -168,7 +169,7 @@ export function BlogPhotoSelector({
                             "w-6 h-6 rounded-full flex items-center justify-center transition-all",
                             isSelected
                               ? "bg-primary text-white"
-                              : "bg-white/80 text-slate-400 group-hover:bg-white"
+                              : "bg-white/80 text-slate-700 group-hover:bg-white"
                           )}
                         >
                           {isSelected && (
@@ -193,9 +194,9 @@ export function BlogPhotoSelector({
                         <div className="absolute bottom-2 right-2">
                           <Badge
                             variant={photo.type === "before" ? "secondary" : "default"}
-                            className="text-xs"
+                            className="text-base"
                           >
-                            {photo.type === "before" ? "Before" : "After"}
+                            {photo.type === "before" ? "作業前" : "作業後"}
                           </Badge>
                         </div>
                       )}
@@ -203,7 +204,7 @@ export function BlogPhotoSelector({
                     {/* キャプション */}
                     {photo.caption && (
                       <div className="p-2 bg-white">
-                        <p className="text-xs text-slate-600 truncate">{photo.caption}</p>
+                        <p className="text-base text-slate-700 truncate">{photo.caption}</p>
                       </div>
                     )}
                   </div>
@@ -237,15 +238,23 @@ export function BlogPhotoSelector({
             )}
           </div>
         ) : (
-          <div className="py-8 text-center text-slate-400">
+          <div className="py-8 text-center text-slate-700">
             <ImageIcon className="h-12 w-12 mx-auto mb-2 text-slate-300" />
-            <p className="text-sm">公開可能な写真がありません</p>
+            <p className="text-base">公開可能な写真がありません</p>
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

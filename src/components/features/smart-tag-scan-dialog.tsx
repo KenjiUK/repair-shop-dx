@@ -287,7 +287,7 @@ export function SmartTagScanDialog({
                 className="w-full rounded-md border border-slate-200 overflow-hidden"
                 style={{ minHeight: "300px" }}
               />
-              <p className="text-xs text-slate-500 text-center">
+              <p className="text-base text-slate-700 text-center">
                 スマートタグのQRコードをカメラに向けてください
               </p>
             </div>

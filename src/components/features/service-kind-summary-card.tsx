@@ -23,7 +23,8 @@ import {
 
 interface ServiceKindSummaryCardProps {
   jobs: ZohoJob[];
-  onServiceKindClick?: (serviceKind: ServiceKind) => void;
+  selectedServiceKind?: ServiceKind | null;
+  onServiceKindClick?: (serviceKind: ServiceKind | null) => void;
 }
 
 /**
@@ -72,39 +73,51 @@ const serviceKindConfig: Record<
   },
   "修理・整備": {
     icon: Wrench,
-    color: "text-orange-600", // 修理・整備系
+    color: "text-orange-700", // 修理・整備系
     bgColor: "bg-orange-50",
     label: "修理・整備",
   },
   チューニング: {
     icon: Zap,
-    color: "text-violet-600", // カスタマイズ系
+    color: "text-violet-700", // カスタマイズ系
     bgColor: "bg-violet-50",
     label: "チューニング",
   },
   パーツ取付: {
     icon: Package,
-    color: "text-violet-600", // カスタマイズ系
+    color: "text-violet-700", // カスタマイズ系
     bgColor: "bg-violet-50",
     label: "パーツ取付",
   },
   コーティング: {
     icon: Shield,
-    color: "text-violet-600", // カスタマイズ系
+    color: "text-violet-700", // カスタマイズ系
     bgColor: "bg-violet-50",
     label: "コーティング",
   },
   レストア: {
     icon: Sparkles,
-    color: "text-violet-600", // カスタマイズ系
+    color: "text-violet-700", // カスタマイズ系
     bgColor: "bg-violet-50",
     label: "レストア",
   },
   その他: {
     icon: FileText,
-    color: "text-slate-600", // その他
+    color: "text-slate-700", // その他
     bgColor: "bg-slate-50",
     label: "その他",
+  },
+  "板金・塗装": {
+    icon: Paintbrush,
+    color: "text-violet-700", // カスタマイズ系
+    bgColor: "bg-violet-50",
+    label: "板金・塗装",
+  },
+  "その他のメンテナンス": {
+    icon: Wrench,
+    color: "text-slate-700", // その他（メンテナンス作業であることを明確化）
+    bgColor: "bg-slate-50",
+    label: "その他のメンテナンス",
   },
 };
 
@@ -113,6 +126,7 @@ const serviceKindConfig: Record<
  */
 export function ServiceKindSummaryCard({
   jobs,
+  selectedServiceKind,
   onServiceKindClick,
 }: ServiceKindSummaryCardProps) {
   // 入庫区分別の件数を集計
@@ -135,8 +149,7 @@ export function ServiceKindSummaryCard({
   // カードタイトルをクリックでフィルターリセット
   const handleTitleClick = () => {
     if (onServiceKindClick) {
-      // リセットするためにnullを渡す（親コンポーネントで処理）
-      // 実際には親コンポーネントで"すべて"にリセットする必要がある
+      onServiceKindClick(null); // フィルターリセット
     }
   };
 
@@ -153,34 +166,86 @@ export function ServiceKindSummaryCard({
       <CardHeader className="pb-3">
         <CardTitle 
           className={cn(
-            "flex items-center justify-between text-lg",
+            "flex items-center justify-between text-xl font-semibold", // text-lg → text-xl (40歳以上ユーザー向け、フォントサイズ拡大)
             onServiceKindClick && "cursor-pointer hover:opacity-80 transition-opacity"
           )}
           onClick={handleTitleClick}
           aria-label={onServiceKindClick ? "入庫区分別（クリックでフィルターリセット）" : "入庫区分別"}
         >
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-slate-600 flex items-center justify-center">
-              <FileText className="h-4 w-4 text-white" />
+            <div className="w-6 h-6 rounded-full bg-slate-600 flex items-center justify-center shrink-0">
+              <FileText className="h-5 w-5 text-white shrink-0" />
             </div>
             入庫区分別
           </div>
-          <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300 text-xs font-medium px-2.5 py-1 rounded-full">
+          <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300 text-base font-medium px-2.5 py-1 rounded-full">
             {totalCount}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
         <div className="space-y-2 flex-1">
+          {/* 「すべて」ボタン */}
+          {onServiceKindClick && (
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="すべての入庫区分を表示（クリックでフィルターリセット）"
+              aria-pressed={selectedServiceKind === null ? "true" : "false"}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onServiceKindClick(null);
+                }
+              }}
+              className={cn(
+                "flex items-center justify-between gap-2 p-3 rounded-md transition-all duration-200", // p-2 → p-3 (40歳以上ユーザー向け、タッチターゲットサイズ拡大)
+                "bg-slate-50 border border-slate-200",
+                "cursor-pointer hover:bg-slate-100 hover:border-slate-300 hover:shadow-md",
+                "focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
+                // 「すべて」選択時のスタイル（他のボタンとは異なる強調）
+                selectedServiceKind === null && "bg-blue-50 border-blue-500 shadow-md ring-1 ring-blue-400"
+              )}
+              onClick={() => {
+                onServiceKindClick(null);
+              }}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center shrink-0",
+                  selectedServiceKind === null ? "bg-blue-100" : "bg-slate-100"
+                )}>
+                  <FileText className={cn(
+                    "h-4 w-4 shrink-0",
+                    selectedServiceKind === null ? "text-blue-700" : "text-slate-700",
+                    selectedServiceKind === null && "scale-110"
+                  )} />
+                </div>
+                <span className={cn(
+                  "text-base font-medium truncate",
+                  selectedServiceKind === null ? "text-blue-700 font-semibold" : "text-slate-700"
+                )}>
+                  すべて
+                </span>
+              </div>
+              <span className={cn(
+                "font-bold tabular-nums text-xl shrink-0",
+                selectedServiceKind === null ? "text-blue-900 scale-110" : "text-slate-900"
+              )}>
+                {totalCount}
+              </span>
+            </div>
+          )}
+          
           {sortedServiceKinds.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-4">入庫区分データがありません</p>
+            <p className="text-base text-slate-700 text-center py-4">データがありません</p>
           ) : (
             sortedServiceKinds.map(([serviceKind, count]) => {
               const config = serviceKindConfig[serviceKind];
               if (!config) return null;
 
               const Icon = config.icon;
-              const isSelected = false; // TODO: selectedServiceKindが追加されたら実装
+              const isSelected = selectedServiceKind === serviceKind;
 
               return (
                 <div
@@ -196,17 +261,29 @@ export function ServiceKindSummaryCard({
                     }
                   }}
                   className={cn(
-                    "flex items-center justify-between gap-2 p-2 rounded-md transition-all duration-200",
+                    "flex items-center justify-between gap-2 p-3 rounded-md transition-all duration-200", // p-2 → p-3 (40歳以上ユーザー向け、タッチターゲットサイズ拡大)
+                    // 基本スタイル（すべてのボタンで統一）
                     count > 0 && "bg-slate-50 border border-slate-200",
-                    onServiceKindClick && count > 0 && "cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
-                    isSelected && count > 0 && "bg-slate-100 border-2 border-slate-400 shadow-md"
+                    // 「すべて」が選択されている場合、他のボタンを視覚的に無効化
+                    selectedServiceKind === null && count > 0 && "opacity-50 cursor-not-allowed",
+                    // クリック可能な場合のホバー・フォーカススタイル（「すべて」選択時は無効）
+                    onServiceKindClick && count > 0 && selectedServiceKind !== null && "cursor-pointer hover:bg-slate-100 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
+                    // 選択状態のスタイル（サイズは変わらないようにborderの太さを統一）
+                    isSelected && count > 0 && "bg-slate-100 border border-slate-500 shadow-md ring-1 ring-slate-400"
                   )}
-                  onClick={() => onServiceKindClick?.(serviceKind)}
+                  onClick={() => {
+                    if (onServiceKindClick && count > 0) {
+                      // 既に選択されている場合はリセット（nullを渡す）、そうでなければ選択
+                      onServiceKindClick(isSelected ? null : serviceKind);
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Icon className={cn("h-4 w-4 shrink-0", config.color, isSelected && "scale-110")} />
+                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                      <Icon className={cn("h-4 w-4 shrink-0", config.color, isSelected && "scale-110")} />
+                    </div>
                     <span className={cn(
-                      "text-sm font-medium text-slate-700 truncate",
+                      "text-base font-medium text-slate-800 truncate",
                       isSelected && "font-semibold"
                     )}>
                       {config.label}

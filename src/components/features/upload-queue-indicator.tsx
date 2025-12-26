@@ -96,16 +96,16 @@ export function UploadQueueIndicator({
       <div className="flex items-start gap-3">
         <div className="mt-0.5">
           {isUploading ? (
-            <Upload className="h-5 w-5 text-blue-600 animate-pulse" />
+            <Upload className="h-5 w-5 text-blue-700 animate-pulse" />
           ) : lastError ? (
-            <AlertCircle className="h-5 w-5 text-red-600" />
+            <AlertCircle className="h-5 w-5 text-red-700" />
           ) : (
-            <Upload className="h-5 w-5 text-amber-600" />
+            <Upload className="h-5 w-5 text-amber-700" />
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <p className="text-sm font-medium">未アップロードファイル</p>
+            <p className="text-base font-medium">未アップロードファイル</p>
             {pendingCount > 0 && (
               <Badge variant="outline" className="bg-amber-50">
                 {pendingCount}件
@@ -113,23 +113,22 @@ export function UploadQueueIndicator({
             )}
           </div>
           {lastError && (
-            <p className="text-xs text-red-600 mb-2">{lastError}</p>
+            <p className="text-base text-red-700 mb-2">{lastError}</p>
           )}
           {isUploading ? (
-            <p className="text-xs text-slate-600">アップロード中...</p>
+            <p className="text-base text-slate-700">アップロード中...</p>
           ) : pendingCount > 0 ? (
             <Button
-              size="sm"
               onClick={handleUpload}
               disabled={!isOnline}
               className="mt-2 bg-amber-600 hover:bg-amber-700 text-white"
             >
-              <Upload className="h-3 w-3 mr-1" />
+              <Upload className="h-4 w-4 mr-1" />
               アップロード
             </Button>
           ) : (
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <CheckCircle2 className="h-3 w-3" />
+            <div className="flex items-center gap-1 text-base text-green-700">
+              <CheckCircle2 className="h-4 w-4" />
               <span>すべてアップロード済み</span>
             </div>
           )}
@@ -143,13 +142,21 @@ export function UploadQueueIndicator({
             className="p-1 rounded hover:bg-slate-100 transition-colors"
             aria-label="閉じる"
           >
-            <X className="h-4 w-4 text-slate-500" />
+            <X className="h-4 w-4 text-slate-700" />
           </button>
         )}
       </div>
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { WorkOrder, ApiResponse } from "@/types";
+import { WorkOrder, ApiResponse, ZohoJob } from "@/types";
 import { fetchJobById } from "@/lib/api";
 import {
   parseWorkOrdersFromZoho,
@@ -61,7 +61,8 @@ export async function GET(
     const zohoJob = jobResult.data;
 
     // field_work_ordersからワークオーダーリストをパース
-    const workOrdersJson = (zohoJob as any).field_work_orders || null;
+    const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
+    const workOrdersJson = jobWithWorkOrders.field_work_orders || null;
     const workOrders = parseWorkOrdersFromZoho(workOrdersJson);
 
     // 指定されたワークオーダーを検索
@@ -126,7 +127,8 @@ export async function PATCH(
     const zohoJob = jobResult.data;
 
     // field_work_ordersからワークオーダーリストをパース
-    const workOrdersJson = (zohoJob as any).field_work_orders || null;
+    const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
+    const workOrdersJson = jobWithWorkOrders.field_work_orders || null;
     const workOrders = parseWorkOrdersFromZoho(workOrdersJson);
 
     // 指定されたワークオーダーを検索
@@ -205,7 +207,8 @@ export async function DELETE(
     const zohoJob = jobResult.data;
 
     // field_work_ordersからワークオーダーリストをパース
-    const workOrdersJson = (zohoJob as any).field_work_orders || null;
+    const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
+    const workOrdersJson = jobWithWorkOrders.field_work_orders || null;
     const workOrders = parseWorkOrdersFromZoho(workOrdersJson);
 
     // 指定されたワークオーダーが存在するか確認

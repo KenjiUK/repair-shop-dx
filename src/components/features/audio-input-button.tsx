@@ -193,48 +193,48 @@ export function AudioInputButton({
             ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20"
             : isRecordingState
             ? "border-red-500 bg-red-50 dark:bg-red-950/20 animate-pulse"
-            : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800",
+            : "border-slate-300 bg-slate-50 hover:border-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800",
           (isProcessingState || disabled) && "opacity-50 cursor-wait"
         )}
       >
         {isProcessingState ? (
           <div className="flex flex-col items-center gap-1">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-            <span className="text-xs text-slate-500">処理中...</span>
+            <Loader2 className="h-6 w-6 animate-spin text-slate-700" />
+            <span className="text-base text-slate-700">処理中...</span>
           </div>
         ) : isRecordingState ? (
           <div className="flex flex-col items-center gap-1">
             <div className="relative">
-              <Mic className="h-6 w-6 text-red-600 dark:text-red-400 animate-pulse" />
+              <Mic className="h-6 w-6 text-red-700 dark:text-red-400 animate-pulse" />
               <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
             </div>
-            <span className="text-sm font-medium text-red-700 dark:text-red-300">
+            <span className="text-base font-medium text-red-700 dark:text-red-300">
               🎤 録音中...
             </span>
-            <span className="text-xs text-red-600 dark:text-red-400">
+            <span className="text-base text-red-700 dark:text-red-500">
               {recordingTime}秒 / {maxDuration}秒
             </span>
           </div>
         ) : hasAudio ? (
           <div className="flex flex-col items-center gap-1">
-            <CheckCircle2 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-            <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+            <CheckCircle2 className="h-6 w-6 text-purple-700 dark:text-purple-400" />
+            <span className="text-base font-medium text-purple-700 dark:text-purple-300">
               {label}
             </span>
-            <span className="text-xs text-purple-600 dark:text-purple-400">録音済み ✓</span>
+            <span className="text-base text-purple-700 dark:text-purple-500">録音済み ✓</span>
             {audioData?.duration && (
-              <span className="text-xs text-purple-500 dark:text-purple-400">
+              <span className="text-base text-purple-700 dark:text-purple-500">
                 {Math.round(audioData.duration)}秒
               </span>
             )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1">
-            <Mic className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            <Mic className="h-6 w-6 text-slate-700 dark:text-slate-300" />
+            <span className="text-base font-medium text-slate-800 dark:text-slate-300">
               🎤 {label}
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="text-base text-slate-700 dark:text-slate-300">
               タップで録音開始
             </span>
           </div>
@@ -249,7 +249,7 @@ export function AudioInputButton({
             className="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center shadow-md hover:bg-purple-600 transition-colors"
             title="再生"
           >
-            <span className="text-xs">▶</span>
+            <span className="text-base">▶</span>
           </button>
         </div>
       )}

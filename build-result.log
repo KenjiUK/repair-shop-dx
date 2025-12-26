@@ -1,0 +1,89 @@
+﻿
+> repair-shop-dx@1.0.0-beta.1 build
+> next build
+
+   笆ｲ Next.js 16.0.10 (Turbopack)
+   - Environments: .env.local
+
+node.exe :  笞 The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.o
+rg/docs/messages/middleware-to-proxy
+発生場所 行:1 文字:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( 笞 The "middle...leware-to-proxy:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   Creating an optimized production build ...
+ 笨・Compiled successfully in 25.3s
+   Running TypeScript ...
+   Collecting page data using 15 workers ...
+   Generating static pages using 15 workers (0/33) ...
+   Generating static pages using 15 workers (8/33) 
+   Generating static pages using 15 workers (16/33) 
+   Generating static pages using 15 workers (24/33) 
+ 笨・Generating static pages using 15 workers (33/33) in 1516.2ms
+   Finalizing page optimization ...
+
+Route (app)
+笏・笳・/
+笏・ﾆ・/_not-found
+笏・笳・/admin/announcements
+笏・笳・/admin/blog-photos
+笏・ﾆ・/admin/estimate/[id]
+笏・ﾆ・/admin/pre-estimate/[id]
+笏・笳・/admin/settings/numerical-masters
+笏・ﾆ・/api/analytics
+笏・ﾆ・/api/auth/[...nextauth]
+笏・ﾆ・/api/auth/csrf-token
+笏・ﾆ・/api/blog-photos
+笏・ﾆ・/api/email/send
+笏・ﾆ・/api/email/send-estimate
+笏・ﾆ・/api/feedback
+笏・ﾆ・/api/gemini/transcribe
+笏・ﾆ・/api/google-drive/files
+笏・ﾆ・/api/google-drive/files/[fileId]
+笏・ﾆ・/api/google-drive/files/[fileId]/content
+笏・ﾆ・/api/google-drive/files/[fileId]/copy
+笏・ﾆ・/api/google-drive/files/[fileId]/move
+笏・ﾆ・/api/google-drive/files/search
+笏・ﾆ・/api/google-drive/folders
+笏・ﾆ・/api/google-drive/folders/[folderId]
+笏・ﾆ・/api/google-sheets/customers
+笏・ﾆ・/api/google-sheets/customers/[customerId]
+笏・ﾆ・/api/google-sheets/vehicles
+笏・ﾆ・/api/google-sheets/vehicles/[vehicleId]
+笏・ﾆ・/api/jobs/[id]/work-orders
+笏・ﾆ・/api/jobs/[id]/work-orders/[workOrderId]
+笏・ﾆ・/api/line/history
+笏・ﾆ・/api/line/magic-link
+笏・ﾆ・/api/line/magic-link/[token]/customer-id
+笏・ﾆ・/api/line/notify
+笏・ﾆ・/api/line/retry/[notificationId]
+笏・ﾆ・/api/realtime/stream
+笏・ﾆ・/api/realtime/updates
+笏・ﾆ・/api/smart-tags/sessions
+笏・ﾆ・/api/smart-tags/sessions/[sessionId]/close
+笏・ﾆ・/api/smart-tags/tags
+笏・ﾆ・/api/smart-tags/tags/[tagId]
+笏・ﾆ・/api/webrtc/signal
+笏・ﾆ・/api/zoho/batch
+笏・ﾆ・/api/zoho/customers/[id]
+笏・ﾆ・/customer/approval/[id]
+笏・笳・/customer/dashboard
+笏・ﾆ・/customer/pre-checkin/[id]
+笏・ﾆ・/customer/report/[id]
+笏・笳・/inventory/courtesy-cars
+笏・笳・/jobs/history
+笏・笳・/login
+笏・笳・/manager/analytics
+笏・ﾆ・/mechanic/diagnosis/[id]
+笏・ﾆ・/mechanic/work/[id]
+笏・ﾆ・/presentation/[id]
+笏・笳・/projects/long-term
+
+
+ﾆ・Proxy (Middleware)
+
+笳・ (Static)   prerendered as static content
+ﾆ・ (Dynamic)  server-rendered on demand
+

@@ -275,25 +275,25 @@ export function BodyPaintOutsourcingView({
       {!isOrdered && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Package className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Package className="h-5 w-5 shrink-0" />
               外注先への発注
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-sm">外注先名</Label>
+                <Label className="text-base">外注先名</Label>
                 <Input
                   value={outsourcingInfo?.vendorName || ""}
                   onChange={(e) => handleVendorNameChange(e.target.value)}
                   placeholder="外注先名を入力"
                   disabled={disabled}
-                  className="text-sm"
+                  className="text-base"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm">発注方法</Label>
+                <Label className="text-base">発注方法</Label>
                 <Select
                   value={outsourcingInfo?.orderMethod || ""}
                   onValueChange={(value) =>
@@ -301,7 +301,7 @@ export function BodyPaintOutsourcingView({
                   }
                   disabled={disabled}
                 >
-                  <SelectTrigger className="h-9 text-sm">
+                  <SelectTrigger className="h-12 text-base">
                     <SelectValue placeholder="発注方法を選択" />
                   </SelectTrigger>
                   <SelectContent>
@@ -312,7 +312,7 @@ export function BodyPaintOutsourcingView({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-500">
+                <p className="text-base text-slate-700">
                   {outsourcingInfo?.orderMethod === "写真送付" &&
                     "Before写真・動画を外注先に送付して発注"}
                   {outsourcingInfo?.orderMethod === "持ち込み" &&
@@ -356,7 +356,7 @@ export function BodyPaintOutsourcingView({
       {isOrdered && !isPickedUp && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-base">
+            <CardTitle className="flex items-center justify-between text-lg font-semibold">
               <span className="flex items-center gap-2">
                 <Truck className="h-5 w-5" />
                 外注作業管理
@@ -375,7 +375,7 @@ export function BodyPaintOutsourcingView({
                 </Badge>
                 {isDelayed && (
                   <Badge variant="destructive" className="flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" />
+                    <AlertTriangle className="h-4 w-4" />
                     遅延
                   </Badge>
                 )}
@@ -385,11 +385,11 @@ export function BodyPaintOutsourcingView({
           <CardContent className="space-y-4">
             {/* 遅延アラート */}
             {isDelayed && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              <div className="p-3 bg-red-50 border border-red-300 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-red-900">作業が遅延しています</p>
-                  <p className="text-xs text-red-700 mt-1">
+                  <p className="text-base font-medium text-red-900">作業が遅延しています</p>
+                  <p className="text-base text-red-800 mt-1">
                     予定完了日（{outsourcingInfo?.expectedCompletionDate ? new Date(outsourcingInfo.expectedCompletionDate).toLocaleDateString("ja-JP") : "-"}）を過ぎています。
                     外注先に進捗を確認してください。
                   </p>
@@ -399,8 +399,8 @@ export function BodyPaintOutsourcingView({
 
             {/* 進捗表示 */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600 flex items-center gap-2">
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-700 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
                   作業進捗
                 </span>
@@ -412,37 +412,37 @@ export function BodyPaintOutsourcingView({
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-slate-600">外注先名</Label>
-                  <p className="text-sm font-medium text-slate-900 mt-1">
+                  <Label className="text-base text-slate-800">外注先名</Label>
+                  <p className="text-base font-medium text-slate-900 mt-1">
                     {outsourcingInfo?.vendorName || "-"}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-600">発注方法</Label>
-                  <p className="text-sm font-medium text-slate-900 mt-1">
+                  <Label className="text-base text-slate-800">発注方法</Label>
+                  <p className="text-base font-medium text-slate-900 mt-1">
                     {outsourcingInfo?.orderMethod || "-"}
                   </p>
                 </div>
               </div>
               {outsourcingInfo?.orderDate && (
                 <div>
-                  <Label className="text-xs text-slate-600">発注日時</Label>
-                  <p className="text-sm font-medium text-slate-900 mt-1">
+                  <Label className="text-base text-slate-800">発注日時</Label>
+                  <p className="text-base font-medium text-slate-900 mt-1">
                     {outsourcingInfo.orderDate}
                   </p>
                 </div>
               )}
               {outsourcingInfo?.deliveryDate && (
                 <div>
-                  <Label className="text-xs text-slate-600">預け日時</Label>
-                  <p className="text-sm font-medium text-slate-900 mt-1">
+                  <Label className="text-base text-slate-800">預け日時</Label>
+                  <p className="text-base font-medium text-slate-900 mt-1">
                     {outsourcingInfo.deliveryDate}
                   </p>
                 </div>
               )}
               <div>
-                <Label className="text-xs text-slate-600">作業期間</Label>
-                <p className="text-sm font-medium text-slate-900 mt-1">
+                <Label className="text-base text-slate-800">作業期間</Label>
+                <p className="text-base font-medium text-slate-900 mt-1">
                   {workDuration}カ月（予定）
                 </p>
               </div>
@@ -504,22 +504,22 @@ export function BodyPaintOutsourcingView({
       {isCompleted && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
               引き取り・品質確認
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* 品質確認チェックリスト */}
             <div className="space-y-3">
-              <Label className="text-sm">品質確認チェックリスト</Label>
+              <Label className="text-base">品質確認チェックリスト</Label>
               {(qualityCheckData?.checkItems || []).map((item, index) => (
                 <div
                   key={item.id}
                   className="p-3 border border-slate-200 rounded-lg space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">
+                    <Label className="text-base font-medium">
                       {item.name || `項目 #${index + 1}`}
                     </Label>
                     <Select
@@ -531,7 +531,7 @@ export function BodyPaintOutsourcingView({
                       }
                       disabled={disabled}
                     >
-                      <SelectTrigger className="h-8 w-32 text-xs">
+                      <SelectTrigger className="h-12 w-32 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -551,13 +551,12 @@ export function BodyPaintOutsourcingView({
                     placeholder="コメントを入力..."
                     disabled={disabled}
                     rows={2}
-                    className="text-xs"
+                    className="text-base"
                   />
                 </div>
               ))}
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleAddQualityCheckItem}
                 disabled={disabled}
                 className="w-full"
@@ -570,7 +569,7 @@ export function BodyPaintOutsourcingView({
 
             {/* After写真撮影（必須） */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-base">
                 <Camera className="h-4 w-4" />
                 <Label>After写真（必須）</Label>
               </div>
@@ -589,10 +588,9 @@ export function BodyPaintOutsourcingView({
                   }
                 }}
                 disabled={disabled}
-                size="sm"
               />
               {(qualityCheckData?.afterPhotoUrls || []).length > 0 && (
-                <p className="text-xs text-slate-500">
+                <p className="text-base text-slate-700">
                   {(qualityCheckData?.afterPhotoUrls || []).length}枚の写真が撮影されています
                 </p>
               )}
@@ -602,7 +600,7 @@ export function BodyPaintOutsourcingView({
 
             {/* コメント */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-base">
                 <MessageSquare className="h-4 w-4" />
                 <Label>コメント</Label>
               </div>
@@ -621,7 +619,7 @@ export function BodyPaintOutsourcingView({
                 placeholder="コメントを入力..."
                 disabled={disabled}
                 rows={3}
-                className="text-sm"
+                className="text-base"
               />
             </div>
 
@@ -638,7 +636,7 @@ export function BodyPaintOutsourcingView({
               品質確認完了
             </Button>
             {(qualityCheckData?.afterPhotoUrls || []).length === 0 && (
-              <p className="text-xs text-red-500 text-center">
+              <p className="text-base text-red-700 text-center">
                 After写真の撮影が必須です
               </p>
             )}

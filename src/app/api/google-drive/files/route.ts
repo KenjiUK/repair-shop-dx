@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DriveFile, ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API ファイルアップロードエンドポイント
@@ -24,27 +25,13 @@ function errorResponse(
 }
 
 /**
- * Google Drive API アクセストークンを取得
- * TODO: 実際の認証実装時に実装
- */
-async function getAccessToken(): Promise<string> {
-  // TODO: Google OAuth認証を実装
-  // 現時点では環境変数から取得（開発用）
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
-/**
  * 既存の同名ファイルを検索
  */
 async function findExistingFile(
   fileName: string,
   parentFolderId?: string
 ): Promise<DriveFile | null> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getGoogleAccessToken();
 
   let query = `name='${fileName}' and trashed=false`;
   if (parentFolderId) {
@@ -89,7 +76,7 @@ async function findExistingFile(
  * 既存ファイルを削除
  */
 async function deleteFile(fileId: string): Promise<void> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getGoogleAccessToken();
 
   const response = await fetch(`${GOOGLE_DRIVE_API_BASE}/files/${fileId}`, {
     method: "DELETE",
@@ -123,7 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const accessToken = await getAccessToken();
+    const accessToken = await getGoogleAccessToken();
 
     // replaceExistingがtrueの場合は既存ファイルを削除
     if (replaceExisting) {
@@ -197,6 +184,10 @@ export async function POST(request: NextRequest) {
     return errorResponse(message, "FILE_UPLOAD_ERROR", 500);
   }
 }
+
+
+
+
 
 
 

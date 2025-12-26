@@ -176,10 +176,9 @@ export async function markChangeRequestCompleted(
     }
     const updatedDescription = removeChangeRequestsFromDescription(customer.Description);
 
-    // Descriptionを更新
-    return await updateCustomer(customerId, {
-      Description: updatedDescription,
-    });
+    // Descriptionを更新（API関数を使用）
+    const { updateCustomerDescription } = await import("./api");
+    return await updateCustomerDescription(customerId, updatedDescription);
   } catch (error) {
     const errorEntry = createErrorLogEntry(
       error,
@@ -269,6 +268,10 @@ export async function checkChangeRequests(
     };
   }
 }
+
+
+
+
 
 
 

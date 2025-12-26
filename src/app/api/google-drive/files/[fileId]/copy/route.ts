@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DriveFile, ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API ファイルコピーエンドポイント
@@ -23,17 +24,6 @@ function errorResponse(
 }
 
 /**
- * Google Drive API アクセストークンを取得
- */
-async function getAccessToken(): Promise<string> {
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
-/**
  * ファイルをコピー
  */
 async function copyFileInDrive(
@@ -41,7 +31,7 @@ async function copyFileInDrive(
   targetFolderId: string,
   newFileName?: string
 ): Promise<DriveFile> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getGoogleAccessToken();
 
   // コピー用のメタデータを準備
   const metadata: Record<string, unknown> = {

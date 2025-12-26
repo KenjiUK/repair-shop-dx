@@ -122,7 +122,7 @@ export function VideoShareDialog({
                 id="video-url"
                 value={videoUrl}
                 readOnly
-                className="font-mono text-sm"
+                className="font-mono text-base"
               />
               <Button
                 variant="outline"
@@ -131,7 +131,7 @@ export function VideoShareDialog({
                 className="shrink-0"
               >
                 {copied ? (
-                  <Check className="h-4 w-4 text-green-600" />
+                  <Check className="h-4 w-4 text-green-700" />
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}
@@ -154,7 +154,7 @@ export function VideoShareDialog({
               <Button
                 variant="outline"
                 onClick={handleShareLine}
-                className="gap-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                className="gap-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
               >
                 <Share2 className="h-4 w-4" />
                 LINEで共有

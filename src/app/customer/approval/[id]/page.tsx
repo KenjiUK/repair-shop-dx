@@ -13,12 +13,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import { EstimatePriority, EstimateItem } from "@/types";
 import { toast } from "sonner";
-import { fetchJobById, approveEstimate } from "@/lib/api";
-import { useWorkOrders } from "@/hooks/use-work-orders";
+import { fetchJobById, approveEstimate, rejectEstimate } from "@/lib/api";
+import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
 import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AppHeader } from "@/components/layout/app-header";
 import {
   Car,
   Check,
@@ -30,6 +32,9 @@ import {
   MessageCircle,
   Phone,
   Loader2,
+  Video,
+  Play,
+  X,
 } from "lucide-react";
 
 // =============================================================================
@@ -43,6 +48,8 @@ interface EstimateLineItem {
   priority: EstimatePriority;
   selected: boolean;
   photoUrl: string | null;
+  videoUrl: string | null;
+  transcription: string | null; // 実況解説テキスト（音声認識結果）
   comment: string | null;
 }
 
@@ -57,74 +64,7 @@ function isEstimateExpired(expiresAt: string): boolean {
   return new Date() > new Date(expiresAt);
 }
 
-const initialItems: EstimateLineItem[] = [
-  // 必須整備（松）
-  {
-    id: "est-1",
-    name: "法定12ヶ月点検",
-    price: 15000,
-    priority: "required",
-    selected: true,
-    photoUrl: null,
-    comment: null,
-  },
-  {
-    id: "est-2",
-    name: "エンジンオイル交換",
-    price: 5500,
-    priority: "required",
-    selected: true,
-    photoUrl: null,
-    comment: "前回交換から5,000km経過",
-  },
-  // 推奨整備（竹）
-  {
-    id: "est-3",
-    name: "Fブレーキパッド交換",
-    price: 33000,
-    priority: "recommended",
-    selected: true,
-    photoUrl: "https://placehold.co/600x400/fecaca/dc2626?text=Brake+Pad+2mm",
-    comment: "残量2mm。安全のため交換を強くお勧めします。",
-  },
-  {
-    id: "est-4",
-    name: "タイヤローテーション",
-    price: 3300,
-    priority: "recommended",
-    selected: true,
-    photoUrl: "https://placehold.co/600x400/fef08a/ca8a04?text=Tire+Wear",
-    comment: "前輪の偏摩耗を防ぐため推奨します。",
-  },
-  {
-    id: "est-5",
-    name: "ワイパーゴム交換",
-    price: 2200,
-    priority: "recommended",
-    selected: true,
-    photoUrl: null,
-    comment: "拭きムラが発生しています。",
-  },
-  // 任意整備（梅）
-  {
-    id: "est-6",
-    name: "エアコンフィルター交換",
-    price: 4400,
-    priority: "optional",
-    selected: false,
-    photoUrl: null,
-    comment: "花粉シーズン前の交換がおすすめです。",
-  },
-  {
-    id: "est-7",
-    name: "ボディコーティング",
-    price: 22000,
-    priority: "optional",
-    selected: false,
-    photoUrl: null,
-    comment: "ツヤと撥水効果が約6ヶ月持続します。",
-  },
-];
+// モックデータは削除（実際の見積データを使用）
 
 // =============================================================================
 // Helper Functions
@@ -152,7 +92,7 @@ function getPriorityColor(priority: EstimatePriority): string {
     case "recommended":
       return "bg-amber-500";
     case "optional":
-      return "bg-slate-400";
+      return "bg-slate-500";
   }
 }
 
@@ -161,24 +101,26 @@ function getPriorityColor(priority: EstimatePriority): string {
 // =============================================================================
 
 /**
- * 見積項目カードコンポーネント
+ * 見積項目カードコンポーネント（CitNOWスタイル）
  */
 function EstimateItemCard({
   item,
   onToggle,
   onPhotoClick,
+  onVideoClick,
 }: {
   item: EstimateLineItem;
   onToggle: (id: string) => void;
   onPhotoClick: (url: string, name: string) => void;
+  onVideoClick: (url: string, name: string) => void;
 }) {
   const isLocked = item.priority === "required";
 
   return (
     <Card
       className={cn(
-        "transition-all",
-        item.selected ? "border-primary/50 bg-white" : "border-slate-200 bg-slate-50 opacity-70"
+        "border border-slate-300 rounded-xl shadow-md transition-all",
+        item.selected ? "bg-white" : "bg-slate-50 opacity-70"
       )}
     >
       <CardContent className="p-4">
@@ -186,14 +128,14 @@ function EstimateItemCard({
           {/* チェックボックス */}
           <div className="pt-0.5">
             {isLocked ? (
-              <div className="flex h-5 w-5 items-center justify-center rounded bg-primary text-white">
-                <Lock className="h-3 w-3 shrink-0" />
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-white shrink-0">
+                <Lock className="h-4 w-4 shrink-0" />
               </div>
             ) : (
               <Checkbox
                 checked={item.selected}
                 onCheckedChange={() => onToggle(item.id)}
-                className="h-5 w-5"
+                className="h-6 w-6 shrink-0"
               />
             )}
           </div>
@@ -201,45 +143,62 @@ function EstimateItemCard({
           {/* コンテンツ */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className={cn(
-                  "font-medium",
-                  item.selected ? "text-slate-900" : "text-slate-500 line-through"
-                )}>
+                  "text-base font-medium truncate",
+                  item.selected ? "text-slate-900" : "text-slate-700 line-through"
+                )}
+                  title={item.name}
+                >
                   {item.name}
                 </p>
                 {item.comment && (
-                  <p className="text-sm text-slate-500 mt-1">{item.comment}</p>
+                  <p className="text-base text-slate-700 mt-1">{item.comment}</p>
                 )}
               </div>
               <p className={cn(
-                "font-bold whitespace-nowrap",
-                item.selected ? "text-slate-900" : "text-slate-400"
+                "text-base font-bold whitespace-nowrap tabular-nums",
+                item.selected ? "text-slate-900" : "text-slate-700"
               )}>
                 ¥{formatPrice(item.price)}
               </p>
             </div>
 
-            {/* 写真サムネイル */}
-            {item.photoUrl && (
-              <button
-                onClick={() => onPhotoClick(item.photoUrl!, item.name)}
-                className="mt-3 flex items-center gap-2 text-sm text-primary hover:underline"
-              >
-                <div className="relative w-16 h-12 rounded overflow-hidden border border-slate-200">
-                  <img
-                    src={item.photoUrl}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <span className="flex items-center gap-1">
-                  <ImageIcon className="h-4 w-4 shrink-0" />
-                  写真を確認
-                  <ChevronRight className="h-4 w-4 shrink-0" />
-                </span>
-              </button>
-            )}
+            {/* メディア（動画・写真）ボタン */}
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              {item.videoUrl && (
+                <button
+                  onClick={() => onVideoClick(item.videoUrl!, item.name)}
+                  className="flex items-center gap-2 px-4 py-2 h-12 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-base font-medium"
+                  aria-label={`${item.name}の動画を見る`}
+                >
+                  <Play className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>動画を見る</span>
+                </button>
+              )}
+              {item.photoUrl && (
+                <button
+                  onClick={() => onPhotoClick(item.photoUrl!, item.name)}
+                  className="flex items-center gap-2 text-base font-medium text-slate-900 hover:text-blue-700 transition-colors"
+                  aria-label={`${item.name}の写真を確認`}
+                >
+                  <div className="relative w-16 h-12 rounded-md overflow-hidden border border-slate-300 shrink-0">
+                    <Image
+                      src={item.photoUrl}
+                      alt={item.name}
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                    />
+                  </div>
+                  <span className="flex items-center gap-1">
+                    <ImageIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    写真を確認
+                    <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
@@ -268,15 +227,15 @@ function SectionHeader({
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
-        <div className={cn("w-1 h-6 rounded-full", getPriorityColor(priority))} />
+        <div className={cn("w-1 h-6 rounded-full shrink-0", getPriorityColor(priority))} />
         <div>
-          <p className="font-bold text-slate-800">{getPriorityLabel(priority)}整備</p>
-          <p className="text-xs text-slate-500">{descriptions[priority]}</p>
+          <p className="text-lg font-bold text-slate-900">{getPriorityLabel(priority)}整備</p>
+          <p className="text-base text-slate-700">{descriptions[priority]}</p>
         </div>
       </div>
       <div className="text-right">
-        <p className="text-sm text-slate-500">{count}件</p>
-        <p className="font-medium">¥{formatPrice(total)}</p>
+        <p className="text-base text-slate-700 tabular-nums">{count}件</p>
+        <p className="text-base font-bold text-slate-900 tabular-nums">¥{formatPrice(total)}</p>
       </div>
     </div>
   );
@@ -287,33 +246,33 @@ function SectionHeader({
  */
 function ThankYouScreen({ customerName }: { customerName: string }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex flex-col items-center justify-center p-6 text-center">
+    <div className="flex-1 bg-gradient-to-b from-green-50 to-white flex flex-col items-center justify-center p-6 text-center overflow-auto">
       <div className="animate-bounce mb-6">
-        <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center">
-          <Check className="h-10 w-10 text-white" />
+        <div className="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center shadow-lg">
+          <Check className="h-12 w-12 text-white shrink-0" />
         </div>
       </div>
 
-      <PartyPopper className="h-12 w-12 text-amber-500 mb-4" />
+      <PartyPopper className="h-16 w-16 text-amber-600 mb-4 shrink-0" />
 
-      <h1 className="text-xl font-bold text-slate-900 mb-2">
+      <h1 className="text-2xl font-bold text-slate-900 mb-2">
         ご依頼ありがとうございます！
       </h1>
 
-      <p className="text-slate-600 mb-6">
+      <p className="text-base text-slate-700 mb-6">
         {customerName}様のご注文を承りました。<br />
         作業完了次第、ご連絡いたします。
       </p>
 
-      <Card className="w-full max-w-sm">
-        <CardContent className="p-4">
-          <p className="text-sm text-slate-500 mb-3">ご不明点がございましたら</p>
-          <div className="space-y-2">
-            <Button variant="outline" className="w-full justify-start gap-2">
+      <Card className="w-full max-w-sm border border-slate-300 rounded-xl shadow-md">
+        <CardContent className="p-6">
+          <p className="text-base font-medium text-slate-900 mb-4">ご不明点がございましたら</p>
+          <div className="space-y-3">
+            <Button variant="outline" className="w-full h-12 justify-start gap-2 text-base font-medium">
               <Phone className="h-4 w-4 shrink-0" />
               お電話でのお問い合わせ
             </Button>
-            <Button variant="outline" className="w-full justify-start gap-2 text-green-600 border-green-200 hover:bg-green-50">
+            <Button variant="outline" className="w-full h-12 justify-start gap-2 text-base font-medium text-green-700 border-green-300 hover:bg-green-50">
               <MessageCircle className="h-4 w-4 shrink-0" />
               LINEでお問い合わせ
             </Button>
@@ -321,7 +280,7 @@ function ThankYouScreen({ customerName }: { customerName: string }) {
         </CardContent>
       </Card>
 
-      <p className="text-xs text-slate-400 mt-8">
+      <p className="text-base text-slate-700 mt-8">
         このページは閉じても大丈夫です
       </p>
     </div>
@@ -349,23 +308,33 @@ export default function CustomerApprovalPage() {
   const job = jobResult?.data;
 
   // ワークオーダーを取得（最初のワークオーダーから見積データを取得）
-  const { workOrders, isLoading: isLoadingWorkOrders } = useWorkOrders(jobId);
+  const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
   const selectedWorkOrder = workOrders && workOrders.length > 0 ? workOrders[0] : null;
 
   // 見積データを取得
   const estimateData = selectedWorkOrder?.estimate;
-  
+
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || "お客様";
+  const customerId = job?.field4?.id || null;
   const vehicleName = job?.field6?.name || "車両";
   const licensePlate = job?.field6?.name ? job.field6.name.split(" / ")[1] || "" : "";
+
+  // 顧客ダッシュボードへのリンク
+  const dashboardHref = customerId ? `/customer/dashboard?customerId=${customerId}` : "/";
 
   // 状態管理
   const [items, setItems] = useState<EstimateLineItem[]>([]);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null);
+  const [lightboxVideo, setLightboxVideo] = useState<{ url: string; name: string } | null>(null);
+  const [mainVideoUrl, setMainVideoUrl] = useState<string | null>(null);
+  const [mainVideoTitle, setMainVideoTitle] = useState<string>("");
   const [isCompleted, setIsCompleted] = useState(false);
   const [displayTotal, setDisplayTotal] = useState(0);
   const [isApproving, setIsApproving] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
 
   // 見積データをEstimateLineItem形式に変換
   useEffect(() => {
@@ -375,11 +344,27 @@ export default function CustomerApprovalPage() {
         name: item.name,
         price: item.price,
         priority: item.priority,
-        selected: true, // デフォルトで選択状態
+        selected: item.approved !== false && item.selected !== false, // approvedまたはselectedがfalseでない場合は選択状態
         photoUrl: item.linkedPhotoUrls && item.linkedPhotoUrls.length > 0 ? item.linkedPhotoUrls[0] : null,
+        videoUrl: item.linkedVideoUrl || null,
+        transcription: item.transcription || null,
         comment: item.note || null,
       }));
       setItems(convertedItems);
+
+      // メイン動画を設定（推奨項目で最初に動画があるもの、または必須項目で最初に動画があるもの）
+      const recommendedWithVideo = convertedItems.find(
+        (item) => item.priority === "recommended" && item.videoUrl && item.selected
+      );
+      const requiredWithVideo = convertedItems.find(
+        (item) => item.priority === "required" && item.videoUrl
+      );
+      const mainVideo = recommendedWithVideo || requiredWithVideo;
+
+      if (mainVideo && mainVideo.videoUrl) {
+        setMainVideoUrl(mainVideo.videoUrl);
+        setMainVideoTitle(mainVideo.name);
+      }
     } else if (!isJobLoading && !isLoadingWorkOrders && !estimateData) {
       // 見積データがない場合は空の配列を設定
       setItems([]);
@@ -441,6 +426,51 @@ export default function CustomerApprovalPage() {
   };
 
   /**
+   * 動画のLightbox表示
+   */
+  const handleVideoClick = (url: string, name: string) => {
+    setLightboxVideo({ url, name });
+  };
+
+  /**
+   * 見積却下
+   */
+  const handleReject = async () => {
+    if (!jobId) {
+      toast.error("ジョブIDが取得できませんでした");
+      return;
+    }
+
+    if (!rejectionReason.trim()) {
+      toast.error("却下理由を入力してください");
+      return;
+    }
+
+    setIsRejecting(true);
+    try {
+      const result = await rejectEstimate(jobId, rejectionReason.trim());
+
+      if (result.success) {
+        toast.success("見積を却下しました", {
+          description: "事務員が却下理由を確認し、見積を再作成します",
+        });
+        setIsRejectDialogOpen(false);
+        setRejectionReason("");
+        setIsCompleted(true);
+      } else {
+        throw new Error(result.error?.message || "却下処理に失敗しました");
+      }
+    } catch (error) {
+      console.error("却下エラー:", error);
+      toast.error("却下処理に失敗しました", {
+        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+      });
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  /**
    * 注文確定（見積もり承認）
    */
   const handleOrder = async () => {
@@ -450,7 +480,7 @@ export default function CustomerApprovalPage() {
     }
 
     const selectedItems = items.filter((i) => i.selected);
-    
+
     if (selectedItems.length === 0) {
       toast.error("少なくとも1つの項目を選択してください");
       return;
@@ -458,22 +488,42 @@ export default function CustomerApprovalPage() {
 
     setIsApproving(true);
     try {
-      // EstimateItem形式に変換
-      const estimateItems: EstimateItem[] = selectedItems.map((item) => ({
+      // 全項目を含むEstimateItem配列を作成（approvedフラグを設定）
+      const allEstimateItems: EstimateItem[] = items.map((item) => ({
         id: item.id,
         name: item.name,
         price: item.price,
         priority: item.priority,
-        selected: true,
+        selected: item.selected, // 選択状態を保持
+        approved: item.selected, // 選択されている項目は承認、選択されていない項目は非承認
         linkedPhotoUrls: item.photoUrl ? [item.photoUrl] : [],
-        linkedVideoUrl: null,
+        linkedVideoUrl: item.videoUrl || null,
         note: item.comment || null,
       }));
 
-      // 承認APIを呼び出す
-      const result = await approveEstimate(jobId, estimateItems);
-      
+      // 承認APIを呼び出す（全項目を含む配列を渡す）
+      // workOrderIdが指定されている場合はワークオーダーに保存
+      const result = await approveEstimate(jobId, selectedWorkOrder?.id, allEstimateItems);
+
       if (result.success) {
+        // ワークオーダーのestimate.itemsを更新（全項目を含めてapprovedフラグを設定）
+        if (selectedWorkOrder?.id) {
+          try {
+            await updateWorkOrder(jobId, selectedWorkOrder.id, {
+              estimate: {
+                ...selectedWorkOrder.estimate,
+                items: allEstimateItems, // 全項目を含めて保存
+              },
+            });
+            // ワークオーダーリストを再取得
+            await mutateWorkOrders();
+          } catch (error) {
+            console.error("ワークオーダー更新エラー:", error);
+            // エラーが発生しても承認処理は続行（ジョブステータスは更新済み）
+            toast.warning("見積の承認は完了しましたが、ワークオーダーの更新に失敗しました");
+          }
+        }
+
         // 承認完了の通知
         toast.success("見積もりを承認しました", {
           description: `${selectedItems.length}項目、合計¥${formatPrice(calculateTotal())}`,
@@ -511,8 +561,8 @@ export default function CustomerApprovalPage() {
   // ローディング中
   if (isJobLoading || isLoadingWorkOrders) {
     return (
-      <div className="min-h-screen bg-slate-50 pb-32">
-        <div className="max-w-lg mx-auto px-4 py-8">
+      <div className="flex-1 bg-slate-50 pb-32 overflow-auto">
+        <div className="max-w-5xl mx-auto px-4 py-8">
           <Skeleton className="h-8 w-48 mb-4" />
           <Skeleton className="h-4 w-32 mb-8" />
           <div className="space-y-4">
@@ -528,11 +578,11 @@ export default function CustomerApprovalPage() {
   // エラーまたは見積データがない場合
   if (!job || !estimateData || !estimateData.items || estimateData.items.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 pb-32 flex items-center justify-center">
-        <Card className="max-w-lg mx-4">
+      <div className="flex-1 bg-slate-50 pb-32 flex items-center justify-center overflow-auto">
+        <Card className="max-w-5xl mx-4">
           <CardContent className="py-8 text-center">
-            <p className="text-slate-600 mb-4">見積データが見つかりませんでした</p>
-            <p className="text-sm text-slate-500">見積が作成されていないか、既に承認済みの可能性があります。</p>
+            <p className="text-slate-700 mb-4">見積データが見つかりませんでした</p>
+            <p className="text-base text-slate-700">見積が作成されていないか、既に承認済みの可能性があります。</p>
           </CardContent>
         </Card>
       </div>
@@ -545,22 +595,24 @@ export default function CustomerApprovalPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32">
-      {/* ヘッダー */}
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-lg mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-slate-500">お見積り</p>
-            {isExpired && (
-              <Badge variant="destructive" className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                有効期限切れ
-              </Badge>
-            )}
-          </div>
-          <h1 className="text-xl font-bold text-slate-900">
+    <div className="flex-1 bg-slate-50 pb-32 overflow-auto">
+      <AppHeader
+        maxWidthClassName="max-w-5xl"
+        backHref={dashboardHref}
+        rightArea={
+          isExpired && (
+            <Badge variant="destructive" className="text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+              有効期限切れ
+            </Badge>
+          )
+        }
+      >
+        <div>
+          <p className="text-base text-slate-700 mb-2">お見積り</p>
+          <h1 className="text-2xl font-bold text-slate-900">
             {customerName} 様
           </h1>
-          <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
+          <div className="flex items-center gap-2 mt-1 text-base text-slate-800">
             <Car className="h-4 w-4 shrink-0" />
             <span>{vehicleName}</span>
             {licensePlate && (
@@ -571,15 +623,59 @@ export default function CustomerApprovalPage() {
             )}
           </div>
           {!isExpired && estimateData?.expiresAt && typeof estimateData.expiresAt === "string" ? (
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-base text-slate-700 mt-2">
               有効期限: {new Date(estimateData.expiresAt as string).toLocaleDateString("ja-JP")}
             </p>
           ) : null}
         </div>
-      </header>
+      </AppHeader>
 
       {/* メインコンテンツ */}
-      <main className="max-w-lg mx-auto px-4 py-6">
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        {/* CitNOWスタイル: 上部に動画プレイヤー */}
+        {mainVideoUrl && (
+          <section className="mb-6">
+            <Card className="border border-slate-300 rounded-xl shadow-md overflow-hidden">
+              <CardContent className="p-0">
+                <div className="relative aspect-video bg-slate-900">
+                  <video
+                    src={mainVideoUrl}
+                    controls
+                    className="w-full h-full"
+                    playsInline
+                  />
+                  <div className="absolute top-2 left-2 bg-black/70 text-white px-3 py-1.5 rounded-md text-base font-medium">
+                    メカニックの解説動画
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-50 border-t border-slate-300">
+                  <p className="text-base font-medium text-slate-900">{mainVideoTitle}</p>
+                  <p className="text-base text-slate-700 mt-1">
+                    メカニックが実際の車両を確認しながら、必要な整備内容を説明しています
+                  </p>
+                  {/* 実況解説テキスト（音声認識結果） */}
+                  {items.find((item) => item.videoUrl === mainVideoUrl)?.transcription && (
+                    <div className="mt-3 p-4 bg-white rounded-lg border border-slate-300">
+                      <p className="text-base font-medium text-slate-900 mb-2">📝 メカニックの実況解説</p>
+                      <p className="text-base text-slate-700 leading-relaxed">
+                        {items.find((item) => item.videoUrl === mainVideoUrl)?.transcription}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* ショッピングリスト（見積項目） */}
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 shrink-0" />
+            ご確認いただく項目
+          </h2>
+        </div>
+
         {/* 必須整備セクション */}
         <section className="mb-6">
           <SectionHeader
@@ -594,11 +690,12 @@ export default function CustomerApprovalPage() {
                 item={item}
                 onToggle={handleToggle}
                 onPhotoClick={handlePhotoClick}
+                onVideoClick={handleVideoClick}
               />
             ))}
           </div>
-          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-            <Lock className="h-3 w-3 shrink-0" />
+          <div className="mt-2 flex items-center gap-2 text-base text-slate-700">
+            <Lock className="h-4 w-4 shrink-0" />
             <span>必須項目は変更できません</span>
           </div>
         </section>
@@ -619,6 +716,7 @@ export default function CustomerApprovalPage() {
                 item={item}
                 onToggle={handleToggle}
                 onPhotoClick={handlePhotoClick}
+                onVideoClick={handleVideoClick}
               />
             ))}
           </div>
@@ -640,6 +738,7 @@ export default function CustomerApprovalPage() {
                 item={item}
                 onToggle={handleToggle}
                 onPhotoClick={handlePhotoClick}
+                onVideoClick={handleVideoClick}
               />
             ))}
           </div>
@@ -648,40 +747,54 @@ export default function CustomerApprovalPage() {
 
       {/* スティッキーフッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg">
-        <div className="max-w-lg mx-auto px-4 py-4">
+        <div className="max-w-5xl mx-auto px-4 py-4">
           {/* 合計金額 */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-slate-600">合計（税込）</span>
-            <span className="text-xl font-bold text-primary">
+            <span className="text-base font-medium text-slate-900">合計（税込）</span>
+            <span className="text-2xl font-bold text-slate-900 tabular-nums">
               ¥{formatPrice(displayTotal)}
             </span>
           </div>
 
-          {/* 注文ボタン */}
-          <Button
-            onClick={handleOrder}
-            size="lg"
-            className="w-full h-14 text-lg font-bold gap-2 bg-primary hover:bg-primary/90"
-            disabled={items.filter((i) => i.selected).length === 0 || isExpired || isApproving}
-          >
-            {isApproving ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin shrink-0" />
-                処理中...
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="h-5 w-5 shrink-0" />
-                {isExpired ? "有効期限切れ" : "この内容で作業を依頼する"}
-              </>
-            )}
-          </Button>
+          {/* アクションボタン */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsRejectDialogOpen(true)}
+              size="lg"
+              className="flex-1 h-12 text-base font-medium gap-2 border-red-300 text-red-700 hover:bg-red-50"
+              disabled={isExpired || isApproving || isRejecting}
+              aria-label="見積を却下"
+            >
+              <X className="h-5 w-5 shrink-0" aria-hidden="true" />
+              見積を却下
+            </Button>
+            <Button
+              onClick={handleOrder}
+              size="lg"
+              className="flex-1 h-12 text-base font-bold gap-2 bg-slate-900 hover:bg-slate-800 text-white"
+              disabled={items.filter((i) => i.selected).length === 0 || isExpired || isApproving || isRejecting}
+              aria-label={isExpired ? "有効期限切れ" : "この内容で作業を依頼する"}
+            >
+              {isApproving ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin shrink-0" aria-hidden="true" />
+                  処理中...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  {isExpired ? "有効期限切れ" : "この内容で作業を依頼する"}
+                </>
+              )}
+            </Button>
+          </div>
 
-          <p className="text-xs text-center text-slate-400 mt-2">
+          <p className="text-base text-center text-slate-700 mt-2">
             ボタンを押すと注文が確定します
           </p>
           {items.filter((i) => i.selected).length === 0 && (
-            <p className="text-xs text-center text-red-500 mt-1">
+            <p className="text-base text-center text-red-700 mt-1">
               少なくとも1つの項目を選択してください
             </p>
           )}
@@ -696,16 +809,99 @@ export default function CustomerApprovalPage() {
           </DialogTitle>
           {lightboxImage && (
             <div>
-              <img
-                src={lightboxImage.url}
-                alt={lightboxImage.name}
-                className="w-full rounded-lg"
-              />
-              <p className="text-center text-sm text-slate-600 mt-2">
+              <div className="relative w-full aspect-video rounded-lg overflow-hidden">
+                <Image
+                  src={lightboxImage.url}
+                  alt={lightboxImage.name}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 100vw, 768px"
+                />
+              </div>
+              <p className="text-center text-base text-slate-800 mt-2">
                 {lightboxImage.name}
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 動画Lightboxダイアログ */}
+      <Dialog open={!!lightboxVideo} onOpenChange={() => setLightboxVideo(null)}>
+        <DialogContent className="max-w-[95vw] sm:max-w-5xl p-2">
+          <DialogTitle className="sr-only">
+            {lightboxVideo?.name || "動画"}
+          </DialogTitle>
+          {lightboxVideo && (
+            <div>
+              <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden">
+                <video
+                  src={lightboxVideo.url}
+                  controls
+                  className="w-full h-full"
+                  playsInline
+                  autoPlay
+                />
+              </div>
+              <p className="text-center text-base text-slate-800 mt-2">
+                {lightboxVideo.name}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 見積却下ダイアログ */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogTitle className="text-xl font-bold text-slate-900">
+            見積を却下
+          </DialogTitle>
+          <div className="space-y-4 py-4">
+            <p className="text-base text-slate-700">
+              見積を却下する理由を入力してください。事務員が確認し、見積を再作成します。
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="rejection-reason" className="text-base font-medium text-slate-900">
+                却下理由 <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                id="rejection-reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="例: 金額が予算を超えているため、一部の項目を削減して再見積をお願いします"
+                className="w-full min-h-[120px] px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                disabled={isRejecting}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsRejectDialogOpen(false);
+                setRejectionReason("");
+              }}
+              disabled={isRejecting}
+              className="h-12 text-base"
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleReject}
+              disabled={!rejectionReason.trim() || isRejecting}
+              className="h-12 text-base bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isRejecting ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin shrink-0" />
+                  処理中...
+                </>
+              ) : (
+                "却下する"
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

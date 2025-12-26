@@ -1,121 +1,97 @@
 /**
- * API応答時間計測
+ * API応答時間の計測
  *
- * Fetch APIのラッパーでAPI応答時間を自動計測
+ * API呼び出しの応答時間を自動計測し、アナリティクスに記録
  */
 
 import { trackTiming } from "./analytics";
 
 // =============================================================================
-// Fetch APIラッパー
+// API応答時間計測ヘルパー
 // =============================================================================
 
 /**
- * API応答時間を計測するFetch APIラッパー
+ * API関数をラップして応答時間を計測
  */
-export async function fetchWithTiming(
-  url: string,
-  options: RequestInit = {},
-  screenId?: string
-): Promise<Response> {
+export async function measureApiTiming<T>(
+  apiFunction: () => Promise<T>,
+  apiName: string,
+  screenId?: string,
+  metadata?: Record<string, unknown>
+): Promise<T> {
   const startTime = performance.now();
-  const method = options.method || "GET";
-
+  
   try {
-    const response = await fetch(url, options);
+    const result = await apiFunction();
     const endTime = performance.now();
-    const duration = endTime - startTime;
-
-    // アナリティクスに記録
-    if (screenId) {
-      trackTiming(
-        screenId,
-        "api_response",
-        duration,
-        url,
-        {
-          method,
-          status: response.status,
-          statusText: response.statusText,
-        }
-      );
-    }
-
-    return response;
+    const duration = Math.round(endTime - startTime);
+    
+    // 応答時間を記録
+    trackTiming(
+      screenId || "unknown",
+      "api_response_time",
+      duration,
+      apiName,
+      {
+        ...metadata,
+        apiName,
+        status: "success",
+      }
+    );
+    
+    return result;
   } catch (error) {
     const endTime = performance.now();
-    const duration = endTime - startTime;
-
-    // エラー時も計測
-    if (screenId) {
-      trackTiming(
-        screenId,
-        "api_response_error",
-        duration,
-        url,
-        {
-          method,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-    }
-
+    const duration = Math.round(endTime - startTime);
+    
+    // エラー時の応答時間も記録
+    trackTiming(
+      screenId || "unknown",
+      "api_response_time",
+      duration,
+      apiName,
+      {
+        ...metadata,
+        apiName,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }
+    );
+    
     throw error;
   }
 }
 
-// =============================================================================
-// グローバルFetch APIの拡張（オプション）
-// =============================================================================
+/**
+ * API応答時間を計測（Promiseを返す関数用）
+ */
+export function withApiTiming<T extends (...args: any[]) => Promise<any>>(
+  apiFunction: T,
+  apiName: string,
+  screenId?: string
+): T {
+  return (async (...args: Parameters<T>): Promise<ReturnType<T> extends Promise<infer U> ? U : never> => {
+    return measureApiTiming(
+      () => apiFunction(...args),
+      apiName,
+      screenId,
+      { args: args.length }
+    ) as ReturnType<T> extends Promise<infer U> ? U : never;
+  }) as T;
+}
 
 /**
- * グローバルFetch APIを拡張して自動計測
- * 
- * 注意: この機能はオプションです。使用する場合は初期化時に呼び出してください。
+ * SWRのfetcher関数をラップしてAPI応答時間を計測
  */
-let originalFetch: typeof fetch | null = null;
-let isFetchExtended = false;
-
-/**
- * Fetch APIを拡張して自動計測を有効化
- */
-export function enableAutoTiming(screenId: string): void {
-  if (isFetchExtended) return;
-
-  originalFetch = window.fetch;
-  window.fetch = async function (
-    input: RequestInfo | URL,
-    init?: RequestInit
-  ): Promise<Response> {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    return fetchWithTiming(url, init, screenId);
+export function withFetcherTiming<T>(
+  fetcher: () => Promise<T>,
+  apiName: string,
+  screenId?: string
+): () => Promise<T> {
+  return async () => {
+    return measureApiTiming(fetcher, apiName, screenId);
   };
-
-  isFetchExtended = true;
 }
-
-/**
- * Fetch APIの拡張を無効化
- */
-export function disableAutoTiming(): void {
-  if (!isFetchExtended || !originalFetch) return;
-
-  window.fetch = originalFetch;
-  isFetchExtended = false;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

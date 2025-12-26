@@ -16,6 +16,8 @@ import {
   TireTreadDepth,
   TirePressure,
   RecommendedPressure,
+  getLegalTreadDepthThreshold,
+  getRecommendedTreadDepthThreshold,
   LEGAL_TREAD_DEPTH_THRESHOLD,
   RECOMMENDED_TREAD_DEPTH_THRESHOLD,
 } from "@/lib/tire-inspection-items";
@@ -60,8 +62,10 @@ interface TireInspectionViewProps {
  */
 function getTreadDepthStatus(depth: number | null): "ok" | "attention" | "replace" {
   if (depth === null) return "ok";
-  if (depth < LEGAL_TREAD_DEPTH_THRESHOLD) return "replace";
-  if (depth < RECOMMENDED_TREAD_DEPTH_THRESHOLD) return "attention";
+  const legalThreshold = getLegalTreadDepthThreshold();
+  const recommendedThreshold = getRecommendedTreadDepthThreshold();
+  if (depth < legalThreshold) return "replace";
+  if (depth < recommendedThreshold) return "attention";
   return "ok";
 }
 
@@ -115,37 +119,41 @@ export function TireInspectionView({
   return (
     <div className="space-y-4">
       {/* 簡易検査項目 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <Camera className="h-5 w-5" />
+              <Camera className="h-5 w-5 shrink-0" />
               簡易検査項目
             </span>
-            <Badge variant={completedCount === totalCount ? "default" : "secondary"}>
-              {completedCount} / {totalCount}
+            <Badge variant={completedCount === totalCount ? "default" : "secondary"} className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{completedCount}</span> / <span className="tabular-nums">{totalCount}</span>
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 進捗バー */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">進捗</span>
-              <span className="font-medium">{percentage}%</span>
-            </div>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 transition-all duration-500"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-          </div>
+          <Card className="border border-slate-300 rounded-xl shadow-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-medium text-slate-700">進捗</span>
+                  <span className="text-slate-700 font-medium tabular-nums">{percentage}%</span>
+                </div>
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* カテゴリ別に表示 */}
           {Object.entries(itemsByCategory).map(([category, categoryItems]) => (
             <div key={category} className="space-y-3">
-              <h4 className="font-medium text-slate-900 text-sm">
+              <h4 className="font-medium text-slate-900 text-base">
                 {getTireInspectionCategoryName(category as TireInspectionItem["category"])}
               </h4>
               <div className="space-y-3 pl-4 border-l-2 border-slate-200">
@@ -158,14 +166,13 @@ export function TireInspectionView({
                   };
 
                   return (
-                    <div
+                    <Card
                       key={item.id}
-                      className="p-3 border border-slate-200 rounded-lg space-y-2"
+                      className="border border-slate-300 rounded-xl shadow-md"
                     >
-                      {/* 項目名と状態選択 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h5 className="font-medium text-slate-900 text-sm">{item.name}</h5>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                          <span>{item.name}</span>
                           {item.status !== "unchecked" && (
                             <Badge
                               variant={
@@ -175,12 +182,15 @@ export function TireInspectionView({
                                   ? "secondary"
                                   : "destructive"
                               }
-                              className="text-xs"
+                              className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap"
                             >
                               {getTireInspectionStatusText(item.status)}
                             </Badge>
                           )}
-                        </div>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* 状態選択 */}
                         <TrafficLightButtonGroup
                           currentStatus={item.status as TrafficLightStatus}
                           onStatusChange={(status) => {
@@ -190,51 +200,50 @@ export function TireInspectionView({
                           }}
                           availableStatuses={["green", "yellow", "red"]}
                           disabled={disabled}
-                          size="sm"
                           showLabel={true}
+                          size="md"
                         />
-                      </div>
 
-                      {/* 写真撮影 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <Camera className="h-3.5 w-3.5" />
-                          <span>写真</span>
+                        {/* 写真撮影 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                            <Camera className="h-4 w-4 shrink-0" />
+                            <span>写真</span>
+                          </div>
+                          <PhotoCaptureButton
+                            position={item.id}
+                            label={`${item.name}の写真を撮影`}
+                            photoData={photoData}
+                            onCapture={async (position, file) => {
+                              if (onPhotoCapture) {
+                                await onPhotoCapture(item.id, file);
+                              }
+                            }}
+                            disabled={disabled}
+                          />
                         </div>
-                        <PhotoCaptureButton
-                          position={item.id}
-                          label={`${item.name}の写真を撮影`}
-                          photoData={photoData}
-                          onCapture={async (position, file) => {
-                            if (onPhotoCapture) {
-                              await onPhotoCapture(item.id, file);
-                            }
-                          }}
-                          disabled={disabled}
-                          size="sm"
-                        />
-                      </div>
 
-                      {/* コメント */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          <span>コメント</span>
+                        {/* コメント */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                            <MessageSquare className="h-4 w-4 shrink-0" />
+                            <span>コメント</span>
+                          </div>
+                          <Textarea
+                            value={item.comment || ""}
+                            onChange={(e) => {
+                              if (onCommentChange) {
+                                onCommentChange(item.id, e.target.value);
+                              }
+                            }}
+                            placeholder="コメントを入力..."
+                            disabled={disabled}
+                            rows={2}
+                            className="text-base"
+                          />
                         </div>
-                        <Textarea
-                          value={item.comment || ""}
-                          onChange={(e) => {
-                            if (onCommentChange) {
-                              onCommentChange(item.id, e.target.value);
-                            }
-                          }}
-                          placeholder="コメントを入力..."
-                          disabled={disabled}
-                          rows={2}
-                          className="text-xs"
-                        />
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
@@ -244,10 +253,10 @@ export function TireInspectionView({
       </Card>
 
       {/* 測定値入力 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Gauge className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <Gauge className="h-5 w-5 shrink-0" />
             測定値入力
           </CardTitle>
         </CardHeader>
@@ -255,12 +264,12 @@ export function TireInspectionView({
           {/* タイヤ溝深さ */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Ruler className="h-4 w-4 text-slate-600" />
-              <Label className="text-sm font-medium">タイヤ溝深さ（mm）</Label>
+              <Ruler className="h-4 w-4 text-slate-700 shrink-0" />
+              <Label className="text-base font-medium">タイヤ溝深さ（mm）</Label>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="tread-front-left" className="text-xs text-slate-600">
+                <Label htmlFor="tread-front-left" className="text-base text-slate-700">
                   前左
                 </Label>
                 <Input
@@ -279,24 +288,24 @@ export function TireInspectionView({
                   }}
                   placeholder="mm"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {treadDepth?.frontLeft !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     {treadDepth && getTreadDepthStatus(treadDepth.frontLeft) === "replace" && (
-                      <span className="text-red-600">法定基準未満</span>
+                      <span className="text-red-700">法定基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.frontLeft) === "attention" && (
-                      <span className="text-amber-600">推奨基準未満</span>
+                      <span className="text-amber-700">推奨基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.frontLeft) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="tread-front-right" className="text-xs text-slate-600">
+                <Label htmlFor="tread-front-right" className="text-base text-slate-700">
                   前右
                 </Label>
                 <Input
@@ -315,24 +324,24 @@ export function TireInspectionView({
                   }}
                   placeholder="mm"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {treadDepth?.frontRight !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     {treadDepth && getTreadDepthStatus(treadDepth.frontRight) === "replace" && (
-                      <span className="text-red-600">法定基準未満</span>
+                      <span className="text-red-700">法定基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.frontRight) === "attention" && (
-                      <span className="text-amber-600">推奨基準未満</span>
+                      <span className="text-amber-700">推奨基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.frontRight) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="tread-rear-left" className="text-xs text-slate-600">
+                <Label htmlFor="tread-rear-left" className="text-base text-slate-700">
                   後左
                 </Label>
                 <Input
@@ -351,24 +360,24 @@ export function TireInspectionView({
                   }}
                   placeholder="mm"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {treadDepth?.rearLeft !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     {treadDepth && getTreadDepthStatus(treadDepth.rearLeft) === "replace" && (
-                      <span className="text-red-600">法定基準未満</span>
+                      <span className="text-red-700">法定基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.rearLeft) === "attention" && (
-                      <span className="text-amber-600">推奨基準未満</span>
+                      <span className="text-amber-700">推奨基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.rearLeft) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="tread-rear-right" className="text-xs text-slate-600">
+                <Label htmlFor="tread-rear-right" className="text-base text-slate-700">
                   後右
                 </Label>
                 <Input
@@ -387,37 +396,37 @@ export function TireInspectionView({
                   }}
                   placeholder="mm"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {treadDepth?.rearRight !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     {treadDepth && getTreadDepthStatus(treadDepth.rearRight) === "replace" && (
-                      <span className="text-red-600">法定基準未満</span>
+                      <span className="text-red-700">法定基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.rearRight) === "attention" && (
-                      <span className="text-amber-600">推奨基準未満</span>
+                      <span className="text-amber-700">推奨基準未満</span>
                     )}
                     {treadDepth && getTreadDepthStatus(treadDepth.rearRight) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
             </div>
-            <p className="text-xs text-slate-500">
-              法定基準: {LEGAL_TREAD_DEPTH_THRESHOLD}mm以上 / 推奨基準: {RECOMMENDED_TREAD_DEPTH_THRESHOLD}mm以上
+            <p className="text-base text-slate-700">
+              法定基準: {getLegalTreadDepthThreshold()}mm以上 / 推奨基準: {getRecommendedTreadDepthThreshold()}mm以上
             </p>
           </div>
 
           {/* 空気圧 */}
           <div className="space-y-3 pt-3 border-t">
             <div className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-slate-600" />
-              <Label className="text-sm font-medium">空気圧（kPa）</Label>
+              <Gauge className="h-4 w-4 text-slate-700 shrink-0" />
+              <Label className="text-base font-medium">空気圧（kPa）</Label>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="pressure-front-left" className="text-xs text-slate-600">
+                <Label htmlFor="pressure-front-left" className="text-base text-slate-700">
                   前左
                 </Label>
                 <Input
@@ -436,23 +445,23 @@ export function TireInspectionView({
                   }}
                   placeholder="kPa"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {pressure?.frontLeft !== null && recommendedPressure?.front !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     推奨: {recommendedPressure?.front}kPa /{" "}
                     {recommendedPressure && pressure && getPressureStatus(pressure.frontLeft, recommendedPressure.front) ===
                       "attention" && (
-                      <span className="text-amber-600">要調整</span>
+                      <span className="text-amber-700">要調整</span>
                     )}
                     {recommendedPressure && pressure && getPressureStatus(pressure.frontLeft, recommendedPressure.front) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="pressure-front-right" className="text-xs text-slate-600">
+                <Label htmlFor="pressure-front-right" className="text-base text-slate-700">
                   前右
                 </Label>
                 <Input
@@ -471,23 +480,23 @@ export function TireInspectionView({
                   }}
                   placeholder="kPa"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {pressure?.frontRight !== null && recommendedPressure?.front !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     推奨: {recommendedPressure?.front}kPa /{" "}
                     {recommendedPressure && pressure && getPressureStatus(pressure.frontRight, recommendedPressure.front) ===
                       "attention" && (
-                      <span className="text-amber-600">要調整</span>
+                      <span className="text-amber-700">要調整</span>
                     )}
                     {recommendedPressure && pressure && getPressureStatus(pressure.frontRight, recommendedPressure.front) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="pressure-rear-left" className="text-xs text-slate-600">
+                <Label htmlFor="pressure-rear-left" className="text-base text-slate-700">
                   後左
                 </Label>
                 <Input
@@ -506,23 +515,23 @@ export function TireInspectionView({
                   }}
                   placeholder="kPa"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {pressure?.rearLeft !== null && recommendedPressure?.rear !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     推奨: {recommendedPressure?.rear}kPa /{" "}
                     {recommendedPressure && pressure && getPressureStatus(pressure.rearLeft, recommendedPressure.rear) ===
                       "attention" && (
-                      <span className="text-amber-600">要調整</span>
+                      <span className="text-amber-700">要調整</span>
                     )}
                     {recommendedPressure && pressure && getPressureStatus(pressure.rearLeft, recommendedPressure.rear) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="pressure-rear-right" className="text-xs text-slate-600">
+                <Label htmlFor="pressure-rear-right" className="text-base text-slate-700">
                   後右
                 </Label>
                 <Input
@@ -541,24 +550,24 @@ export function TireInspectionView({
                   }}
                   placeholder="kPa"
                   disabled={disabled}
-                  className="h-9 text-sm"
+                  className="h-12 text-base"
                 />
                 {pressure?.rearRight !== null && recommendedPressure?.rear !== null && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-base text-slate-700">
                     推奨: {recommendedPressure?.rear}kPa /{" "}
                     {recommendedPressure && pressure && getPressureStatus(pressure.rearRight, recommendedPressure.rear) ===
                       "attention" && (
-                      <span className="text-amber-600">要調整</span>
+                      <span className="text-amber-700">要調整</span>
                     )}
                     {recommendedPressure && pressure && getPressureStatus(pressure.rearRight, recommendedPressure.rear) === "ok" && (
-                      <span className="text-green-600">正常</span>
+                      <span className="text-green-700">正常</span>
                     )}
                   </p>
                 )}
               </div>
             </div>
             {recommendedPressure && (
-              <p className="text-xs text-slate-500">
+              <p className="text-base text-slate-700">
                 推奨空気圧: 前輪 {recommendedPressure?.front || "---"}kPa / 後輪{" "}
                 {recommendedPressure?.rear || "---"}kPa
               </p>

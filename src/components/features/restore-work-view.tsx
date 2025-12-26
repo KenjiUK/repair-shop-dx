@@ -368,9 +368,9 @@ export function RestoreWorkView({
       {/* 全体進捗表示 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-lg font-semibold">
             <span className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+              <TrendingUp className="h-5 w-5 shrink-0" />
               全体進捗
             </span>
             <Badge variant="default" className="text-base px-3 py-1">
@@ -380,14 +380,14 @@ export function RestoreWorkView({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">全体進捗</span>
+            <div className="flex items-center justify-between text-base">
+              <span className="text-slate-700">全体進捗</span>
               <span className="font-medium text-slate-900">{overallProgress}%</span>
             </div>
             <Progress value={overallProgress} className="h-3" />
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">マイルストーン</span>
+          <div className="flex items-center justify-between text-base">
+            <span className="text-slate-800">マイルストーン</span>
             <span className="font-medium text-slate-900">
               {completedMilestones} / {totalMilestones} 完了
             </span>
@@ -398,8 +398,8 @@ export function RestoreWorkView({
       {/* フェーズ管理 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Wrench className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Wrench className="h-5 w-5 shrink-0" />
             フェーズ管理
           </CardTitle>
         </CardHeader>
@@ -417,7 +417,7 @@ export function RestoreWorkView({
                   <TabsTrigger
                     key={phase.id}
                     value={phase.id}
-                    className={`text-xs min-w-[80px] ${isBlocked ? "opacity-50" : ""}`}
+                    className={`text-base min-w-[80px] ${isBlocked ? "opacity-50" : ""}`}
                     disabled={isBlocked}
                   >
                     <div className="flex flex-col items-center gap-1">
@@ -436,10 +436,10 @@ export function RestoreWorkView({
                           {phase.status}
                         </Badge>
                         {phase.isDelayed && (
-                          <AlertTriangle className="h-3 w-3 text-red-500" />
+                          <AlertTriangle className="h-4 w-4 text-red-600" />
                         )}
                         {isBlocked && (
-                          <AlertCircle className="h-3 w-3 text-slate-400" />
+                          <AlertCircle className="h-4 w-4 text-slate-700" />
                         )}
                       </div>
                     </div>
@@ -454,11 +454,11 @@ export function RestoreWorkView({
                 <div className="space-y-3">
                   {/* 遅延アラート */}
                   {phase.isDelayed && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                      <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                    <div className="p-3 bg-red-50 border border-red-300 rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-red-900">遅延中</p>
-                        <p className="text-xs text-red-700 mt-1">
+                        <p className="text-base font-medium text-red-900">遅延中</p>
+                        <p className="text-base text-red-800 mt-1">
                           予定完了日を過ぎています。進捗を確認してください。
                         </p>
                       </div>
@@ -467,11 +467,11 @@ export function RestoreWorkView({
 
                   {/* 依存関係の警告 */}
                   {phase.status === "未開始" && !canStartPhase(phase.name, phases) && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                      <AlertCircle className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
+                    <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2"> {/* yellow → amber (40歳以上ユーザー向け、統一) */}
+                      <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" /> {/* text-yellow-600 → text-amber-700 */}
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-yellow-900">開始不可</p>
-                        <p className="text-xs text-yellow-700 mt-1">
+                        <p className="text-base font-medium text-amber-900">開始不可</p> {/* text-yellow-900 → text-amber-900 */}
+                        <p className="text-base text-amber-900 mt-1"> {/* text-yellow-800 → text-amber-900 (40歳以上ユーザー向け、コントラスト向上) */}
                           前のフェーズ「{getPreviousPhase(phase.name)}」を完了してから開始してください。
                         </p>
                       </div>
@@ -480,7 +480,7 @@ export function RestoreWorkView({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label className="text-sm">フェーズの状態</Label>
+                      <Label className="text-base">フェーズの状態</Label>
                       <Select
                         value={phase.status}
                         onValueChange={(value) =>
@@ -488,7 +488,7 @@ export function RestoreWorkView({
                         }
                         disabled={disabled || (phase.status === "未開始" && !canStartPhase(phase.name, phases))}
                       >
-                        <SelectTrigger className="h-9 text-sm">
+                        <SelectTrigger className="h-12 text-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -501,7 +501,7 @@ export function RestoreWorkView({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm">進捗（%）</Label>
+                      <Label className="text-base">進捗（%）</Label>
                       <div className="flex items-center gap-2">
                         <Input
                           type="number"
@@ -513,7 +513,7 @@ export function RestoreWorkView({
                             )
                           }
                           disabled={disabled}
-                          className="text-sm"
+                          className="text-base"
                           min="0"
                           max="100"
                           step="1"
@@ -527,9 +527,9 @@ export function RestoreWorkView({
                   <div className="grid grid-cols-2 gap-3">
                     {phase.startDate && (
                       <div className="space-y-2">
-                        <Label className="text-xs text-slate-600">開始日</Label>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="h-4 w-4 text-slate-500" />
+                        <Label className="text-base text-slate-800">開始日</Label>
+                        <div className="flex items-center gap-2 text-base">
+                          <Calendar className="h-4 w-4 text-slate-700" />
                           <span>
                             {new Date(phase.startDate).toLocaleDateString("ja-JP")}
                           </span>
@@ -538,9 +538,9 @@ export function RestoreWorkView({
                     )}
                     {phase.completionDate && (
                       <div className="space-y-2">
-                        <Label className="text-xs text-slate-600">完了日</Label>
-                        <div className="flex items-center gap-2 text-sm">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <Label className="text-base text-slate-800">完了日</Label>
+                        <div className="flex items-center gap-2 text-base">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>
                             {new Date(phase.completionDate).toLocaleDateString("ja-JP")}
                           </span>
@@ -549,8 +549,8 @@ export function RestoreWorkView({
                     )}
                     {phase.expectedStartDate && (
                       <div className="space-y-2">
-                        <Label className="text-xs text-slate-600">予定開始日</Label>
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Label className="text-base text-slate-800">予定開始日</Label>
+                        <div className="flex items-center gap-2 text-base text-slate-700">
                           <Clock className="h-4 w-4" />
                           <span>
                             {new Date(phase.expectedStartDate).toLocaleDateString("ja-JP")}
@@ -560,8 +560,8 @@ export function RestoreWorkView({
                     )}
                     {phase.expectedCompletionDate && (
                       <div className="space-y-2">
-                        <Label className="text-xs text-slate-600">予定完了日</Label>
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Label className="text-base text-slate-800">予定完了日</Label>
+                        <div className="flex items-center gap-2 text-base text-slate-700">
                           <Clock className="h-4 w-4" />
                           <span>
                             {new Date(phase.expectedCompletionDate).toLocaleDateString("ja-JP")}
@@ -573,8 +573,8 @@ export function RestoreWorkView({
 
                   {phase.startDate && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">開始日</Label>
-                      <p className="text-sm font-medium text-slate-900">
+                      <Label className="text-base text-slate-800">開始日</Label>
+                      <p className="text-base font-medium text-slate-900">
                         {new Date(phase.startDate).toLocaleDateString("ja-JP")}
                       </p>
                     </div>
@@ -582,8 +582,8 @@ export function RestoreWorkView({
 
                   {phase.completionDate && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">完了日</Label>
-                      <p className="text-sm font-medium text-slate-900">
+                      <Label className="text-base text-slate-800">完了日</Label>
+                      <p className="text-base font-medium text-slate-900">
                         {new Date(phase.completionDate).toLocaleDateString("ja-JP")}
                       </p>
                     </div>
@@ -595,7 +595,7 @@ export function RestoreWorkView({
                 {/* 作業記録 */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">作業記録</Label>
+                    <Label className="text-base">作業記録</Label>
                     <Badge variant="secondary">
                       {phase.workRecords.length}件
                     </Badge>
@@ -615,17 +615,16 @@ export function RestoreWorkView({
                           className="p-4 border border-slate-200 rounded-lg space-y-3"
                         >
                           <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-slate-900 text-sm">
+                            <h4 className="font-medium text-slate-900 text-base">
                               記録 #{index + 1}
                             </h4>
                             <Button
                               variant="ghost"
-                              size="sm"
                               onClick={() =>
                                 handleRemoveWorkRecord(phase.id, record.id)
                               }
                               disabled={disabled}
-                              className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                              className="h-6 w-6 p-0 text-slate-700 hover:text-red-600"
                             >
                               ×
                             </Button>
@@ -633,7 +632,7 @@ export function RestoreWorkView({
 
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
-                              <Label className="text-xs text-slate-600">作業日</Label>
+                              <Label className="text-base text-slate-800">作業日</Label>
                               <Input
                                 type="date"
                                 value={record.date}
@@ -643,11 +642,11 @@ export function RestoreWorkView({
                                   })
                                 }
                                 disabled={disabled}
-                                className="text-sm"
+                                className="text-base"
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-xs text-slate-600">作業時間（分）</Label>
+                              <Label className="text-base text-slate-800">作業時間（分）</Label>
                               <Input
                                 type="number"
                                 value={record.duration}
@@ -657,7 +656,7 @@ export function RestoreWorkView({
                                   })
                                 }
                                 disabled={disabled}
-                                className="text-sm"
+                                className="text-base"
                                 min="0"
                                 step="1"
                               />
@@ -665,7 +664,7 @@ export function RestoreWorkView({
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs text-slate-600">作業内容</Label>
+                            <Label className="text-base text-slate-800">作業内容</Label>
                             <Textarea
                               value={record.content}
                               onChange={(e) =>
@@ -676,13 +675,13 @@ export function RestoreWorkView({
                               placeholder="作業内容を入力..."
                               disabled={disabled}
                               rows={3}
-                              className="text-sm"
+                              className="text-base"
                             />
                           </div>
 
                           <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <Camera className="h-3.5 w-3.5" />
+                            <div className="flex items-center gap-2 text-base text-slate-800">
+                              <Camera className="h-4 w-4" />
                               <span>作業中の写真</span>
                             </div>
                             <PhotoCaptureButton
@@ -695,17 +694,16 @@ export function RestoreWorkView({
                                 }
                               }}
                               disabled={disabled}
-                              size="sm"
                             />
                             {record.photoUrls.length > 0 && (
-                              <p className="text-xs text-slate-500">
+                              <p className="text-base text-slate-700">
                                 {record.photoUrls.length}枚の写真が撮影されています
                               </p>
                             )}
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs text-slate-600">コメント</Label>
+                            <Label className="text-base text-slate-800">コメント</Label>
                             <Textarea
                               value={record.comment || ""}
                               onChange={(e) =>
@@ -716,7 +714,7 @@ export function RestoreWorkView({
                               placeholder="コメントを入力..."
                               disabled={disabled}
                               rows={2}
-                              className="text-sm"
+                              className="text-base"
                             />
                           </div>
                         </div>
@@ -725,7 +723,6 @@ export function RestoreWorkView({
                   </div>
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={() => handleAddWorkRecord(phase.id)}
                     disabled={disabled}
                     className="w-full"
@@ -738,7 +735,7 @@ export function RestoreWorkView({
 
                 {/* 備考 */}
                 <div className="space-y-2">
-                  <Label className="text-sm">備考</Label>
+                  <Label className="text-base">備考</Label>
                   <Textarea
                     value={phase.note || ""}
                     onChange={(e) => {
@@ -755,7 +752,7 @@ export function RestoreWorkView({
                     placeholder="備考を入力..."
                     disabled={disabled}
                     rows={2}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
               </TabsContent>
@@ -768,7 +765,7 @@ export function RestoreWorkView({
       {parts.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
               <Package className="h-5 w-5" />
               部品の取り寄せ状況
               <Badge variant="secondary" className="ml-2">
@@ -789,17 +786,17 @@ export function RestoreWorkView({
                   key={part.id}
                   className={`p-3 border rounded-lg ${
                     isDelayed
-                      ? "border-red-300 bg-red-50"
+                      ? "border-red-400 bg-red-50"
                       : "border-slate-200"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-slate-900 text-sm">
+                    <span className="font-medium text-slate-900 text-base">
                       {part.name}
                     </span>
                     <div className="flex items-center gap-2">
                       {isDelayed && (
-                        <Badge variant="destructive" className="text-xs">
+                        <Badge variant="destructive" className="text-base">
                           遅延
                         </Badge>
                       )}
@@ -811,19 +808,19 @@ export function RestoreWorkView({
                             ? "secondary"
                             : "outline"
                         }
-                        className="text-xs"
+                        className="text-base"
                       >
                         {part.status}
                       </Badge>
                     </div>
                   </div>
                   {part.expectedArrivalDate && (
-                    <p className="text-xs text-slate-600">
+                    <p className="text-base text-slate-800">
                       到着予定日: {new Date(part.expectedArrivalDate).toLocaleDateString("ja-JP")}
                     </p>
                   )}
                   {part.actualArrivalDate && (
-                    <p className="text-xs text-slate-600">
+                    <p className="text-base text-slate-800">
                       実際の到着日: {new Date(part.actualArrivalDate).toLocaleDateString("ja-JP")}
                     </p>
                   )}
@@ -837,8 +834,8 @@ export function RestoreWorkView({
       {/* 作業メモ */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageSquare className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <MessageSquare className="h-5 w-5 shrink-0" />
             作業メモ
           </CardTitle>
         </CardHeader>
@@ -849,7 +846,7 @@ export function RestoreWorkView({
             placeholder="作業メモを入力..."
             disabled={disabled}
             rows={4}
-            className="text-sm"
+            className="text-base"
           />
         </CardContent>
       </Card>

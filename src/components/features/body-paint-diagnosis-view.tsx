@@ -26,6 +26,7 @@ import {
   ORDER_METHODS,
 } from "@/lib/body-paint-config";
 import { Camera, Video, MessageSquare, Car, FileText, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // 型定義
@@ -76,8 +77,8 @@ interface BodyPaintDiagnosisViewProps {
   onDamageLocationChange?: (id: string, location: Partial<DamageLocation>) => void;
   /** 写真撮影ハンドラ */
   onPhotoCapture?: (locationId: string, file: File) => void | Promise<void>;
-  /** 動画撮影ハンドラ */
-  onVideoCapture?: (locationId: string, file: File) => void | Promise<void>;
+  /** 動画撮影ハンドラ（音声認識テキスト付き） */
+  onVideoCapture?: (locationId: string, file: File, transcription?: string) => void | Promise<void>;
   /** 写真データマップ */
   photoDataMap?: Record<string, PhotoData>;
   /** 動画データマップ */
@@ -140,14 +141,16 @@ export function BodyPaintDiagnosisView({
   return (
     <div className="space-y-4">
       {/* 損傷箇所の確認 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
+              <Car className="h-5 w-5 shrink-0" />
               損傷箇所の確認
             </span>
-            <Badge variant="secondary">{damageLocations.length}箇所</Badge>
+            <Badge variant="secondary" className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{damageLocations.length}</span>箇所
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -169,30 +172,30 @@ export function BodyPaintDiagnosisView({
               };
 
               return (
-                <div
+                <Card
                   key={damage.id}
-                  className="p-4 border border-slate-200 rounded-lg space-y-3"
+                  className="border border-slate-300 rounded-xl shadow-md"
                 >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-slate-900 text-sm">
-                      損傷箇所 #{damageLocations.indexOf(damage) + 1}
-                    </h4>
-                    {onRemoveDamageLocation && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onRemoveDamageLocation(damage.id)}
-                        disabled={disabled}
-                        className="h-6 w-6 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                      <span>損傷箇所 #{damageLocations.indexOf(damage) + 1}</span>
+                      {onRemoveDamageLocation && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => onRemoveDamageLocation(damage.id)}
+                          disabled={disabled}
+                          className="h-12 w-12 p-0 shrink-0"
+                        >
+                          <X className="h-4 w-4 shrink-0" />
+                        </Button>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
 
-                  {/* 部位選択 */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">部位</Label>
+                    {/* 部位選択 */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-medium text-slate-700">部位</Label>
                     <Select
                       value={damage.location}
                       onValueChange={(value) => {
@@ -204,7 +207,7 @@ export function BodyPaintDiagnosisView({
                       }}
                       disabled={disabled}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger className="h-12 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -217,10 +220,10 @@ export function BodyPaintDiagnosisView({
                     </Select>
                   </div>
 
-                  {/* 損傷の種類と程度 */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">損傷の種類</Label>
+                    {/* 損傷の種類と程度 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-base font-medium text-slate-700">損傷の種類</Label>
                       <Select
                         value={damage.type}
                         onValueChange={(value) => {
@@ -232,7 +235,7 @@ export function BodyPaintDiagnosisView({
                         }}
                         disabled={disabled}
                       >
-                        <SelectTrigger className="h-9 text-sm">
+                        <SelectTrigger className="h-12 text-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -244,8 +247,8 @@ export function BodyPaintDiagnosisView({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">損傷の程度</Label>
+                      <div className="space-y-2">
+                        <Label className="text-base font-medium text-slate-700">損傷の程度</Label>
                       <Select
                         value={damage.severity}
                         onValueChange={(value) => {
@@ -257,7 +260,7 @@ export function BodyPaintDiagnosisView({
                         }}
                         disabled={disabled}
                       >
-                        <SelectTrigger className="h-9 text-sm">
+                        <SelectTrigger className="h-12 text-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -271,12 +274,12 @@ export function BodyPaintDiagnosisView({
                     </div>
                   </div>
 
-                  {/* Before写真撮影（必須） */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>Before写真（必須）</span>
-                    </div>
+                    {/* Before写真撮影（必須） */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <Camera className="h-4 w-4 shrink-0" />
+                        <span>Before写真（必須）</span>
+                      </div>
                     <PhotoCaptureButton
                       position={damage.id}
                       label={`${damage.location}のBefore写真を撮影`}
@@ -290,31 +293,32 @@ export function BodyPaintDiagnosisView({
                     />
                   </div>
 
-                  {/* Before動画撮影（必須） */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Video className="h-3.5 w-3.5" />
-                      <span>Before動画（必須）</span>
-                    </div>
+                    {/* Before動画撮影（必須） */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <Video className="h-4 w-4 shrink-0" />
+                        <span>Before動画（必須）</span>
+                      </div>
                     <VideoCaptureButton
                       position={damage.id}
-                      label={`${damage.location}のBefore動画を撮影`}
+                      label={`${damage.location}のBefore動画を撮影（実況解説付き）`}
                       videoData={videoData}
-                      onCapture={async (position, file) => {
+                      enableTranscription={true}
+                      onCapture={async (position, file, transcription) => {
                         if (onVideoCapture) {
-                          await onVideoCapture(damage.id, file);
+                          await onVideoCapture(damage.id, file, transcription);
                         }
                       }}
                       disabled={disabled}
                     />
                   </div>
 
-                  {/* コメント */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>コメント</span>
-                    </div>
+                    {/* コメント */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <MessageSquare className="h-4 w-4 shrink-0" />
+                        <span>コメント</span>
+                      </div>
                     <Textarea
                       value={damage.comment || ""}
                       onChange={(e) => {
@@ -327,10 +331,11 @@ export function BodyPaintDiagnosisView({
                       placeholder="コメントを入力..."
                       disabled={disabled}
                       rows={2}
-                      className="text-xs"
+                      className="text-base"
                     />
-                  </div>
-                </div>
+                      </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -339,10 +344,9 @@ export function BodyPaintDiagnosisView({
           {onAddDamageLocation && (
             <Button
               variant="outline"
-              size="sm"
               onClick={onAddDamageLocation}
               disabled={disabled}
-              className="w-full"
+              className="w-full h-12 text-base font-medium"
             >
               損傷箇所を追加
             </Button>
@@ -351,16 +355,16 @@ export function BodyPaintDiagnosisView({
       </Card>
 
       {/* 外注先への見積もり依頼 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <FileText className="h-5 w-5 shrink-0" />
             外注先への見積もり依頼
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm">見積もり依頼方法</Label>
+            <Label className="text-base font-medium">見積もり依頼方法</Label>
             <Select
               value={estimateRequestMethod || ""}
               onValueChange={(value) => {
@@ -370,7 +374,7 @@ export function BodyPaintDiagnosisView({
               }}
               disabled={disabled}
             >
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-12 text-base">
                 <SelectValue placeholder="見積もり依頼方法を選択" />
               </SelectTrigger>
               <SelectContent>
@@ -381,7 +385,7 @@ export function BodyPaintDiagnosisView({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-slate-500">
+            <p className="text-base text-slate-700">
               {estimateRequestMethod === "写真送付" &&
                 "Before写真・動画を外注先に送付して見積もりを依頼"}
               {estimateRequestMethod === "持ち込み" &&
@@ -392,17 +396,17 @@ export function BodyPaintDiagnosisView({
       </Card>
 
       {/* 外注先からの見積もり回答 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <FileText className="h-5 w-5 shrink-0" />
             外注先からの見積もり回答
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label className="text-sm">外注先名</Label>
+              <Label className="text-base font-medium">外注先名</Label>
               <input
                 type="text"
                 value={vendorEstimate?.vendorName || ""}
@@ -416,11 +420,11 @@ export function BodyPaintDiagnosisView({
                 }}
                 placeholder="外注先名を入力"
                 disabled={disabled}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md"
+                className="w-full h-12 px-3 text-base border border-slate-300 rounded-md bg-white"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">見積もり内容</Label>
+              <Label className="text-base font-medium">見積もり内容</Label>
               <Textarea
                 value={vendorEstimate?.estimateText || ""}
                 onChange={(e) => {
@@ -434,11 +438,11 @@ export function BodyPaintDiagnosisView({
                 placeholder="外注先からの見積もり内容を入力..."
                 disabled={disabled}
                 rows={6}
-                className="text-sm"
+                className="text-base"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">見積金額</Label>
+              <Label className="text-base font-medium">見積金額</Label>
               <input
                 type="number"
                 value={vendorEstimate?.total || ""}
@@ -452,11 +456,11 @@ export function BodyPaintDiagnosisView({
                 }}
                 placeholder="見積金額を入力"
                 disabled={disabled}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md"
+                className="w-full h-12 px-3 text-base border border-slate-300 rounded-md bg-white tabular-nums"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">見積もり回答日</Label>
+              <Label className="text-base font-medium">見積もり回答日</Label>
               <input
                 type="date"
                 value={vendorEstimate?.responseDate || ""}
@@ -469,11 +473,11 @@ export function BodyPaintDiagnosisView({
                   }
                 }}
                 disabled={disabled}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md"
+                className="w-full h-12 px-3 text-base border border-slate-300 rounded-md bg-white"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">備考</Label>
+              <Label className="text-base font-medium">備考</Label>
               <Textarea
                 value={vendorEstimate?.note || ""}
                 onChange={(e) => {
@@ -487,7 +491,7 @@ export function BodyPaintDiagnosisView({
                 placeholder="備考を入力..."
                 disabled={disabled}
                 rows={2}
-                className="text-sm"
+                className="text-base"
               />
             </div>
           </div>
@@ -495,10 +499,10 @@ export function BodyPaintDiagnosisView({
       </Card>
 
       {/* コメント */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageSquare className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <MessageSquare className="h-5 w-5 shrink-0" />
             コメント（整備士の所見）
           </CardTitle>
         </CardHeader>
@@ -513,7 +517,7 @@ export function BodyPaintDiagnosisView({
             placeholder="コメントを入力..."
             disabled={disabled}
             rows={4}
-            className="text-sm"
+            className="text-base"
           />
         </CardContent>
       </Card>

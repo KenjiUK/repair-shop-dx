@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { MasterCustomer, SheetsApiResponse } from "@/types";
+import { getGoogleSheetsClient } from "@/lib/google-auth";
 
 // =============================================================================
 // 設定
@@ -16,8 +17,6 @@ import { MasterCustomer, SheetsApiResponse } from "@/types";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_MASTER_DATA_ID || "";
 const SHEET_NAME = "顧客マスタ";
-const API_KEY = process.env.GOOGLE_SHEETS_API_KEY || "";
-const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
 // =============================================================================
 // エラーハンドリング
@@ -44,30 +43,25 @@ function errorResponse(
 // Google Sheets API 呼び出し
 // =============================================================================
 
+/**
+ * Google Sheetsからデータを取得（googleapisライブラリを使用）
+ */
 async function fetchFromGoogleSheets(range: string): Promise<string[][]> {
   if (!SPREADSHEET_ID) {
     throw new Error("GOOGLE_SHEETS_MASTER_DATA_ID が設定されていません");
   }
 
-  const url = `${GOOGLE_SHEETS_API_BASE}/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?key=${API_KEY}`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
+  const sheets = await getGoogleSheetsClient();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: range,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      `Google Sheets API エラー: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
-    );
+  if (!response.data.values) {
+    return [];
   }
 
-  const data = await response.json();
-  return data.values || [];
+  return response.data.values as string[][];
 }
 
 /**
@@ -162,6 +156,14 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+
+
+
+
+
+
 
 
 

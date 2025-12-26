@@ -136,8 +136,8 @@ export function TuningPartsInspectionView({
 
   if (!selectedType) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-slate-500">
+      <Card className="border border-slate-300 rounded-xl shadow-md">
+        <CardContent className="py-8 text-center text-base text-slate-700">
           種類を選択してください
         </CardContent>
       </Card>
@@ -147,10 +147,10 @@ export function TuningPartsInspectionView({
   return (
     <div className="space-y-4">
       {/* カスタム内容の説明 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageSquare className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <MessageSquare className="h-5 w-5 shrink-0" />
             カスタム内容
           </CardTitle>
         </CardHeader>
@@ -165,43 +165,47 @@ export function TuningPartsInspectionView({
             placeholder="カスタム内容を入力してください..."
             disabled={disabled}
             rows={4}
-            className="text-sm"
+            className="text-base"
           />
         </CardContent>
       </Card>
 
       {/* 簡易検査項目 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <Camera className="h-5 w-5" />
+              <Camera className="h-5 w-5 shrink-0" />
               簡易検査項目
             </span>
-            <Badge variant={completedCount === totalCount ? "default" : "secondary"}>
-              {completedCount} / {totalCount}
+            <Badge variant={completedCount === totalCount ? "default" : "secondary"} className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{completedCount}</span> / <span className="tabular-nums">{totalCount}</span>
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 進捗バー */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">進捗</span>
-              <span className="font-medium">{percentage}%</span>
-            </div>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 transition-all duration-500"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-          </div>
+          <Card className="border border-slate-300 rounded-xl shadow-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-medium text-slate-700">進捗</span>
+                  <span className="text-slate-700 font-medium tabular-nums">{percentage}%</span>
+                </div>
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* カテゴリ別に表示 */}
           {Object.entries(itemsByCategory).map(([category, categoryItems]) => (
             <div key={category} className="space-y-3">
-              <h4 className="font-medium text-slate-900 text-sm">{category}</h4>
+              <h4 className="font-medium text-slate-900 text-base">{category}</h4>
               <div className="space-y-3 pl-4 border-l-2 border-slate-200">
                 {categoryItems.map((item) => {
                   const photoData = photoDataMap[item.id] || {
@@ -212,14 +216,13 @@ export function TuningPartsInspectionView({
                   };
 
                   return (
-                    <div
+                    <Card
                       key={item.id}
-                      className="p-3 border border-slate-200 rounded-lg space-y-2"
+                      className="border border-slate-300 rounded-xl shadow-md"
                     >
-                      {/* 項目名と状態選択 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h5 className="font-medium text-slate-900 text-sm">{item.name}</h5>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                          <span>{item.name}</span>
                           {item.status !== "unchecked" && (
                             <Badge
                               variant={
@@ -229,12 +232,15 @@ export function TuningPartsInspectionView({
                                   ? "secondary"
                                   : "destructive"
                               }
-                              className="text-xs"
+                              className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap"
                             >
                               {getTuningPartsInspectionStatusText(item.status)}
                             </Badge>
                           )}
-                        </div>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* 状態選択 */}
                         <TrafficLightButtonGroup
                           currentStatus={item.status as TrafficLightStatus}
                           onStatusChange={(status) => {
@@ -244,51 +250,50 @@ export function TuningPartsInspectionView({
                           }}
                           availableStatuses={["green", "yellow", "red"]}
                           disabled={disabled}
-                          size="sm"
                           showLabel={true}
+                          size="md"
                         />
-                      </div>
 
-                      {/* 写真撮影 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <Camera className="h-3.5 w-3.5" />
-                          <span>写真（Before）</span>
+                        {/* 写真撮影 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                            <Camera className="h-4 w-4 shrink-0" />
+                            <span>写真（Before）</span>
+                          </div>
+                          <PhotoCaptureButton
+                            position={item.id}
+                            label={`${item.name}の写真を撮影`}
+                            photoData={photoData}
+                            onCapture={async (position, file) => {
+                              if (onPhotoCapture) {
+                                await onPhotoCapture(item.id, file);
+                              }
+                            }}
+                            disabled={disabled}
+                          />
                         </div>
-                        <PhotoCaptureButton
-                          position={item.id}
-                          label={`${item.name}の写真を撮影`}
-                          photoData={photoData}
-                          onCapture={async (position, file) => {
-                            if (onPhotoCapture) {
-                              await onPhotoCapture(item.id, file);
-                            }
-                          }}
-                          disabled={disabled}
-                          size="sm"
-                        />
-                      </div>
 
-                      {/* コメント */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          <span>コメント</span>
+                        {/* コメント */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                            <MessageSquare className="h-4 w-4 shrink-0" />
+                            <span>コメント</span>
+                          </div>
+                          <Textarea
+                            value={item.comment || ""}
+                            onChange={(e) => {
+                              if (onCommentChange) {
+                                onCommentChange(item.id, e.target.value);
+                              }
+                            }}
+                            placeholder="コメントを入力..."
+                            disabled={disabled}
+                            rows={2}
+                            className="text-base"
+                          />
                         </div>
-                        <Textarea
-                          value={item.comment || ""}
-                          onChange={(e) => {
-                            if (onCommentChange) {
-                              onCommentChange(item.id, e.target.value);
-                            }
-                          }}
-                          placeholder="コメントを入力..."
-                          disabled={disabled}
-                          rows={2}
-                          className="text-xs"
-                        />
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>

@@ -33,7 +33,19 @@ function extractRestoreProgress(job: ZohoJob): {
   currentPhase?: string;
 } {
   // workDataから進捗情報を取得（JSON形式で保存されている想定）
-  const workData = (job as any).workData;
+  const jobWithWorkData = job as ZohoJob & {
+    workData?: {
+      restoreWorkData?: {
+        overallProgress?: number;
+        phases?: Array<{
+          name?: string;
+          status?: string;
+          startDate?: string;
+        }>;
+      };
+    };
+  };
+  const workData = jobWithWorkData.workData;
   if (!workData || !workData.restoreWorkData) {
     return {
       progress: 0,
@@ -46,15 +58,22 @@ function extractRestoreProgress(job: ZohoJob): {
   const phases = restoreWorkData.phases || [];
 
   // 現在のフェーズを取得（作業中の最初のフェーズ）
-  const currentPhase = phases.find((p: any) => p.status === "作業中")?.name || 
-                       phases.find((p: any) => p.status === "未開始")?.name ||
+  const currentPhase = phases.find((p) => p.status === "作業中")?.name || 
+                       phases.find((p) => p.status === "未開始")?.name ||
                        phases[phases.length - 1]?.name;
 
   // 開始日を取得（最初のフェーズの開始日）
-  const startDate = phases.find((p: any) => p.startDate)?.startDate;
+  const startDate = phases.find((p) => p.startDate)?.startDate;
 
   // 予定完了日を取得（estimateDataから作業期間を計算）
-  const estimateData = (job as any).estimateData;
+  const jobWithEstimateData = job as ZohoJob & {
+    estimateData?: {
+      restoreEstimateData?: {
+        workDuration?: number;
+      };
+    };
+  };
+  const estimateData = jobWithEstimateData.estimateData;
   const workDuration = estimateData?.restoreEstimateData?.workDuration;
   let expectedCompletionDate: string | undefined;
   if (startDate && workDuration) {
@@ -89,7 +108,19 @@ function extractBodyPaintProgress(job: ZohoJob): {
   currentPhase?: string;
 } {
   // workDataから進捗情報を取得
-  const workData = (job as any).workData;
+  const jobWithWorkData = job as ZohoJob & {
+    workData?: {
+      bodyPaintOutsourcingInfo?: {
+        progress?: string;
+        progressPercentage?: number;
+        isDelayed?: boolean;
+        orderDate?: string;
+        expectedCompletionDate?: string;
+        currentPhase?: string;
+      };
+    };
+  };
+  const workData = jobWithWorkData.workData;
   if (!workData || !workData.bodyPaintOutsourcingInfo) {
     return {
       progress: 0,

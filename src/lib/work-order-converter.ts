@@ -34,7 +34,8 @@ export function convertZohoJobToBaseJob(zohoJob: ZohoJob): {
   }
 
   // field_work_orders（Multi-Line JSON）からワークオーダーリストを取得
-  const workOrders = parseWorkOrdersFromZoho((zohoJob as any).field_work_orders || null);
+  const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
+  const workOrders = parseWorkOrdersFromZoho(jobWithWorkOrders.field_work_orders || null);
 
   // field_base_system_idから基幹システム連携IDを取得
   const baseSystemId = zohoJob.field_base_system_id || undefined;
@@ -66,7 +67,7 @@ export function parseWorkOrdersFromZoho(
       return [];
     }
 
-    return parsed.map((wo: any) => ({
+    return parsed.map((wo: Partial<WorkOrder> & { [key: string]: unknown }) => ({
       id: wo.id || `wo-${Date.now()}`,
       jobId: wo.jobId || "",
       serviceKind: wo.serviceKind || "その他",
@@ -184,6 +185,14 @@ export function removeWorkOrder(
 ): WorkOrder[] {
   return workOrders.filter((wo) => wo.id !== workOrderId);
 }
+
+
+
+
+
+
+
+
 
 
 

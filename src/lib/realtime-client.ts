@@ -55,6 +55,13 @@ class RealtimeClient {
    * SSE接続を確立
    */
   private connect(): void {
+    // オフライン状態の場合は接続を試みない
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      console.log("[SSE] オフライン状態のため接続をスキップします");
+      this.isConnecting = false;
+      return;
+    }
+
     try {
       const url = `/api/realtime/stream${this.lastEventId ? `?lastEventId=${encodeURIComponent(this.lastEventId)}` : ""}`;
       this.eventSource = new EventSource(url);
@@ -83,6 +90,12 @@ class RealtimeClient {
         console.error("[SSE] 接続エラー:", error);
         this.isConnecting = false;
         
+        // オフライン状態の場合は再接続を試みない
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          console.log("[SSE] オフライン状態のため再接続をスキップします");
+          return;
+        }
+        
         // 接続が閉じられた場合は再接続を試行
         if (this.eventSource?.readyState === EventSource.CLOSED) {
           this.attemptReconnect();
@@ -91,6 +104,13 @@ class RealtimeClient {
     } catch (error) {
       console.error("[SSE] 接続エラー:", error);
       this.isConnecting = false;
+      
+      // オフライン状態の場合は再接続を試みない
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        console.log("[SSE] オフライン状態のため再接続をスキップします");
+        return;
+      }
+      
       this.attemptReconnect();
     }
   }
@@ -110,12 +130,20 @@ class RealtimeClient {
     }
     
     this.isConnecting = false;
+    // 再接続試行回数をリセット（オフライン復帰時に正常に再接続できるように）
+    this.reconnectAttempts = 0;
   }
 
   /**
    * 再接続を試行
    */
   private attemptReconnect(): void {
+    // オフライン状態の場合は再接続を試みない
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      console.log("[SSE] オフライン状態のため再接続をスキップします");
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.warn("[SSE] 最大再接続試行回数に達しました");
       return;
@@ -127,6 +155,12 @@ class RealtimeClient {
     console.log(`[SSE] ${delay}ms後に再接続を試行します (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
     this.reconnectTimer = setTimeout(() => {
+      // タイマー実行時にもオフライン状態をチェック
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        console.log("[SSE] オフライン状態のため再接続をスキップします");
+        this.reconnectAttempts = 0; // リセットして次回の再接続に備える
+        return;
+      }
       this.connect();
     }, delay);
   }

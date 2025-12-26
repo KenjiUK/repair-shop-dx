@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DriveFile, ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API ファイル移動エンドポイント
@@ -23,17 +24,6 @@ function errorResponse(
 }
 
 /**
- * Google Drive API アクセストークンを取得
- */
-async function getAccessToken(): Promise<string> {
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
-/**
  * ファイルの親フォルダを更新（移動）
  */
 async function moveFileInDrive(
@@ -41,7 +31,7 @@ async function moveFileInDrive(
   targetFolderId: string,
   removeFromSource: boolean = true
 ): Promise<DriveFile> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getGoogleAccessToken();
 
   // 現在のファイル情報を取得（親フォルダ情報を含む）
   const getFileUrl = `${GOOGLE_DRIVE_API_BASE}/files/${fileId}?fields=id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents`;

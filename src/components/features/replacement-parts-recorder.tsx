@@ -89,8 +89,8 @@ export function ReplacementPartsRecorder({
   return (
     <Card className={cn(className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Package className="h-5 w-5 text-slate-600" />
+        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+          <Package className="h-5 w-5 text-slate-800 shrink-0" />
           交換部品記録
           {parts.length > 0 && (
             <Badge variant="secondary" className="ml-auto">
@@ -114,7 +114,7 @@ export function ReplacementPartsRecorder({
                     onChange={(e) => handleUpdate(index, "name", e.target.value)}
                     placeholder="部品名"
                     disabled={disabled}
-                    className="text-sm"
+                    className="text-base"
                   />
                   <div className="flex items-center gap-1">
                     <Input
@@ -127,24 +127,23 @@ export function ReplacementPartsRecorder({
                       disabled={disabled}
                       min="0"
                       step="0.1"
-                      className="text-sm"
+                      className="text-base"
                     />
                     <Input
                       value={part.unit}
                       onChange={(e) => handleUpdate(index, "unit", e.target.value)}
                       placeholder="単位"
                       disabled={disabled}
-                      className="w-16 text-sm"
+                      className="w-16 text-base"
                     />
                   </div>
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   onClick={() => handleDelete(index)}
                   disabled={disabled}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="text-red-700 hover:text-red-800 hover:bg-red-50"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -167,7 +166,7 @@ export function ReplacementPartsRecorder({
                   handleAdd();
                 }
               }}
-              className="flex-1 text-sm"
+              className="flex-1 text-base"
             />
             <Input
               type="number"
@@ -177,19 +176,18 @@ export function ReplacementPartsRecorder({
               disabled={disabled}
               min="0"
               step="0.1"
-              className="w-20 text-sm"
+              className="w-20 text-base"
             />
             <Input
               value={newPartUnit}
               onChange={(e) => setNewPartUnit(e.target.value)}
               placeholder="単位"
               disabled={disabled}
-              className="w-16 text-sm"
+              className="w-16 text-base"
             />
             <Button
               type="button"
               variant="outline"
-              size="sm"
               onClick={handleAdd}
               disabled={disabled || !newPartName.trim()}
               className="gap-1"
@@ -198,7 +196,7 @@ export function ReplacementPartsRecorder({
               追加
             </Button>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-base text-slate-700">
             実際に交換した部品を記録してください。Enterキーで追加できます。
           </p>
         </div>
@@ -206,6 +204,14 @@ export function ReplacementPartsRecorder({
     </Card>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

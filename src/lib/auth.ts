@@ -37,6 +37,18 @@ export function getCurrentUser(): User | null {
 }
 
 /**
+ * 現在の顧客IDを取得（顧客ロールの場合のみ）
+ * @returns 顧客ID（取得できない場合はnull）
+ */
+export function getCurrentCustomerId(): string | null {
+  const user = getCurrentUser();
+  if (user && user.role === "customer" && user.customerId) {
+    return user.customerId;
+  }
+  return null;
+}
+
+/**
  * セッションを削除（ログアウト）
  */
 export function clearSession(): void {
@@ -143,6 +155,73 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   return {
     session,
   };
+}
+
+/**
+ * マジックリンク認証（顧客向け）
+ * マジックリンクトークンから顧客IDを取得し、セッションを確立
+ * 
+ * @param token マジックリンクトークン
+ * @returns セッション情報（認証に失敗した場合はnull）
+ */
+export async function loginWithMagicLink(token: string): Promise<Session | null> {
+  try {
+    // マジックリンクトークンから顧客IDを取得
+    // TODO: 実際の実装では、サーバー側の認証APIを呼び出す
+    // const response = await fetch("/api/auth/magic-link", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({ token }),
+    // });
+    // const data = await response.json();
+    // if (!data.success) return null;
+
+    // モック実装: 既存のgetCustomerIdFromMagicLink関数を使用
+    const { getCustomerIdFromMagicLink } = await import("@/lib/line-api");
+    const customerId = await getCustomerIdFromMagicLink(token);
+    
+    if (!customerId) {
+      console.error("[Auth] マジックリンクトークンから顧客IDを取得できませんでした");
+      return null;
+    }
+
+    // 顧客情報を取得
+    // TODO: 実際の実装では、サーバー側から顧客情報を取得
+    const { fetchCustomerById } = await import("@/lib/api");
+    const customerResult = await fetchCustomerById(customerId);
+    
+    if (!customerResult.success || !customerResult.data) {
+      console.error("[Auth] 顧客情報の取得に失敗しました");
+      return null;
+    }
+
+    const customer = customerResult.data;
+
+    // 顧客ユーザー情報を作成
+    const customerUser: User = {
+      id: customer.id,
+      name: `${customer.Last_Name || ""} ${customer.First_Name || ""}`.trim() || "顧客",
+      email: customer.email || "",
+      role: "customer",
+      customerId: customerId,
+    };
+
+    // セッションを作成（24時間有効）
+    const session: Session = {
+      sessionId: `session-${Date.now()}-${customerId}`,
+      user: customerUser,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24時間後
+    };
+
+    saveSession(session);
+
+    console.log("[Auth] マジックリンク認証成功:", customerId);
+    return session;
+  } catch (error) {
+    console.error("[Auth] マジックリンク認証エラー:", error);
+    return null;
+  }
 }
 
 /**

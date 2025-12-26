@@ -18,7 +18,8 @@ export type LineNotificationType =
   | "diagnosis_complete" // 診断完了
   | "estimate_sent" // 見積送付
   | "estimate_approved" // 見積承認
-  | "work_complete"; // 作業完了
+  | "work_complete" // 作業完了
+  | "parts_arrived"; // 全部品到着（新規追加）
 
 /**
  * LINE通知リクエスト

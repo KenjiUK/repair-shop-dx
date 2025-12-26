@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Car, Loader2 } from "lucide-react";
 import { CourtesyCar } from "@/types";
+import { cn } from "@/lib/utils";
 
 interface CourtesyCarSelectDialogProps {
   open: boolean;
@@ -35,10 +37,39 @@ export function CourtesyCarSelectDialog({
   onSelect,
   onSkip,
 }: CourtesyCarSelectDialogProps) {
-  const availableCars = cars?.filter((c) => c.status === "available") ?? [];
+  const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
+  const [isSkipping, setIsSkipping] = useState(false);
+
+  // 配列でない場合のエラーハンドリング
+  const safeCars = Array.isArray(cars) ? cars : [];
+  // 利用可能な代車: available または reserving ステータス（checkIn APIと整合性を保つ）
+  const availableCars = safeCars.filter((c) => c.status === "available" || c.status === "reserving");
+
+  // ダイアログが閉じられたら選択状態をリセット
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setSelectedCarId(null);
+      setIsSkipping(false);
+    }
+    onOpenChange(newOpen);
+  };
+
+  const handleSelect = (carId: string) => {
+    if (isProcessing) return;
+    setSelectedCarId(carId);
+    setIsSkipping(false);
+    onSelect(carId);
+  };
+
+  const handleSkip = () => {
+    if (isProcessing) return;
+    setSelectedCarId(null);
+    setIsSkipping(true);
+    onSkip();
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -62,33 +93,48 @@ export function CourtesyCarSelectDialog({
             {/* 利用可能な代車一覧 */}
             {availableCars.length > 0 ? (
               <div className="grid grid-cols-2 gap-3 py-4">
-                {availableCars.map((car) => (
-                  <Button
-                    key={car.carId}
-                    variant="outline"
-                    size="lg"
-                    className="h-20 flex flex-col items-center justify-center gap-1 hover:bg-primary hover:text-primary-foreground transition-colors"
-                    onClick={() => onSelect(car.carId)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <>
-                        <Car className="h-5 w-5" />
-                        <span className="text-sm font-semibold">{car.name}</span>
-                        {car.licensePlate && (
-                          <span className="text-xs text-muted-foreground">
-                            {car.licensePlate}
+                {availableCars.map((car) => {
+                  const isSelected = selectedCarId === car.carId;
+                  const isProcessingThis = isProcessing && isSelected;
+
+                  return (
+                    <Button
+                      key={car.carId}
+                      variant="outline"
+                      className={cn(
+                        "w-full h-auto min-h-[80px] flex flex-col items-center justify-center gap-1 px-3 py-3 transition-all overflow-hidden",
+                        isProcessingThis
+                          ? "bg-primary/10 border-primary cursor-wait"
+                          : "hover:bg-primary hover:text-primary-foreground",
+                        isProcessing && !isSelected && "opacity-50 cursor-not-allowed"
+                      )}
+                      onClick={() => handleSelect(car.carId)}
+                      disabled={isProcessing && !isSelected}
+                    >
+                      {isProcessingThis ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span className="text-base">処理中...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Car className="h-5 w-5 shrink-0" />
+                          <span className="w-full text-base font-semibold text-center line-clamp-2 break-words min-w-0 px-1">
+                            {car.name}
                           </span>
-                        )}
-                      </>
-                    )}
-                  </Button>
-                ))}
+                          {car.licensePlate && (
+                            <span className="w-full text-sm text-slate-700 text-center line-clamp-1 break-words min-w-0 px-1">
+                              {car.licensePlate}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Button>
+                  );
+                })}
               </div>
             ) : (
-              <div className="py-8 text-center text-slate-500">
+              <div className="py-8 text-center text-slate-700">
                 <Car className="h-12 w-12 mx-auto mb-3 text-slate-300" />
                 <p>利用可能な代車がありません</p>
               </div>
@@ -98,11 +144,14 @@ export function CourtesyCarSelectDialog({
             <div className="pt-4 border-t">
               <Button
                 variant="outline"
-                className="w-full"
-                onClick={onSkip}
-                disabled={isProcessing}
+                className={cn(
+                  "w-full transition-all",
+                  isSkipping && isProcessing && "bg-primary/10 border-primary cursor-wait"
+                )}
+                onClick={handleSkip}
+                disabled={isProcessing && !isSkipping}
               >
-                {isProcessing ? (
+                {isSkipping && isProcessing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     処理中...
@@ -118,3 +167,11 @@ export function CourtesyCarSelectDialog({
     </Dialog>
   );
 }
+
+
+
+
+
+
+
+

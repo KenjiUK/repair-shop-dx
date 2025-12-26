@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Droplets, CalendarClock, AlertCircle } from "lucide-react";
+import { Droplets, CalendarClock, AlertCircle, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -174,8 +174,8 @@ export function CoatingWorkManagement({
       {/* 乾燥プロセス管理 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Droplets className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Droplets className="h-5 w-5 shrink-0" />
             乾燥プロセス管理
           </CardTitle>
         </CardHeader>
@@ -228,8 +228,8 @@ export function CoatingWorkManagement({
                 disabled={disabled}
               />
               {dryingExpectedAt && new Date(dryingExpectedAt) < new Date() && (
-                <div className="flex items-center gap-2 text-amber-600 text-sm">
-                  <AlertCircle className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-amber-700 text-base">
+                  <AlertCircle className="h-5 w-5" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
                   <span>予定完了日を過ぎています</span>
                 </div>
               )}
@@ -297,8 +297,8 @@ export function CoatingWorkManagement({
       {/* メンテナンス期間管理 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarClock className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <CalendarClock className="h-5 w-5 shrink-0" />
             メンテナンス期間管理
           </CardTitle>
         </CardHeader>
@@ -323,7 +323,7 @@ export function CoatingWorkManagement({
                 disabled={disabled}
                 className="w-24"
               />
-              <span className="text-sm text-slate-600">年（1-3年）</span>
+              <span className="text-base text-slate-800">年（1-3年）</span>
             </div>
           </div>
 
@@ -341,8 +341,8 @@ export function CoatingWorkManagement({
               disabled={disabled}
             />
             {nextMaintenanceDate && new Date(nextMaintenanceDate) < new Date() && (
-              <div className="flex items-center gap-2 text-amber-600 text-sm">
-                <AlertCircle className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-amber-700 text-base">
+                <AlertCircle className="h-5 w-5" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
                 <span>推奨日を過ぎています</span>
               </div>
             )}
@@ -365,11 +365,14 @@ export function CoatingWorkManagement({
           </div>
 
           {/* 注意事項 */}
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-800 font-medium mb-1">
-              ⚠️ メンテナンス期間について
+          <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
+            <p className="text-base text-amber-900 font-medium mb-1">
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="h-4 w-4" />
+                メンテナンス期間について
+              </span>
             </p>
-            <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+            <ul className="text-base text-amber-800 space-y-1 list-disc list-inside">
               <li>効果の持続期間は1年から3年です</li>
               <li>次回メンテナンス推奨日を設定してください</li>
               <li>引渡時に顧客にメンテナンス方法を説明してください</li>

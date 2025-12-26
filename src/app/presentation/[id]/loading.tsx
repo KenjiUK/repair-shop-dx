@@ -14,7 +14,7 @@ export default function Loading() {
 
           {/* カードスケルトン */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <Skeleton className="h-6 w-32" />
             </CardHeader>
             <CardContent className="space-y-4">

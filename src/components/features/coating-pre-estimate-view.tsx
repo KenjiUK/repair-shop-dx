@@ -15,7 +15,7 @@ import {
   getCoatingOptionList,
   calculateOptionsTotal,
 } from "@/lib/coating-config";
-import { Sparkles, CheckCircle2 } from "lucide-react";
+import { Sparkles, CheckCircle2, Lightbulb } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // =============================================================================
@@ -107,18 +107,18 @@ export function CoatingPreEstimateView({
   return (
     <div className="space-y-4">
       {/* コーティング種類選択 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <Sparkles className="h-5 w-5 shrink-0" />
             コーティング種類選択
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>
+            <Label className="text-base font-medium">
               コーティングの種類を選択
-              <span className="text-red-500 ml-1">*</span>
+              <span className="text-red-600 ml-1">*</span>
             </Label>
             <RadioGroup
               value={selectedCoatingType || ""}
@@ -132,16 +132,16 @@ export function CoatingPreEstimateView({
               {coatingTypeList.map((type) => {
                 const config = getCoatingTypeConfig(type);
                 return (
-                  <div key={type} className="flex items-center space-x-2">
-                    <RadioGroupItem value={type} id={type} />
+                  <div key={type} className="flex items-start space-x-3 p-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                    <RadioGroupItem value={type} id={type} className="mt-0.5" />
                     <Label
                       htmlFor={type}
-                      className="flex-1 cursor-pointer font-normal"
+                      className="flex-1 cursor-pointer font-normal text-base"
                     >
                       <div className="flex flex-col">
-                        <span className="font-medium">{type}</span>
+                        <span className="font-medium text-slate-900 text-base">{type}</span>
                         {config && (
-                          <span className="text-xs text-slate-600">
+                          <span className="text-base text-slate-700 mt-1">
                             {config.description}
                           </span>
                         )}
@@ -155,20 +155,20 @@ export function CoatingPreEstimateView({
 
           {/* 選択されたコーティング種類の情報表示 */}
           {selectedCoatingConfig && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="p-4 bg-slate-50 border border-slate-300 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-900">
+                <span className="text-base font-medium text-slate-900">
                   {selectedCoatingConfig.name}
                 </span>
-                <span className="text-sm font-bold text-slate-900">
+                <span className="text-base font-bold text-slate-900 tabular-nums">
                   ¥{actualBasePrice.toLocaleString()}
                   {baseCoatingPrice === undefined && (
-                    <span className="text-xs text-slate-500 ml-1">（参考価格）</span>
+                    <span className="text-base text-slate-600 ml-1 font-normal">（参考価格）</span>
                   )}
                 </span>
               </div>
               {selectedCoatingConfig.description && (
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-base text-slate-700 mt-2">
                   {selectedCoatingConfig.description}
                 </p>
               )}
@@ -178,10 +178,10 @@ export function CoatingPreEstimateView({
       </Card>
 
       {/* オプションサービス選択 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CheckCircle2 className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
             オプションサービス
           </CardTitle>
         </CardHeader>
@@ -197,7 +197,7 @@ export function CoatingPreEstimateView({
               return (
                 <div
                   key={option.id}
-                  className="flex items-start space-x-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="flex items-start space-x-3 p-4 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   <Checkbox
                     id={option.id}
@@ -206,34 +206,35 @@ export function CoatingPreEstimateView({
                       handleOptionToggle(option.id, checked as boolean);
                     }}
                     disabled={disabled}
+                    className="h-5 w-5 mt-0.5"
                   />
                   <Label
                     htmlFor={option.id}
-                    className="flex-1 cursor-pointer font-normal"
+                    className="flex-1 cursor-pointer font-normal text-base"
                   >
                     <div className="flex flex-col">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-slate-900">
+                        <span className="font-medium text-slate-900 text-base">
                           {option.name}
                         </span>
                         <div className="flex items-center gap-2">
                           {isDiscounted && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
                               10%割引
                             </Badge>
                           )}
-                          <span className="text-sm font-bold text-slate-900">
+                          <span className="text-base font-bold text-slate-900 tabular-nums">
                             ¥{optionPrice.toLocaleString()}
                           </span>
                         </div>
                       </div>
                       {option.description && (
-                        <span className="text-xs text-slate-600 mt-1">
+                        <span className="text-base text-slate-700 mt-1">
                           {option.description}
                         </span>
                       )}
                       {isDiscounted && (
-                        <span className="text-xs text-slate-500 mt-1 line-through">
+                        <span className="text-base text-slate-600 mt-1 line-through tabular-nums">
                           通常価格: ¥{option.regularPrice.toLocaleString()}
                         </span>
                       )}
@@ -246,13 +247,18 @@ export function CoatingPreEstimateView({
 
           {/* 同時施工割引の説明 */}
           {isSimultaneous && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-xs text-amber-800 font-medium mb-1">
-                💡 同時施工割引適用中
-              </p>
-              <p className="text-xs text-amber-700">
-                基本コーティングと同時に実施するオプションサービスは10％割引が適用されます
-              </p>
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Lightbulb className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-base text-amber-900 font-medium mb-1">
+                    同時施工割引適用中
+                  </p>
+                  <p className="text-base text-amber-800">
+                    基本コーティングと同時に実施するオプションサービスは10％割引が適用されます
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
@@ -260,24 +266,24 @@ export function CoatingPreEstimateView({
 
       {/* 見積金額表示 */}
       {(selectedCoatingType || selectedOptionIds.length > 0) && (
-        <Card>
+        <Card className="border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">見積金額</CardTitle>
+            <CardTitle className="text-xl font-bold text-slate-900">見積金額</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">
               {selectedCoatingType && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">基本コーティング</span>
-                  <span className="font-medium text-slate-900">
+                <div className="flex items-center justify-between text-base">
+                  <span className="text-base font-medium text-slate-700">基本コーティング</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">
                     ¥{actualBasePrice.toLocaleString()}
                   </span>
                 </div>
               )}
               {selectedOptionIds.length > 0 && (
                 <>
-                  <Separator />
-                  <div className="space-y-1">
+                  <Separator className="bg-slate-200" />
+                  <div className="space-y-2">
                     {selectedOptionIds.map((optionId) => {
                       const option = getCoatingOptionList().find(
                         (o) => o.id === optionId
@@ -289,10 +295,10 @@ export function CoatingPreEstimateView({
                       return (
                         <div
                           key={optionId}
-                          className="flex items-center justify-between text-sm"
+                          className="flex items-center justify-between text-base"
                         >
-                          <span className="text-slate-600">{option.name}</span>
-                          <span className="font-medium text-slate-900">
+                          <span className="text-base font-medium text-slate-700">{option.name}</span>
+                          <span className="text-base font-medium text-slate-900 tabular-nums">
                             ¥{optionPrice.toLocaleString()}
                           </span>
                         </div>
@@ -301,10 +307,10 @@ export function CoatingPreEstimateView({
                   </div>
                 </>
               )}
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-base font-medium text-slate-900">合計</span>
-                <span className="text-xl font-bold text-slate-900">
+              <Separator className="bg-slate-200" />
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-lg font-bold text-slate-900">合計</span>
+                <span className="text-2xl font-bold text-primary tabular-nums">
                   ¥{totalPrice.toLocaleString()}
                 </span>
               </div>
@@ -315,7 +321,7 @@ export function CoatingPreEstimateView({
               <Button
                 onClick={handleSendEstimate}
                 disabled={disabled || !selectedCoatingType}
-                className="w-full"
+                className="w-full h-12 text-base font-medium"
               >
                 見積を送信
               </Button>

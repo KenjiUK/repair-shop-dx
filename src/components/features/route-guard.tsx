@@ -44,7 +44,7 @@ export function RouteGuard({
 
     // カスタムロール指定がある場合はそれを使用、なければROUTE_GUARDSを使用
     const guard = allowedRoles
-      ? { allowedRoles: allowedRoles as any, redirectTo }
+      ? { allowedRoles: allowedRoles as string[], redirectTo }
       : ROUTE_GUARDS[pathname] || Object.entries(ROUTE_GUARDS).find(([path]) =>
           pathname.startsWith(path)
         )?.[1];
@@ -69,7 +69,7 @@ export function RouteGuard({
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-          <p className="text-sm text-slate-600">読み込み中...</p>
+          <p className="text-base text-slate-700">読み込み中...</p>
         </div>
       </div>
     );
@@ -102,6 +102,14 @@ export function RouteGuard({
 
   return <>{children}</>;
 }
+
+
+
+
+
+
+
+
 
 
 

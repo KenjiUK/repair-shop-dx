@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileText, X, Loader2, CheckCircle2 } from "lucide-react";
@@ -125,9 +126,9 @@ export function VehicleRegistrationUpload({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+          <FileText className="h-5 w-5 shrink-0" />
           車検証
         </CardTitle>
       </CardHeader>
@@ -156,7 +157,7 @@ export function VehicleRegistrationUpload({
                 </span>
               </Button>
             </label>
-            <p className="text-sm text-slate-600">
+            <p className="text-base text-slate-700">
               対応形式: 画像（JPG, PNG, WebP）、PDF
               <br />
               最大サイズ: 10MB
@@ -169,27 +170,30 @@ export function VehicleRegistrationUpload({
           <div className="space-y-3">
             <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border">
               {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="車検証プレビュー"
-                  className="w-32 h-32 object-contain rounded border"
-                />
+                <div className="relative w-32 h-32 rounded border overflow-hidden">
+                  <Image
+                    src={previewUrl}
+                    alt="車検証プレビュー"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
               ) : (
                 <div className="w-32 h-32 flex items-center justify-center bg-slate-200 rounded border">
-                  <FileText className="h-8 w-8 text-slate-400" />
+                  <FileText className="h-8 w-8 text-slate-700" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{file.name}</p>
-                <p className="text-xs text-slate-600">{formatFileSize(file.size)}</p>
+                <p className="text-base font-medium truncate">{file.name}</p>
+                <p className="text-base text-slate-700">{formatFileSize(file.size)}</p>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   onClick={handleFileRemove}
                   className="mt-2 h-7"
                 >
-                  <X className="h-3 w-3 mr-1" />
+                  <X className="h-4 w-4 mr-1" />
                   削除
                 </Button>
               </div>
@@ -227,22 +231,20 @@ export function VehicleRegistrationUpload({
 
         {/* アップロード完了 */}
         {uploadedFileId && (
-          <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+          <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-300">
+            <CheckCircle2 className="h-5 w-5 text-green-700 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-green-900">
+              <p className="text-base font-medium text-green-900">
                 車検証をアップロードしました
               </p>
-              <p className="text-xs text-green-700 mt-1">
+              <p className="text-base text-green-800 mt-1">
                 ファイルID: {uploadedFileId}
               </p>
             </div>
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={handleFileRemove}
-              className="h-7"
             >
               再アップロード
             </Button>
@@ -252,6 +254,14 @@ export function VehicleRegistrationUpload({
     </Card>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

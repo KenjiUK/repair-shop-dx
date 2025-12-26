@@ -430,8 +430,8 @@ export function RestoreEstimateView({
       {/* 見積もり項目 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Calculator className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Calculator className="h-5 w-5 shrink-0" />
             見積もり項目
           </CardTitle>
         </CardHeader>
@@ -443,22 +443,21 @@ export function RestoreEstimateView({
                 className="p-4 border border-slate-200 rounded-lg space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-slate-900 text-sm">
+                  <h4 className="font-medium text-slate-900 text-base">
                     項目 #{index + 1}
                   </h4>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => handleRemoveItem(item.id)}
                     disabled={disabled || items.length <= 1}
-                    className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                    className="h-6 w-6 p-0 text-slate-700 hover:text-red-600"
                   >
                     ×
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">項目名</Label>
+                  <Label className="text-base text-slate-800">項目名</Label>
                   <Input
                     value={item.name}
                     onChange={(e) =>
@@ -466,13 +465,13 @@ export function RestoreEstimateView({
                     }
                     placeholder="例: 修復費用、作業費用"
                     disabled={disabled}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">数量</Label>
+                    <Label className="text-base text-slate-800">数量</Label>
                     <Input
                       type="number"
                       value={item.quantity}
@@ -482,13 +481,13 @@ export function RestoreEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                       min="0"
                       step="0.01"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">単価</Label>
+                    <Label className="text-base text-slate-800">単価</Label>
                     <Input
                       type="number"
                       value={item.unitPrice}
@@ -498,24 +497,24 @@ export function RestoreEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                       min="0"
                       step="1"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">金額</Label>
+                    <Label className="text-base text-slate-800">金額</Label>
                     <Input
                       type="number"
                       value={item.amount}
                       disabled
-                      className="text-sm bg-slate-50"
+                      className="text-base bg-slate-50"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">備考</Label>
+                  <Label className="text-base text-slate-800">備考</Label>
                   <Textarea
                     value={item.note || ""}
                     onChange={(e) =>
@@ -524,7 +523,7 @@ export function RestoreEstimateView({
                     placeholder="備考を入力..."
                     disabled={disabled}
                     rows={2}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
               </div>
@@ -533,7 +532,6 @@ export function RestoreEstimateView({
 
           <Button
             variant="outline"
-            size="sm"
             onClick={handleAddItem}
             disabled={disabled}
             className="w-full"
@@ -546,8 +544,8 @@ export function RestoreEstimateView({
       {/* 部品リスト（取り寄せ管理付き） */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Package className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Package className="h-5 w-5 shrink-0" />
             部品リスト
             {parts.length > 0 && (
               <Badge variant="secondary" className="ml-2">
@@ -570,17 +568,17 @@ export function RestoreEstimateView({
                   key={part.id}
                   className={`p-4 border rounded-lg space-y-3 ${
                     isDelayed
-                      ? "border-red-300 bg-red-50"
+                      ? "border-red-400 bg-red-50"
                       : "border-slate-200"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-slate-900 text-sm">
+                    <h4 className="font-medium text-slate-900 text-base">
                       {part.name || "部品名未入力"}
                     </h4>
                     <div className="flex items-center gap-2">
                       {isDelayed && (
-                        <Badge variant="destructive" className="text-xs">
+                        <Badge variant="destructive" className="text-base">
                           遅延
                         </Badge>
                       )}
@@ -592,16 +590,15 @@ export function RestoreEstimateView({
                             ? "secondary"
                             : "outline"
                         }
-                        className="text-xs"
+                        className="text-base"
                       >
                         {part.status}
                       </Badge>
                       <Button
                         variant="ghost"
-                        size="sm"
                         onClick={() => handleDeletePart(part.id)}
                         disabled={disabled}
-                        className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                        className="h-6 w-6 p-0 text-slate-700 hover:text-red-600"
                       >
                         ×
                       </Button>
@@ -610,7 +607,7 @@ export function RestoreEstimateView({
 
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">数量</Label>
+                      <Label className="text-base text-slate-800">数量</Label>
                       <Input
                         type="number"
                         value={part.quantity}
@@ -620,13 +617,13 @@ export function RestoreEstimateView({
                           })
                         }
                         disabled={disabled}
-                        className="text-sm"
+                        className="text-base"
                         min="0"
                         step="0.01"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">単価</Label>
+                      <Label className="text-base text-slate-800">単価</Label>
                       <Input
                         type="number"
                         value={part.unitPrice}
@@ -636,25 +633,25 @@ export function RestoreEstimateView({
                           })
                         }
                         disabled={disabled}
-                        className="text-sm"
+                        className="text-base"
                         min="0"
                         step="1"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">金額</Label>
+                      <Label className="text-base text-slate-800">金額</Label>
                       <Input
                         type="number"
                         value={part.quantity * part.unitPrice}
                         disabled
-                        className="text-sm bg-slate-50"
+                        className="text-base bg-slate-50"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">
+                      <Label className="text-base text-slate-800">
                         取り寄せ状況
                       </Label>
                       <Select
@@ -666,7 +663,7 @@ export function RestoreEstimateView({
                         }
                         disabled={disabled}
                       >
-                        <SelectTrigger className="h-9 text-sm">
+                        <SelectTrigger className="h-12 text-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -679,7 +676,7 @@ export function RestoreEstimateView({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">
+                      <Label className="text-base text-slate-800">
                         到着予定日
                       </Label>
                       <Input
@@ -691,14 +688,14 @@ export function RestoreEstimateView({
                           })
                         }
                         disabled={disabled}
-                        className="text-sm"
+                        className="text-base"
                       />
                     </div>
                   </div>
 
                   {part.actualArrivalDate && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">実際の到着日</Label>
+                      <Label className="text-base text-slate-800">実際の到着日</Label>
                       <Input
                         type="date"
                         value={part.actualArrivalDate}
@@ -708,13 +705,13 @@ export function RestoreEstimateView({
                           })
                         }
                         disabled={disabled}
-                        className="text-sm"
+                        className="text-base"
                       />
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">備考</Label>
+                    <Label className="text-base text-slate-800">備考</Label>
                     <Textarea
                       value={part.note || ""}
                       onChange={(e) =>
@@ -723,7 +720,7 @@ export function RestoreEstimateView({
                       placeholder="備考を入力..."
                       disabled={disabled}
                       rows={2}
-                      className="text-sm"
+                      className="text-base"
                     />
                   </div>
                 </div>
@@ -733,7 +730,6 @@ export function RestoreEstimateView({
 
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               const newPart = createInitialPartItem();
               handleAddPart({
@@ -754,8 +750,8 @@ export function RestoreEstimateView({
       {/* 追加作業管理 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Plus className="h-5 w-5 shrink-0" />
             追加作業管理（イレギュラー対応）
             {additionalWork.length > 0 && (
               <Badge variant="secondary" className="ml-2">
@@ -769,25 +765,24 @@ export function RestoreEstimateView({
             {additionalWork.map((work, index) => (
               <div
                 key={work.id}
-                className="p-4 border border-amber-200 bg-amber-50 rounded-lg space-y-3"
+                className="p-4 border border-amber-300 bg-amber-50 rounded-lg space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-slate-900 text-sm">
+                  <h4 className="font-medium text-slate-900 text-base">
                     追加作業 #{index + 1}
                   </h4>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => handleRemoveAdditionalWork(work.id)}
                     disabled={disabled}
-                    className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                    className="h-6 w-6 p-0 text-slate-700 hover:text-red-600"
                   >
                     ×
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">追加作業内容</Label>
+                  <Label className="text-base text-slate-800">追加作業内容</Label>
                   <Textarea
                     value={work.content}
                     onChange={(e) =>
@@ -798,12 +793,12 @@ export function RestoreEstimateView({
                     placeholder="追加作業内容を入力..."
                     disabled={disabled}
                     rows={3}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">追加費用</Label>
+                  <Label className="text-base text-slate-800">追加費用</Label>
                   <Input
                     type="number"
                     value={work.additionalCost}
@@ -813,7 +808,7 @@ export function RestoreEstimateView({
                       })
                     }
                     disabled={disabled}
-                    className="text-sm"
+                    className="text-base"
                     min="0"
                     step="1"
                   />
@@ -821,7 +816,7 @@ export function RestoreEstimateView({
 
                 {work.approvedAt && (
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">承認日時</Label>
+                    <Label className="text-base text-slate-800">承認日時</Label>
                     <Input
                       type="datetime-local"
                       value={work.approvedAt}
@@ -831,13 +826,13 @@ export function RestoreEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                     />
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">備考</Label>
+                  <Label className="text-base text-slate-800">備考</Label>
                   <Textarea
                     value={work.note || ""}
                     onChange={(e) =>
@@ -846,7 +841,7 @@ export function RestoreEstimateView({
                     placeholder="備考を入力..."
                     disabled={disabled}
                     rows={2}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
               </div>
@@ -855,7 +850,6 @@ export function RestoreEstimateView({
 
           <Button
             variant="outline"
-            size="sm"
             onClick={handleAddAdditionalWork}
             disabled={disabled}
             className="w-full"
@@ -869,7 +863,7 @@ export function RestoreEstimateView({
       {changeHistory.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
               <History className="h-5 w-5" />
               見積もりの変更履歴
               <Badge variant="secondary" className="ml-2">
@@ -884,16 +878,16 @@ export function RestoreEstimateView({
                 className="p-3 border border-slate-200 rounded-lg space-y-2"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-900">
+                  <span className="text-base font-medium text-slate-900">
                     {new Date(change.changedAt).toLocaleString("ja-JP")}
                   </span>
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-base">
                     ¥{change.previousTotal.toLocaleString()} → ¥
                     {change.newTotal.toLocaleString()}
                   </Badge>
                 </div>
-                <p className="text-sm text-slate-700">{change.changeContent}</p>
-                <p className="text-xs text-slate-500">理由: {change.reason}</p>
+                <p className="text-base text-slate-800">{change.changeContent}</p>
+                <p className="text-base text-slate-700">理由: {change.reason}</p>
               </div>
             ))}
           </CardContent>
@@ -903,22 +897,22 @@ export function RestoreEstimateView({
       {/* 作業期間 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Calendar className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Calendar className="h-5 w-5 shrink-0" />
             作業期間
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm">作業期間</Label>
+            <Label className="text-base">作業期間</Label>
             <Input
               value={workDuration}
               onChange={(e) => handleWorkDurationChange(e.target.value)}
               placeholder="例: 3カ月、6カ月、1年など"
               disabled={disabled}
-              className="text-sm"
+              className="text-base"
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-base text-slate-700">
               レストアの作業期間はかなり長期（数週間から数カ月、場合によっては数年）
             </p>
           </div>
@@ -928,13 +922,13 @@ export function RestoreEstimateView({
       {/* 合計金額 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">見積金額</CardTitle>
+          <CardTitle className="text-lg font-semibold">見積金額</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
             {items.length > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">見積もり項目</span>
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-700">見積もり項目</span>
                 <span className="font-medium text-slate-900">
                   ¥
                   {items
@@ -944,8 +938,8 @@ export function RestoreEstimateView({
               </div>
             )}
             {parts.length > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">部品</span>
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-700">部品</span>
                 <span className="font-medium text-slate-900">
                   ¥
                   {parts
@@ -958,8 +952,8 @@ export function RestoreEstimateView({
               </div>
             )}
             {additionalWork.length > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">追加作業</span>
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-700">追加作業</span>
                 <span className="font-medium text-slate-900">
                   ¥
                   {additionalWork

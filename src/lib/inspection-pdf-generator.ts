@@ -64,6 +64,91 @@ export interface InspectionRecordData {
 // =============================================================================
 
 /**
+ * 日本語フォントを読み込んでjsPDFに追加
+ * 
+ * フォントファイルは public/fonts/ に配置されていることを前提とします。
+ */
+async function loadJapaneseFont(doc: any): Promise<boolean> {
+  try {
+    // フォントファイルをpublicフォルダから読み込む
+    const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
+    const boldFontUrl = "/fonts/NotoSansJP-Bold.ttf";
+    
+    console.log("[PDF] 日本語フォントの読み込みを開始:", regularFontUrl);
+    
+    // フォントファイルをフェッチしてBase64エンコード
+    const [regularResponse, boldResponse] = await Promise.all([
+      fetch(regularFontUrl).catch((err) => {
+        console.error("[PDF] Regularフォントのフェッチエラー:", err);
+        return null;
+      }),
+      fetch(boldFontUrl).catch((err) => {
+        console.error("[PDF] Boldフォントのフェッチエラー:", err);
+        return null;
+      }),
+    ]);
+    
+    if (!regularResponse || !regularResponse.ok) {
+      console.warn("[PDF] 日本語フォントファイルが見つかりません:", regularFontUrl, regularResponse?.status);
+      return false;
+    }
+    
+    console.log("[PDF] フォントファイルのフェッチ成功。Base64エンコード中...");
+    const regularBlob = await regularResponse.blob();
+    const regularBase64 = await blobToBase64(regularBlob);
+    
+    console.log("[PDF] Base64エンコード完了。フォントサイズ:", regularBase64.length, "文字");
+    
+    // Regularフォントを追加
+    try {
+      doc.addFileToVFS("NotoSansJP-Regular.ttf", regularBase64);
+      doc.addFont("NotoSansJP-Regular.ttf", "NotoSansJP", "normal");
+      console.log("[PDF] Regularフォントの追加に成功");
+    } catch (fontError) {
+      console.error("[PDF] Regularフォントの追加に失敗:", fontError);
+      return false;
+    }
+    
+    // Boldフォントも追加（利用可能な場合）
+    if (boldResponse && boldResponse.ok) {
+      try {
+        const boldBlob = await boldResponse.blob();
+        const boldBase64 = await blobToBase64(boldBlob);
+        doc.addFileToVFS("NotoSansJP-Bold.ttf", boldBase64);
+        doc.addFont("NotoSansJP-Bold.ttf", "NotoSansJP", "bold");
+        console.log("[PDF] Boldフォントの追加に成功");
+      } catch (boldError) {
+        console.warn("[PDF] Boldフォントの追加に失敗（Regularフォントのみ使用）:", boldError);
+        // Boldフォントの追加に失敗しても、Regularフォントは使用可能なので続行
+      }
+    } else {
+      console.warn("[PDF] Boldフォントファイルが見つかりません。Regularフォントのみ使用します。");
+    }
+    
+    console.log("[PDF] 日本語フォントの読み込み完了");
+    return true;
+  } catch (error) {
+    console.error("[PDF] 日本語フォントの読み込みに失敗:", error);
+    return false;
+  }
+}
+
+/**
+ * BlobをBase64文字列に変換
+ */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
  * 分解整備記録簿PDFを生成
  *
  * @param data 分解整備記録簿データ
@@ -81,7 +166,16 @@ export async function generateInspectionRecordPDF(
       orientation: "portrait",
       unit: "mm",
       format: "a4",
+      compress: false, // 日本語フォントの互換性のため圧縮を無効化
     });
+
+    // 日本語フォントを読み込む
+    const fontLoaded = await loadJapaneseFont(doc);
+    
+    // フォントが読み込まれなかった場合の警告
+    if (!fontLoaded) {
+      console.warn("[PDF] 日本語フォントが読み込めませんでした。文字化けが発生する可能性があります。");
+    }
 
     // フォントサイズ設定
     const fontSize = {
@@ -105,7 +199,11 @@ export async function generateInspectionRecordPDF(
     // タイトル
     // =============================================================================
     doc.setFontSize(fontSize.title);
-    doc.setFont("helvetica", "bold");
+    if (fontLoaded) {
+      doc.setFont("NotoSansJP", "bold");
+    } else {
+      doc.setFont("helvetica", "bold");
+    }
     doc.text("分解整備記録簿", 105, yPosition, { align: "center" });
     yPosition += 10;
 
@@ -153,7 +251,11 @@ export async function generateInspectionRecordPDF(
     // 検査項目
     // =============================================================================
     doc.setFontSize(fontSize.heading);
-    doc.setFont("helvetica", "bold");
+    if (fontLoaded) {
+      doc.setFont("NotoSansJP", "bold");
+    } else {
+      doc.setFont("helvetica", "bold");
+    }
     doc.text("検査項目", margin.left, yPosition);
     yPosition += 7;
 
@@ -224,12 +326,20 @@ export async function generateInspectionRecordPDF(
       }
 
       doc.setFontSize(fontSize.heading);
-      doc.setFont("helvetica", "bold");
+      if (fontLoaded) {
+        doc.setFont("NotoSansJP", "bold");
+      } else {
+        doc.setFont("helvetica", "bold");
+      }
       doc.text("交換部品", margin.left, yPosition);
       yPosition += 7;
 
       doc.setFontSize(fontSize.normal);
-      doc.setFont("helvetica", "normal");
+      if (fontLoaded) {
+        doc.setFont("NotoSansJP", "normal");
+      } else {
+        doc.setFont("helvetica", "normal");
+      }
 
       for (const part of data.replacementParts) {
         doc.text(
@@ -253,12 +363,20 @@ export async function generateInspectionRecordPDF(
     }
 
     doc.setFontSize(fontSize.heading);
-    doc.setFont("helvetica", "bold");
+    if (fontLoaded) {
+      doc.setFont("NotoSansJP", "bold");
+    } else {
+      doc.setFont("helvetica", "bold");
+    }
     doc.text("整備情報", margin.left, yPosition);
     yPosition += 7;
 
     doc.setFontSize(fontSize.normal);
-    doc.setFont("helvetica", "normal");
+    if (fontLoaded) {
+      doc.setFont("NotoSansJP", "normal");
+    } else {
+      doc.setFont("helvetica", "normal");
+    }
     doc.text(
       `整備主任者: ${data.mechanicName}`,
       margin.left,
@@ -334,6 +452,14 @@ function getStatusText(status: string): string {
   };
   return statusTexts[status] || status;
 }
+
+
+
+
+
+
+
+
 
 
 

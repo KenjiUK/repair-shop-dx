@@ -12,6 +12,7 @@
 /**
  * 工程ステージ (field5) の選択肢
  * 【修正】"入庫待ち" と "見積提示済み" を追加しました
+ * 【改善提案 #3】"部品調達待ち" と "部品発注待ち" を追加しました
  */
 export type JobStage =
   | '入庫待ち'       // 初期状態
@@ -20,7 +21,10 @@ export type JobStage =
   | '見積提示済み'   // ← これが不足していたためエラーが出ていました
   | '作業待ち'
   | '出庫待ち'
-  | '出庫済み';
+  | '出庫済み'
+  | '部品調達待ち'   // 改善提案 #3: 部品調達待ち案件の管理機能
+  | '部品発注待ち'   // 改善提案 #3: 部品調達待ち案件の管理機能
+  | '再入庫待ち';    // 一時帰宅中の再入庫待ち状態
 
 /**
  * 入庫区分 (Service Kind)
@@ -32,7 +36,9 @@ export type ServiceKind =
   | 'チューニング'
   | 'パーツ取付'
   | 'コーティング'
+  | '板金・塗装'
   | 'その他'
+  | 'その他のメンテナンス'
   | '12ヵ月点検'
   | 'エンジンオイル交換'
   | 'タイヤ交換・ローテーション'
@@ -66,7 +72,7 @@ export interface ZohoJob {
   /** エイリアス */
   vehicle?: ZohoLookup | null;
 
-  /** 作業指示書 - 社内からの申し送り事項 (⚠アイコン表示用) */
+  /** 受付メモ - 受付スタッフからの申し送り事項 (⚠アイコン表示用) */
   field: string | null;
   /** エイリアス */
   workOrder?: string | null;
@@ -92,10 +98,23 @@ export interface ZohoJob {
   /** エイリアス */
   customerFolderUrl?: string | null;
 
+  /** 作業メモ - JSON形式でメモ配列を保存 */
+  field26?: string | null;
+  /** エイリアス */
+  jobMemosField?: string | null;
+
   /** 予約ID - Zoho Bookingsとの紐付け用 */
   ID_BookingId: string | null;
   /** エイリアス */
   bookingId?: string | null;
+
+  /** 2回目の予約ID（新規追加） */
+  ID_BookingId_2?: string | null;
+  /** エイリアス */
+  bookingId2?: string | null;
+
+  /** 1回目の入庫日時（field7に記録） */
+  firstEntryDate?: string | null; // ISO8601
 
   /** 関連ファイル - 車検証画像など (Upload型) */
   field12: ZohoAttachment[] | null;
@@ -111,8 +130,37 @@ export interface ZohoJob {
   field_service_kinds?: ServiceKind[] | null;
   /** 担当整備士名 (アプリ側で管理) */
   assignedMechanic?: string | null;
+
+  // --- 新機能拡張フィールド ---
+  /** 診断料金（カスタムフィールド field23 または field7 に記録） */
+  diagnosisFee?: number | null;
+  /** 診断時間（概算・分）（参考情報） */
+  diagnosisDuration?: number | null;
+  /** 診断料金が事前に決まっているか */
+  isDiagnosisFeePreDetermined?: boolean;
+  /** メカニック承認済み */
+  mechanicApproved?: boolean;
+  /** 承認者名 */
+  mechanicApprover?: string | null;
+  /** 承認日時 */
+  mechanicApprovedAt?: string | null; // ISO8601
+  /** 作業メモ（カスタムフィールド field26 または field7 にJSON形式で記録） */
+  jobMemos?: JobMemo[];
+  /** メモの最終更新日時 */
+  lastMemoUpdatedAt?: string | null; // ISO8601
   /** 基幹システム連携ID */
   field_base_system_id?: string | null;
+  /** エイリアス */
+  baseSystemId?: string | null;
+  /** 部品情報（改善提案 #3: 部品調達待ち案件の管理機能） */
+  /** field26にJSON形式で保存される */
+  partsInfo?: PartsInfo | null;
+  /** 緊急対応フラグ（シナリオパターン2: 緊急来店案件） */
+  /** field7に「【緊急対応】」のプレフィックスを付けて記録 */
+  isUrgent?: boolean | null;
+  /** バージョン番号（競合制御用、シナリオパターン8） */
+  /** 更新のたびにインクリメントされる */
+  version?: number | null;
 }
 
 /**
@@ -123,6 +171,14 @@ export interface ZohoLookup {
   id: string;
   /** 参照先レコードの表示名 */
   name: string;
+  /** 顧客ID（基幹連携用、顧客Lookupの場合のみ） */
+  ID1?: string;
+  /** 姓（顧客Lookupの場合のみ） */
+  Last_Name?: string;
+  /** 名（顧客Lookupの場合のみ） */
+  First_Name?: string;
+  /** 車両ID（基幹連携用、車両Lookupの場合のみ） */
+  Name?: string;
 }
 
 /**
@@ -173,6 +229,16 @@ export interface ZohoCustomer {
   Email_Opt_Out: boolean;
   /** エイリアス */
   emailOptOut?: boolean;
+
+  /** メールアドレス */
+  Email: string | null;
+  /** エイリアス */
+  email?: string | null;
+
+  /** サブメールアドレス */
+  Secondary_Email: string | null;
+  /** エイリアス */
+  secondaryEmail?: string | null;
 
   /** 誕生日 - 入力があれば更新 (直接更新OK) */
   Date_of_Birth: string | null; // Date (YYYY-MM-DD)
@@ -325,7 +391,7 @@ export interface CourtesyCar {
   /** 貸出開始日時 */
   rentedAt: string | null; // DateTime (ISO 8601)
   /** ステータス */
-  status: 'available' | 'in_use' | 'inspection';
+  status: 'available' | 'in_use' | 'inspection' | 'reserving';
 }
 
 /**
@@ -365,14 +431,42 @@ export interface EstimateItem {
   price: number;
   /** 優先度: 松(required) / 竹(recommended) / 梅(optional) */
   priority: EstimatePriority;
-  /** 顧客選択済みか */
+  /** 顧客選択済みか（後方互換性のため残す） */
   selected: boolean;
+  /** 承認済みか（部分承認のワークフロー用、selectedと併用可能） */
+  approved?: boolean;
   /** 紐付け証拠写真URL */
   linkedPhotoUrls: string[];
   /** 紐付け動画URL */
   linkedVideoUrl: string | null;
+  /** 実況解説テキスト（音声認識結果） */
+  transcription?: string | null;
   /** 備考 */
   note: string | null;
+}
+
+/**
+ * 見積明細行（PDF生成用）
+ */
+export interface EstimateLineItem {
+  /** 項目ID */
+  id: string;
+  /** 品名 */
+  name: string;
+  /** 部品数量 */
+  partQuantity: number;
+  /** 部品単価 */
+  partUnitPrice: number;
+  /** 技術料 */
+  laborCost: number;
+  /** 優先度 */
+  priority: EstimatePriority;
+  /** 紐付け写真ID */
+  linkedPhotoId: string | null;
+  /** 紐付け動画ID */
+  linkedVideoId: string | null;
+  /** 実況解説テキスト */
+  transcription: string | null;
 }
 
 /**
@@ -644,6 +738,164 @@ export interface UsageAnalytics {
   metadata?: Record<string, unknown>;
 }
 
+// =============================================================================
+// 改善提案 #6: 過去の見積・案件の参照機能
+// =============================================================================
+
+/**
+ * 過去の見積データ
+ */
+export interface HistoricalEstimate {
+  /** 見積ID */
+  id: string;
+  /** ジョブID */
+  jobId: string;
+  /** 顧客名 */
+  customerName: string;
+  /** 車両名 */
+  vehicleName: string;
+  /** 見積項目 */
+  items: EstimateItem[];
+  /** 合計金額 */
+  totalAmount: number;
+  /** ステータス */
+  status: string;
+  /** 作成日時 */
+  createdAt: string;
+  /** 見積提出日時 */
+  submittedAt?: string | null;
+}
+
+/**
+ * 過去の案件データ
+ */
+export interface HistoricalJob {
+  /** ジョブID */
+  id: string;
+  /** 顧客名 */
+  customerName: string;
+  /** 車両名 */
+  vehicleName: string;
+  /** ステータス */
+  status: JobStage;
+  /** 作成日時 */
+  createdAt: string;
+  /** 入庫日時 */
+  arrivalDateTime?: string | null;
+}
+
+// =============================================================================
+// 改善提案 #7: テンプレート機能
+// =============================================================================
+
+/**
+ * 診断結果テンプレート項目
+ */
+export interface DiagnosisTemplateItem {
+  /** 項目タイプ */
+  type: "text" | "number" | "select" | "checkbox";
+  /** ラベル */
+  label: string;
+  /** デフォルト値 */
+  value: string | number | boolean;
+  /** 選択肢（selectタイプの場合） */
+  options?: string[];
+}
+
+/**
+ * 診断結果テンプレート
+ */
+export interface DiagnosisTemplate {
+  /** テンプレートID */
+  id: string;
+  /** テンプレート名 */
+  name: string;
+  /** カテゴリー */
+  category: string | null;
+  /** テンプレート項目 */
+  items: DiagnosisTemplateItem[];
+  /** 作成日時 */
+  createdAt: string;
+  /** 更新日時 */
+  updatedAt: string;
+  /** 作成者 */
+  createdBy: string;
+}
+
+/**
+ * 見積項目テンプレート項目
+ */
+export interface EstimateTemplateItem {
+  /** 項目名 */
+  name: string;
+  /** 説明 */
+  description: string | null;
+  /** 単価 */
+  price: number;
+  /** 数量 */
+  quantity: number;
+  /** 優先度 */
+  priority: EstimatePriority;
+}
+
+/**
+ * 見積項目テンプレート
+ */
+export interface EstimateTemplate {
+  /** テンプレートID */
+  id: string;
+  /** テンプレート名 */
+  name: string;
+  /** カテゴリー */
+  category: string | null;
+  /** テンプレート項目 */
+  items: EstimateTemplateItem[];
+  /** 作成日時 */
+  createdAt: string;
+  /** 更新日時 */
+  updatedAt: string;
+  /** 作成者 */
+  createdBy: string;
+}
+
+// =============================================================================
+// 改善提案 #10: 見積変更依頼の履歴管理機能
+// =============================================================================
+
+/**
+ * 見積変更依頼
+ */
+export interface EstimateChangeRequest {
+  /** 変更依頼ID */
+  id: string;
+  /** ジョブID */
+  jobId: string;
+  /** 依頼日時 */
+  requestDate: string;
+  /** 依頼者（お客様名） */
+  requestedBy: string;
+  /** 依頼タイプ */
+  requestType: "add" | "remove" | "modify" | "price_change";
+  /** 依頼内容 */
+  requestContent: string;
+  /** 変更前の見積項目 */
+  originalEstimate: EstimateItem[];
+  /** 依頼された見積項目 */
+  requestedEstimate: EstimateItem[];
+  /** ステータス */
+  status: "pending" | "approved" | "rejected";
+  /** 対応日時 */
+  responseDate: string | null;
+  /** 対応内容 */
+  responseContent: string | null;
+  /** 対応者 */
+  handledBy: string | null;
+  /** 作成日時 */
+  createdAt: string;
+  /** 更新日時 */
+  updatedAt: string;
+}
+
 /**
  * ページビューイベント
  */
@@ -765,6 +1017,8 @@ export interface WorkOrder {
     items?: DiagnosisItem[];
     photos?: { position: string; url: string }[];
     mileage?: number;
+    /** 診断担当者名 */
+    mechanicName?: string | null;
     [key: string]: unknown;
   } | null;
   /** 見積データ */
@@ -772,16 +1026,37 @@ export interface WorkOrder {
     items?: EstimateItem[];
     [key: string]: unknown;
   } | null;
-  /** 作業データ */
+  /**
+   * 作業データ
+   * 
+   * 作業工程の記録を管理するデータ構造。
+   * - `records`: 工程ごとの作業記録（`WorkRecord[]`）
+   * - `mechanicName`: 全体のデフォルト担当者（後方互換性のため残す）
+   * - `completedAt`: 作業完了日時
+   * - `coatingInfo`: コーティング作業固有の情報
+   * 
+   * @see WorkRecord 作業記録の詳細定義
+   */
   work?: {
+    /** 作業担当者名（全体のデフォルト担当者、後方互換性のため残す） */
     mechanicName?: string;
+    /** 作業完了日時 */
     completedAt?: string;
+    /** コーティング作業固有の情報 */
     coatingInfo?: {
       dryingProcess?: string;
       maintenancePeriod?: string;
       [key: string]: unknown;
     };
-    records?: unknown[];
+    /**
+     * 作業記録（工程ごとに担当者を記録可能）
+     * 
+     * 各工程の作業内容、担当者、写真、コメントなどを記録する。
+     * `WorkRecord`型の配列として管理される。
+     * 
+     * @see WorkRecord 作業記録の詳細定義
+     */
+    records?: WorkRecord[];
     [key: string]: unknown;
   } | null;
   /** 基幹システム連携ID */
@@ -790,8 +1065,429 @@ export interface WorkOrder {
   cost?: {
     [key: string]: unknown;
   } | null;
+  /** 診断料金（カスタムフィールド field23 または field7 に記録） */
+  diagnosisFee?: number | null;
+  /** 診断時間（概算・分）（参考情報） */
+  diagnosisDuration?: number | null;
+  /** 診断料金が事前に決まっているか */
+  isDiagnosisFeePreDetermined?: boolean;
+  /** メカニック承認済み */
+  mechanicApproved?: boolean;
+  /** 承認者名 */
+  mechanicApprover?: string | null;
+  /** 承認日時 */
+  mechanicApprovedAt?: string | null; // ISO8601
   /** 作成日時 */
   createdAt: string;
   /** 更新日時 */
   updatedAt: string;
+}
+
+/**
+ * 作業記録（工程ごとに担当者を記録可能）
+ * 
+ * `WorkOrder.work.records`の配列要素として使用される。
+ * 各工程の作業内容、担当者、写真、コメントなどを記録する。
+ * 
+ * @example
+ * ```typescript
+ * const workRecord: WorkRecord = {
+ *   time: "2025-01-20T10:00:00Z",
+ *   content: "エンジンオイル交換",
+ *   mechanicName: "山田太郎",
+ *   photos: [
+ *     { type: "before", url: "https://...", fileId: "file123" },
+ *     { type: "after", url: "https://...", fileId: "file124" }
+ *   ],
+ *   comment: "オイルの状態良好",
+ *   completed: true,
+ *   completedAt: "2025-01-20T10:30:00Z"
+ * };
+ * ```
+ * 
+ * @see WorkOrder.work WorkOrderの作業データ定義
+ */
+export interface WorkRecord {
+  /** 記録日時 */
+  time: string; // ISO8601
+  /** 作業内容 */
+  content: string;
+  /** 写真リスト */
+  photos?: Array<{
+    type: "before" | "after";
+    url: string;
+    fileId?: string;
+  }>;
+  /** コメント */
+  comment?: string;
+  /** 担当者名（工程ごとの担当者） */
+  mechanicName?: string | null;
+  /** 完了フラグ */
+  completed?: boolean;
+  /** 完了日時 */
+  completedAt?: string; // ISO8601
+}
+
+// =============================================================================
+// 新機能拡張型定義
+// =============================================================================
+
+/**
+ * 部品項目
+ * 改善提案 #3: 部品調達待ち案件の管理機能
+ */
+export interface PartItem {
+  /** 部品ID */
+  id: string;
+  /** 部品名 */
+  name: string;
+  /** 部品番号 */
+  partNumber?: string | null;
+  /** 数量 */
+  quantity: number;
+  /** 単価 */
+  unitPrice?: number | null;
+  /** サプライヤー（発注先） */
+  supplier?: string | null;
+  /** 発注日 */
+  orderDate?: string | null; // ISO8601
+  /** 到着予定日 */
+  expectedArrivalDate?: string | null; // ISO8601
+  /** 実際の到着日 */
+  actualArrivalDate?: string | null; // ISO8601
+  /** ステータス */
+  status: "not_ordered" | "ordered" | "shipping" | "arrived";
+  /** 在庫場所（棚番号） */
+  storageLocation?: string | null; // "A-1", "B-3" など
+  /** 発注先（後方互換性のため残す） */
+  vendor?: string | null;
+  /** 到着状況（後方互換性のため残す） */
+  arrivalStatus?: "未到着" | "到着済み";
+  /** 到着日時（後方互換性のため残す） */
+  arrivalDate?: string | null; // ISO8601
+}
+
+/**
+ * 部品情報
+ * 改善提案 #3: 部品調達待ち案件の管理機能
+ */
+export interface PartsInfo {
+  /** 部品リスト */
+  parts: PartItem[];
+  /** 到着予定日（全体） */
+  expectedArrivalDate?: string | null; // ISO8601
+  /** 調達状況 */
+  procurementStatus: "not_ordered" | "ordered" | "shipping" | "arrived";
+  /** 最終更新日時 */
+  lastUpdatedAt: string; // ISO8601
+}
+
+/**
+ * 作業メモ
+ */
+export interface JobMemo {
+  /** メモID */
+  id: string;
+  /** ジョブID */
+  jobId: string;
+  /** メモ内容 */
+  content: string;
+  /** 作成者名 */
+  author: string;
+  /** 作成日時 */
+  createdAt: string; // ISO8601
+  /** 更新日時 */
+  updatedAt?: string | null; // ISO8601
+}
+
+/**
+ * 車検チェックリスト
+ */
+export interface InspectionChecklist {
+  /** ジョブID */
+  jobId: string;
+  /** 入庫時チェック項目 */
+  entryItems: {
+    vehicleRegistration: boolean; // 車検証
+    compulsoryInsurance: boolean; // 自賠責
+    automobileTax: boolean; // 自動車税
+    key: boolean; // 鍵
+    wheelLockNut: boolean; // ホイールロックナット（有れば）
+    etcCard: boolean; // 車内ETCカード
+    valuables: boolean; // 車内貴重品
+  };
+  /** 出庫時チェック項目 */
+  checkoutItems: {
+    vehicleRegistration: boolean; // 車検証
+    inspectionRecord: boolean; // 自動車検査証記録事項
+    compulsoryInsurance: boolean; // 自賠責
+    recordBook: boolean; // 記録簿
+    key: boolean; // 鍵
+    wheelLockNut: boolean; // ホイールロックナット（有れば）
+    etcCardRemoved: boolean; // ETCカード抜き忘れ
+    wheelTightening: boolean; // ホイール増し締め（お客様と確認）
+  };
+  /** 入庫時備考 */
+  entryNote?: string | null;
+  /** 出庫時備考 */
+  checkoutNote?: string | null;
+  /** 入庫時チェック完了日時 */
+  entryCheckedAt?: string | null; // ISO8601
+  /** 出庫時チェック完了日時 */
+  checkoutCheckedAt?: string | null; // ISO8601
+}
+
+/**
+ * 作業指示書PDFデータ
+ */
+export interface WorkOrderPDFData {
+  /** ジョブID */
+  jobId: string;
+  /** 顧客名 */
+  customerName: string;
+  /** 車両情報 */
+  vehicleInfo: {
+    name: string; // 車名
+    licensePlate: string; // ナンバープレート
+  };
+  /** 入庫日時 */
+  entryDate: string; // ISO8601
+  /** 受付メモ（旧: 作業指示内容） */
+  workOrder: string | null;
+  /** サービス種別 */
+  serviceKind: ServiceKind;
+  /** 担当整備士 */
+  assignedMechanic?: string | null;
+  /** 顧客からの申し送り事項 */
+  customerNotes?: string | null;
+  /** 生成日時 */
+  generatedAt: string; // ISO8601
+  /** 走行距離 */
+  mileage?: number | null;
+  /** スマートタグID */
+  tagId?: string | null;
+  /** 代車情報 */
+  courtesyCar?: {
+    name: string;
+    licensePlate?: string;
+  } | null;
+  /** 承認済み作業内容（作業待ち以降） */
+  approvedWorkItems?: string | null;
+  /** 過去の作業履歴（オプション） */
+  historicalJobs?: Array<{
+    date: string;
+    serviceKind: string;
+    summary: string;
+  }> | null;
+}
+
+// =============================================================================
+// 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+// =============================================================================
+
+/**
+ * エラーコード
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface ErrorCode {
+  /** エラーコードID */
+  id?: string;
+  /** エラーコード（例: "P0301"） */
+  code: string;
+  /** エラーコードの説明 */
+  description?: string | null;
+  /** 重要度 */
+  severity: "low" | "medium" | "high";
+  /** ステータス */
+  status: "active" | "resolved" | "pending";
+  /** 対処法 */
+  resolution?: string | null;
+  /** 関連写真URL */
+  photos?: string[];
+}
+
+/**
+ * OBD診断結果（拡張版）
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface EnhancedOBDDiagnosticResult {
+  /** エラーコードリスト */
+  errorCodes: ErrorCode[];
+  /** 診断日時 */
+  diagnosticDate: string; // ISO8601
+  /** 診断ツール名 */
+  diagnosticTool?: string | null;
+  /** 備考 */
+  notes?: string | null;
+  /** PDFファイルID（既存の互換性のため） */
+  fileId?: string;
+  /** PDFファイル名（既存の互換性のため） */
+  fileName?: string;
+  /** PDFファイルURL（既存の互換性のため） */
+  fileUrl?: string;
+}
+
+/**
+ * レストア工程
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface RestorePhase {
+  /** 工程ID */
+  id: string;
+  /** 工程名（例: "エンジン分解"） */
+  name: string;
+  /** 進捗率（0-100） */
+  progress: number;
+  /** 開始日 */
+  startDate?: string | null; // ISO8601
+  /** 予定終了日 */
+  expectedEndDate?: string | null; // ISO8601
+  /** 実際の終了日 */
+  actualEndDate?: string | null; // ISO8601
+  /** ステータス */
+  status: "not_started" | "in_progress" | "completed";
+  /** 備考 */
+  notes?: string | null;
+}
+
+/**
+ * レストア作業進捗
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface RestoreProgress {
+  /** 全体の進捗率（0-100） */
+  overallProgress: number;
+  /** 各工程の進捗 */
+  phases: RestorePhase[];
+  /** 最終更新日時 */
+  lastUpdatedAt: string; // ISO8601
+}
+
+/**
+ * 品質検査項目
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface QualityInspectionItem {
+  /** 検査項目ID */
+  id: string;
+  /** 検査項目名 */
+  name: string;
+  /** カテゴリー */
+  category: string;
+  /** 検査結果 */
+  result: "pass" | "fail" | "pending" | "not_applicable";
+  /** 備考 */
+  notes?: string | null;
+  /** 関連写真URL */
+  photos?: string[];
+}
+
+/**
+ * 品質管理・最終検査
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface QualityInspection {
+  /** 検査項目リスト */
+  items: QualityInspectionItem[];
+  /** 検査日時 */
+  inspectionDate: string; // ISO8601
+  /** 検査者名 */
+  inspector: string;
+  /** 総合判定 */
+  overallResult: "pass" | "fail" | "pending";
+  /** 備考 */
+  notes?: string | null;
+}
+
+/**
+ * メーカー問い合わせ項目
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface InquiryItem {
+  /** 問い合わせID */
+  id: string;
+  /** 問い合わせ日時 */
+  inquiryDate: string; // ISO8601
+  /** 問い合わせ内容 */
+  inquiryContent: string;
+  /** 問い合わせ方法 */
+  inquiryMethod: "email" | "phone" | "fax" | "other";
+  /** メーカー名 */
+  manufacturer: string;
+  /** 担当者名 */
+  contactPerson?: string | null;
+  /** 回答日時 */
+  responseDate?: string | null; // ISO8601
+  /** 回答内容 */
+  responseContent?: string | null;
+  /** ステータス */
+  status: "pending" | "responded" | "resolved";
+  /** 添付ファイルURL */
+  attachments?: string[];
+}
+
+/**
+ * メーカー問い合わせ
+ * 改善提案 #4: 輸入車整備工場特有の診断・作業記録機能の強化
+ */
+export interface ManufacturerInquiry {
+  /** 問い合わせリスト */
+  inquiries: InquiryItem[];
+  /** 最終更新日時 */
+  lastUpdatedAt: string; // ISO8601
+}
+
+// =============================================================================
+// 改善提案 #5: 詳細情報の表示機能の強化 - スキルレベル管理
+// =============================================================================
+
+/**
+ * スキル項目
+ */
+export interface SkillItem {
+  /** カテゴリー（例: "エンジン"、"ブレーキ"、"電装"） */
+  category: string;
+  /** スキルレベル（0-100） */
+  level: number;
+  /** 経験年数 */
+  experience: number;
+  /** 資格・認定 */
+  certifications: string[];
+}
+
+/**
+ * 整備士スキル情報
+ */
+export interface MechanicSkill {
+  /** 整備士ID（整備士名をIDとして使用） */
+  mechanicId: string;
+  /** 整備士名 */
+  mechanicName: string;
+  /** スキル項目リスト */
+  skills: SkillItem[];
+  /** 全体のスキルレベル（0-100、skillsの平均値） */
+  overallLevel: number;
+  /** 最終更新日時 */
+  lastUpdatedAt: string; // ISO8601
+}
+
+// =============================================================================
+// Diagnosis Types
+// =============================================================================
+
+export type PhotoPositionKey = string;
+
+export interface DiagnosisPhoto {
+  id: string;
+  position: PhotoPositionKey | string;
+  label: string;
+  url: string;
+  previewUrl?: string;
+}
+
+export interface DiagnosisVideo {
+  id: string;
+  position: string;
+  label: string;
+  url: string;
 }

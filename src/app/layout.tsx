@@ -2,16 +2,23 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { NavigationProvider } from "@/components/providers/navigation-provider";
+import { FeedbackButton } from "@/components/feedback/feedback-button";
+import { AppLayoutClient } from "@/components/layout/app-layout-client";
+import { SWRProvider } from "@/components/providers/swr-provider";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap", // フォント読み込み中のテキスト表示を最適化
+  preload: true, // フォントのプリロードを有効化
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap", // フォント読み込み中のテキスト表示を最適化
+  preload: false, // モノスペースフォントは使用頻度が低いためプリロードしない
 });
 
 export const metadata: Metadata = {
@@ -30,10 +37,27 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <NavigationProvider>
-          {children}
-        </NavigationProvider>
-        <Toaster richColors position="top-center" />
+        <SWRProvider>
+          <NavigationProvider>
+            <AppLayoutClient>
+              {children}
+            </AppLayoutClient>
+          </NavigationProvider>
+          <FeedbackButton />
+          <Toaster 
+            richColors 
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                zIndex: 50,
+              },
+            }}
+            closeButton
+            expand={true}
+            visibleToasts={5}
+          />
+        </SWRProvider>
       </body>
     </html>
   );

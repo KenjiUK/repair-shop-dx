@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API ファイル内容取得・更新エンドポイント
@@ -23,17 +24,6 @@ function errorResponse(
 }
 
 /**
- * Google Drive API アクセストークンを取得
- */
-async function getAccessToken(): Promise<string> {
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
-/**
  * ファイル内容を取得
  */
 export async function GET(
@@ -47,7 +37,7 @@ export async function GET(
       return errorResponse("fileIdは必須です", "MISSING_FILE_ID", 400);
     }
 
-    const accessToken = await getAccessToken();
+    const accessToken = await getGoogleAccessToken();
 
     // ファイルの内容を取得（alt=mediaパラメータを使用）
     const url = `${GOOGLE_DRIVE_API_BASE}/files/${fileId}?alt=media`;
@@ -106,7 +96,7 @@ export async function PUT(
       return errorResponse("contentは文字列である必要があります", "INVALID_CONTENT", 400);
     }
 
-    const accessToken = await getAccessToken();
+    const accessToken = await getGoogleAccessToken();
 
     // ファイルの内容を更新（uploadType=mediaを使用）
     // 注意: リクエストボディはJSONではなく、ファイルの内容そのものである必要があります

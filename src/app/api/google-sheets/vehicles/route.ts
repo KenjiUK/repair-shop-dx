@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { MasterVehicle, SheetsApiResponse } from "@/types";
+import { getGoogleSheetsClient } from "@/lib/google-auth";
 
 // =============================================================================
 // 設定
@@ -17,10 +18,6 @@ import { MasterVehicle, SheetsApiResponse } from "@/types";
 /** Google Sheets API のスプレッドシートID（環境変数から取得） */
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_MASTER_DATA_ID || "";
 const SHEET_NAME = "車両マスタ";
-const API_KEY = process.env.GOOGLE_SHEETS_API_KEY || "";
-
-/** Google Sheets API のベースURL */
-const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
 // =============================================================================
 // エラーハンドリング
@@ -51,7 +48,7 @@ function errorResponse(
 // =============================================================================
 
 /**
- * Google Sheetsからデータを取得
+ * Google Sheetsからデータを取得（googleapisライブラリを使用）
  * 
  * ⚠️ 重要: 読み取り専用。書き込みメソッドは使用しない。
  */
@@ -62,25 +59,17 @@ async function fetchFromGoogleSheets(
     throw new Error("GOOGLE_SHEETS_MASTER_DATA_ID が設定されていません");
   }
 
-  const url = `${GOOGLE_SHEETS_API_BASE}/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}?key=${API_KEY}`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
+  const sheets = await getGoogleSheetsClient();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: range,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      `Google Sheets API エラー: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
-    );
+  if (!response.data.values) {
+    return [];
   }
 
-  const data = await response.json();
-  return data.values || [];
+  return response.data.values as string[][];
 }
 
 /**
@@ -177,6 +166,10 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+
+
 
 
 

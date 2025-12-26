@@ -435,7 +435,7 @@ export function VideoCallDialog({
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
               <div className="text-center text-white">
                 <p className="text-lg font-medium mb-2">接続エラー</p>
-                <p className="text-sm text-slate-300">{connectionError}</p>
+                <p className="text-base text-slate-300">{connectionError}</p>
               </div>
             </div>
           )}

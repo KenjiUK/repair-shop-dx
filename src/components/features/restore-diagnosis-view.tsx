@@ -27,6 +27,7 @@ import {
   RESTORE_BODY_PARTS,
 } from "@/lib/restore-config";
 import { Camera, MessageSquare, Car, Wrench, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // 型定義
@@ -152,18 +153,18 @@ export function RestoreDiagnosisView({
   return (
     <div className="space-y-4">
       {/* レストアの種類選択 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Wrench className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <Wrench className="h-5 w-5 shrink-0" />
             レストアの種類
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>
+            <Label className="text-base font-medium">
               レストアの種類を選択
-              <span className="text-red-500 ml-1">*</span>
+              <span className="text-red-600 ml-1">*</span>
             </Label>
             <Select
               value={restoreType || ""}
@@ -174,7 +175,7 @@ export function RestoreDiagnosisView({
               }}
               disabled={disabled}
             >
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-12 text-base">
                 <SelectValue placeholder="レストアの種類を選択" />
               </SelectTrigger>
               <SelectContent>
@@ -185,7 +186,7 @@ export function RestoreDiagnosisView({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-slate-500">
+            <p className="text-base text-slate-700">
               {restoreType === "フルレストア" &&
                 "古い車をゼロから完全に修復・復元"}
               {restoreType === "部分レストア" &&
@@ -197,14 +198,16 @@ export function RestoreDiagnosisView({
       </Card>
 
       {/* 現状確認 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
+              <Car className="h-5 w-5 shrink-0" />
               現状確認
             </span>
-            <Badge variant="secondary">{conditionChecks.length}箇所</Badge>
+            <Badge variant="secondary" className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{conditionChecks.length}</span>箇所
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -218,30 +221,29 @@ export function RestoreDiagnosisView({
               };
 
               return (
-                <div
+                <Card
                   key={check.id}
-                  className="p-4 border border-slate-200 rounded-lg space-y-3"
+                  className="border border-slate-300 rounded-xl shadow-md"
                 >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-slate-900 text-sm">
-                      確認箇所 #{conditionChecks.indexOf(check) + 1}
-                    </h4>
-                    {onRemoveConditionCheck && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onRemoveConditionCheck(check.id)}
-                        disabled={disabled}
-                        className="h-6 w-6 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* 箇所選択 */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">箇所</Label>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                      <span>確認箇所 #{conditionChecks.indexOf(check) + 1}</span>
+                      {onRemoveConditionCheck && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => onRemoveConditionCheck(check.id)}
+                          disabled={disabled}
+                          className="h-12 w-12 p-0 shrink-0"
+                        >
+                          <X className="h-4 w-4 shrink-0" />
+                        </Button>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 箇所選択 */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-medium text-slate-700">箇所</Label>
                     <Select
                       value={check.location}
                       onValueChange={(value) => {
@@ -253,7 +255,7 @@ export function RestoreDiagnosisView({
                       }}
                       disabled={disabled}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger className="h-12 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -266,9 +268,9 @@ export function RestoreDiagnosisView({
                     </Select>
                   </div>
 
-                  {/* 状態選択 */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">状態</Label>
+                    {/* 状態選択 */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-medium text-slate-700">状態</Label>
                     <Select
                       value={check.condition}
                       onValueChange={(value) => {
@@ -280,7 +282,7 @@ export function RestoreDiagnosisView({
                       }}
                       disabled={disabled}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger className="h-12 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -293,12 +295,12 @@ export function RestoreDiagnosisView({
                     </Select>
                   </div>
 
-                  {/* 写真撮影（任意） */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>写真（任意）</span>
-                    </div>
+                    {/* 写真撮影（任意） */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <Camera className="h-4 w-4 shrink-0" />
+                        <span>写真（任意）</span>
+                      </div>
                     <PhotoCaptureButton
                       position={check.id}
                       label={`${check.location}の写真を撮影`}
@@ -309,32 +311,32 @@ export function RestoreDiagnosisView({
                         }
                       }}
                       disabled={disabled}
-                      size="sm"
                     />
                   </div>
 
-                  {/* コメント */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>コメント</span>
+                    {/* コメント */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <MessageSquare className="h-4 w-4 shrink-0" />
+                        <span>コメント</span>
+                      </div>
+                      <Textarea
+                        value={check.comment || ""}
+                        onChange={(e) => {
+                          if (onConditionCheckChange) {
+                            onConditionCheckChange(check.id, {
+                              comment: e.target.value,
+                            });
+                          }
+                        }}
+                        placeholder="コメントを入力..."
+                        disabled={disabled}
+                        rows={2}
+                        className="text-base"
+                      />
                     </div>
-                    <Textarea
-                      value={check.comment || ""}
-                      onChange={(e) => {
-                        if (onConditionCheckChange) {
-                          onConditionCheckChange(check.id, {
-                            comment: e.target.value,
-                          });
-                        }
-                      }}
-                      placeholder="コメントを入力..."
-                      disabled={disabled}
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -343,10 +345,9 @@ export function RestoreDiagnosisView({
           {onAddConditionCheck && (
             <Button
               variant="outline"
-              size="sm"
               onClick={onAddConditionCheck}
               disabled={disabled}
-              className="w-full"
+              className="w-full h-12 text-base font-medium"
             >
               確認箇所を追加
             </Button>
@@ -355,14 +356,16 @@ export function RestoreDiagnosisView({
       </Card>
 
       {/* 修復箇所の確認 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
+              <Wrench className="h-5 w-5 shrink-0" />
               修復箇所の確認
             </span>
-            <Badge variant="secondary">{restoreLocations.length}箇所</Badge>
+            <Badge variant="secondary" className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{restoreLocations.length}</span>箇所
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -376,30 +379,29 @@ export function RestoreDiagnosisView({
               };
 
               return (
-                <div
+                <Card
                   key={location.id}
-                  className="p-4 border border-slate-200 rounded-lg space-y-3"
+                  className="border border-slate-300 rounded-xl shadow-md"
                 >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-slate-900 text-sm">
-                      修復箇所 #{restoreLocations.indexOf(location) + 1}
-                    </h4>
-                    {onRemoveRestoreLocation && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onRemoveRestoreLocation(location.id)}
-                        disabled={disabled}
-                        className="h-6 w-6 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* 部位選択 */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">部位</Label>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                      <span>修復箇所 #{restoreLocations.indexOf(location) + 1}</span>
+                      {onRemoveRestoreLocation && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => onRemoveRestoreLocation(location.id)}
+                          disabled={disabled}
+                          className="h-12 w-12 p-0 shrink-0"
+                        >
+                          <X className="h-4 w-4 shrink-0" />
+                        </Button>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 部位選択 */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-medium text-slate-700">部位</Label>
                     <Select
                       value={location.location}
                       onValueChange={(value) => {
@@ -411,7 +413,7 @@ export function RestoreDiagnosisView({
                       }}
                       disabled={disabled}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger className="h-12 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -424,10 +426,10 @@ export function RestoreDiagnosisView({
                     </Select>
                   </div>
 
-                  {/* 修復内容と程度 */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">修復内容</Label>
+                    {/* 修復内容と程度 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-base font-medium text-slate-700">修復内容</Label>
                       <Select
                         value={location.restoreType}
                         onValueChange={(value) => {
@@ -439,7 +441,7 @@ export function RestoreDiagnosisView({
                         }}
                         disabled={disabled}
                       >
-                        <SelectTrigger className="h-9 text-sm">
+                        <SelectTrigger className="h-12 text-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -451,8 +453,8 @@ export function RestoreDiagnosisView({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-slate-600">修復の程度</Label>
+                      <div className="space-y-2">
+                        <Label className="text-base font-medium text-slate-700">修復の程度</Label>
                       <Select
                         value={location.severity}
                         onValueChange={(value) => {
@@ -464,7 +466,7 @@ export function RestoreDiagnosisView({
                         }}
                         disabled={disabled}
                       >
-                        <SelectTrigger className="h-9 text-sm">
+                        <SelectTrigger className="h-12 text-base">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -478,12 +480,12 @@ export function RestoreDiagnosisView({
                     </div>
                   </div>
 
-                  {/* Before写真撮影（必須） */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>Before写真（必須）</span>
-                    </div>
+                    {/* Before写真撮影（必須） */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <Camera className="h-4 w-4 shrink-0" />
+                        <span>Before写真（必須）</span>
+                      </div>
                     <PhotoCaptureButton
                       position={location.id}
                       label={`${location.location}のBefore写真を撮影`}
@@ -494,32 +496,32 @@ export function RestoreDiagnosisView({
                         }
                       }}
                       disabled={disabled}
-                      size="sm"
                     />
                   </div>
 
-                  {/* コメント */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>コメント</span>
+                    {/* コメント */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <MessageSquare className="h-4 w-4 shrink-0" />
+                        <span>コメント</span>
+                      </div>
+                      <Textarea
+                        value={location.comment || ""}
+                        onChange={(e) => {
+                          if (onRestoreLocationChange) {
+                            onRestoreLocationChange(location.id, {
+                              comment: e.target.value,
+                            });
+                          }
+                        }}
+                        placeholder="コメントを入力..."
+                        disabled={disabled}
+                        rows={2}
+                        className="text-base"
+                      />
                     </div>
-                    <Textarea
-                      value={location.comment || ""}
-                      onChange={(e) => {
-                        if (onRestoreLocationChange) {
-                          onRestoreLocationChange(location.id, {
-                            comment: e.target.value,
-                          });
-                        }
-                      }}
-                      placeholder="コメントを入力..."
-                      disabled={disabled}
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -528,10 +530,9 @@ export function RestoreDiagnosisView({
           {onAddRestoreLocation && (
             <Button
               variant="outline"
-              size="sm"
               onClick={onAddRestoreLocation}
               disabled={disabled}
-              className="w-full"
+              className="w-full h-12 text-base font-medium"
             >
               修復箇所を追加
             </Button>
@@ -540,10 +541,10 @@ export function RestoreDiagnosisView({
       </Card>
 
       {/* コメント */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageSquare className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <MessageSquare className="h-5 w-5 shrink-0" />
             コメント（整備士の所見）
           </CardTitle>
         </CardHeader>
@@ -558,7 +559,7 @@ export function RestoreDiagnosisView({
             placeholder="コメントを入力..."
             disabled={disabled}
             rows={4}
-            className="text-sm"
+            className="text-base"
           />
         </CardContent>
       </Card>

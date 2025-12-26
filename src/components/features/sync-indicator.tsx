@@ -37,37 +37,37 @@ function getSyncStatusStyles(status: SyncStatus) {
     case "synced":
       return {
         bg: "bg-green-50",
-        border: "border-green-200",
+        border: "border-green-300",
         text: "text-green-800",
         icon: CheckCircle2,
-        iconColor: "text-green-600",
+        iconColor: "text-green-700",
         label: "同期済み",
       };
     case "syncing":
       return {
         bg: "bg-blue-50",
-        border: "border-blue-200",
+        border: "border-blue-300",
         text: "text-blue-800",
         icon: Loader2,
-        iconColor: "text-blue-600",
+        iconColor: "text-blue-700",
         label: "同期中...",
       };
     case "pending":
       return {
         bg: "bg-amber-50",
-        border: "border-amber-200",
+        border: "border-amber-300",
         text: "text-amber-800",
         icon: Clock,
-        iconColor: "text-amber-600",
+        iconColor: "text-amber-700",
         label: "未同期",
       };
     case "error":
       return {
         bg: "bg-red-50",
-        border: "border-red-200",
+        border: "border-red-300",
         text: "text-red-800",
         icon: AlertCircle,
-        iconColor: "text-red-600",
+        iconColor: "text-red-700",
         label: "同期エラー",
       };
   }
@@ -89,13 +89,13 @@ export function SyncIndicator({
   const Icon = styles.icon;
 
   const sizeClasses = {
-    sm: "px-2 py-1 text-xs",
-    md: "px-3 py-1.5 text-sm",
+    sm: "px-2 py-1 text-base", // text-xs → text-base (40歳以上ユーザー向け)
+    md: "px-3 py-1.5 text-base", // text-sm → text-base (40歳以上ユーザー向け)
     lg: "px-4 py-2 text-base",
   };
 
   const iconSizes = {
-    sm: "h-3 w-3",
+    sm: "h-4 w-4", // h-3 w-3 → h-4 w-4 (40歳以上ユーザー向け、DESIGN_SYSTEM.md準拠)
     md: "h-4 w-4",
     lg: "h-5 w-5",
   };
@@ -123,16 +123,24 @@ export function SyncIndicator({
       )}
       <span className="font-medium">{styles.label}</span>
       {pendingCount !== undefined && pendingCount > 0 && (
-        <span className="ml-1 px-1.5 py-0.5 rounded bg-white/50 text-xs font-semibold">
+        <span className="ml-1 px-1.5 py-0.5 rounded bg-white/50 text-base font-semibold">
           {pendingCount}
         </span>
       )}
       {errorMessage && status === "error" && (
-        <span className="ml-1 text-xs opacity-80">({errorMessage})</span>
+        <span className="ml-1 text-base opacity-80">({errorMessage})</span>
       )}
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

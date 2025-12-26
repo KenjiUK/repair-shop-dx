@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DriveFolder, ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API フォルダ取得エンドポイント
@@ -21,20 +22,6 @@ function errorResponse(
   return NextResponse.json(response, { status });
 }
 
-/**
- * Google Drive API アクセストークンを取得
- * TODO: 実際の認証実装時に実装
- */
-async function getAccessToken(): Promise<string> {
-  // TODO: Google OAuth認証を実装
-  // 現時点では環境変数から取得（開発用）
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ folderId: string }> }
@@ -46,7 +33,7 @@ export async function GET(
       return errorResponse("folderIdは必須です", "MISSING_FOLDER_ID", 400);
     }
 
-    const accessToken = await getAccessToken();
+    const accessToken = await getGoogleAccessToken();
 
     const url = `${GOOGLE_DRIVE_API_BASE}/files/${folderId}?fields=id,name,createdTime,modifiedTime,webViewLink,parents,mimeType`;
 
@@ -94,6 +81,10 @@ export async function GET(
     return errorResponse(message, "FOLDER_GET_ERROR", 500);
   }
 }
+
+
+
+
 
 
 

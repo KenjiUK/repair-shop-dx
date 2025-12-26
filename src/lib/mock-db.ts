@@ -15,7 +15,10 @@ import {
   DiagnosisItem,
   EstimateItem,
   ServiceKind,
+  WorkOrder,
+  WorkOrderStatus,
 } from "@/types";
+import { serializeWorkOrdersForZoho } from "./work-order-converter";
 
 // =============================================================================
 // 顧客データ (Contacts)
@@ -34,6 +37,8 @@ export const customers: ZohoCustomer[] = [
     lineId: "tanaka_taro_line",
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "tanaka.taro@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1975-06-15",
     dateOfBirth: "1975-06-15",
     Mailing_Street: "東京都品川区東品川",
@@ -46,8 +51,8 @@ export const customers: ZohoCustomer[] = [
     phone: "03-1234-5678",
     Mobile: "090-1234-5678",
     mobile: "090-1234-5678",
-    Description: null,
-    description: null,
+    Description: "【アプリ変更届】2025-01-15 10:30: 携帯番号: 090-1234-5678 → 080-9999-8888",
+    description: "【アプリ変更届】2025-01-15 10:30: 携帯番号: 090-1234-5678 → 080-9999-8888",
     Booking_Phone_Temp: null,
     bookingPhoneTemp: null,
   },
@@ -63,6 +68,8 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "sato.hanako@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1982-03-20",
     dateOfBirth: "1982-03-20",
     Mailing_Street: "神奈川県横浜市港北区新横浜",
@@ -92,6 +99,8 @@ export const customers: ZohoCustomer[] = [
     lineId: "suzuki_ichiro",
     Email_Opt_Out: true,
     emailOptOut: true,
+    Email: "suzuki.ichiro@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1990-11-05",
     dateOfBirth: "1990-11-05",
     Mailing_Street: "神奈川県川崎市中原区武蔵小杉",
@@ -121,6 +130,8 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "takahashi.misaki@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1988-09-12",
     dateOfBirth: "1988-09-12",
     Mailing_Street: "東京都港区赤坂",
@@ -150,6 +161,8 @@ export const customers: ZohoCustomer[] = [
     lineId: "ito_kenta",
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "ito.kenta@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1995-01-25",
     dateOfBirth: "1995-01-25",
     Mailing_Street: "東京都新宿区西新宿",
@@ -180,6 +193,8 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "yamada.yuichi@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1980-08-15",
     dateOfBirth: "1980-08-15",
     Mailing_Street: "東京都品川区大崎",
@@ -209,6 +224,8 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "nakamura.yumi@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1985-03-22",
     dateOfBirth: "1985-03-22",
     Mailing_Street: "東京都港区芝",
@@ -238,6 +255,8 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "kobayashi.daisuke@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1978-11-30",
     dateOfBirth: "1978-11-30",
     Mailing_Street: "東京都渋谷区神南",
@@ -267,6 +286,8 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
+    Email: "keller.isabel@example.com",
+    Secondary_Email: null,
     Date_of_Birth: "1992-07-18",
     dateOfBirth: "1992-07-18",
     Mailing_Street: "東京都新宿区新宿",
@@ -296,18 +317,20 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
-    Date_of_Birth: "1983-04-09",
-    dateOfBirth: "1983-04-09",
-    Mailing_Street: "東京都港区虎ノ門",
-    mailingStreet: "東京都港区虎ノ門",
-    field4: "2-2-1",
-    addressNumber: "2-2-1",
-    field6: "虎ノ門ヒルズ 5005",
-    buildingName: "虎ノ門ヒルズ 5005",
-    Phone: "03-0123-4567",
-    phone: "03-0123-4567",
-    Mobile: "080-0123-4567",
-    mobile: "080-0123-4567",
+    Email: "yoshida.makoto@example.com",
+    Secondary_Email: null,
+    Date_of_Birth: "1978-09-12",
+    dateOfBirth: "1978-09-12",
+    Mailing_Street: "東京都港区六本木",
+    mailingStreet: "東京都港区六本木",
+    field4: "6-10-1",
+    addressNumber: "6-10-1",
+    field6: "六本木ヒルズ 3005",
+    buildingName: "六本木ヒルズ 3005",
+    Phone: "03-4567-8901",
+    phone: "03-4567-8901",
+    Mobile: "090-4567-8901",
+    mobile: "090-4567-8901",
     Description: null,
     description: null,
     Booking_Phone_Temp: null,
@@ -325,18 +348,113 @@ export const customers: ZohoCustomer[] = [
     lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
-    Date_of_Birth: "1976-12-25",
-    dateOfBirth: "1976-12-25",
-    Mailing_Street: "東京都品川区上大崎",
-    mailingStreet: "東京都品川区上大崎",
-    field4: "1-6-4",
-    addressNumber: "1-6-4",
-    field6: "目黒セントラルスクエア 6006",
-    buildingName: "目黒セントラルスクエア 6006",
+    Email: "watanabe.shota@example.com",
+    Secondary_Email: null,
+    Date_of_Birth: "1985-04-25",
+    dateOfBirth: "1985-04-25",
+    Mailing_Street: "神奈川県横浜市西区みなとみらい",
+    mailingStreet: "神奈川県横浜市西区みなとみらい",
+    field4: "2-3-1",
+    addressNumber: "2-3-1",
+    field6: "みなとみらいタワー 2001",
+    buildingName: "みなとみらいタワー 2001",
+    Phone: "045-234-5678",
+    phone: "045-234-5678",
+    Mobile: "080-2345-6789",
+    mobile: "080-2345-6789",
+    Description: null,
+    description: null,
+    Booking_Phone_Temp: null,
+    bookingPhoneTemp: null,
+  },
+  {
+    id: "cust-012",
+    ID1: "K1012",
+    customerId: "K1012",
+    Last_Name: "新規",
+    lastName: "新規",
+    First_Name: "テスト",
+    firstName: "テスト",
+    Business_Messaging_Line_Id: null,
+    lineId: null,
+    Email_Opt_Out: false,
+    emailOptOut: false,
+    Email: "shinki.test@example.com",
+    Secondary_Email: null,
+    Date_of_Birth: "1990-01-01",
+    dateOfBirth: "1990-01-01",
+    Mailing_Street: "東京都渋谷区渋谷",
+    mailingStreet: "東京都渋谷区渋谷",
+    field4: "1-1-1",
+    addressNumber: "1-1-1",
+    field6: "渋谷スクランブルスクエア 1501",
+    buildingName: "渋谷スクランブルスクエア 1501",
     Phone: "03-1234-5678",
     phone: "03-1234-5678",
     Mobile: "090-1234-5678",
     mobile: "090-1234-5678",
+    Description: null,
+    description: null,
+    Booking_Phone_Temp: null,
+    bookingPhoneTemp: null,
+  },
+  {
+    id: "cust-013",
+    ID1: "K1013",
+    customerId: "K1013",
+    Last_Name: "長期",
+    lastName: "長期",
+    First_Name: "プロジェクト",
+    firstName: "プロジェクト",
+    Business_Messaging_Line_Id: null,
+    lineId: null,
+    Email_Opt_Out: false,
+    emailOptOut: false,
+    Email: "chouki.project@example.com",
+    Secondary_Email: null,
+    Date_of_Birth: "1982-06-15",
+    dateOfBirth: "1982-06-15",
+    Mailing_Street: "東京都新宿区新宿",
+    mailingStreet: "東京都新宿区新宿",
+    field4: "3-38-1",
+    addressNumber: "3-38-1",
+    field6: "新宿センタービル 4005",
+    buildingName: "新宿センタービル 4005",
+    Phone: "03-9876-5432",
+    phone: "03-9876-5432",
+    Mobile: "090-9876-5432",
+    mobile: "090-9876-5432",
+    Description: null,
+    description: null,
+    Booking_Phone_Temp: null,
+    bookingPhoneTemp: null,
+  },
+  {
+    id: "cust-014",
+    ID1: "K1014",
+    customerId: "K1014",
+    Last_Name: "テスト",
+    lastName: "テスト",
+    First_Name: "ユーザー",
+    firstName: "ユーザー",
+    Business_Messaging_Line_Id: null,
+    lineId: null,
+    Email_Opt_Out: false,
+    emailOptOut: false,
+    Email: "test.user@example.com",
+    Secondary_Email: null,
+    Date_of_Birth: "1988-03-20",
+    dateOfBirth: "1988-03-20",
+    Mailing_Street: "東京都港区赤坂",
+    mailingStreet: "東京都港区赤坂",
+    field4: "2-17-22",
+    addressNumber: "2-17-22",
+    field6: "赤坂ツインタワー 2502",
+    buildingName: "赤坂ツインタワー 2502",
+    Phone: "03-5555-6666",
+    phone: "03-5555-6666",
+    Mobile: "080-5555-6666",
+    mobile: "080-5555-6666",
     Description: null,
     description: null,
     Booking_Phone_Temp: null,
@@ -471,6 +589,50 @@ export const vehicles: ZohoVehicle[] = [
     field7: "2025-12-30",
     inspectionExpiry: "2025-12-30",
   },
+  {
+    id: "veh-012",
+    Name: "V012",
+    vehicleId: "V012",
+    field44: "港 500 て 7777",
+    licensePlate: "港 500 て 7777",
+    ID1: "K1012",
+    customerId: "K1012",
+    field7: "2025-10-20",
+    inspectionExpiry: "2025-10-20",
+  },
+  {
+    id: "veh-013",
+    Name: "V013",
+    vehicleId: "V013",
+    field44: "品川 500 す 8888",
+    licensePlate: "品川 500 す 8888",
+    ID1: "K1011",
+    customerId: "K1011",
+    field7: "2025-11-30",
+    inspectionExpiry: "2025-11-30",
+  },
+  {
+    id: "veh-014",
+    Name: "V014",
+    vehicleId: "V014",
+    field44: "新宿 300 つ 9999",
+    licensePlate: "新宿 300 つ 9999",
+    ID1: "K1013",
+    customerId: "K1013",
+    field7: "2026-01-15",
+    inspectionExpiry: "2026-01-15",
+  },
+  {
+    id: "veh-015",
+    Name: "V015",
+    vehicleId: "V015",
+    field44: "品川 300 ね 0000",
+    licensePlate: "品川 300 ね 0000",
+    ID1: "K1014",
+    customerId: "K1014",
+    field7: "2025-09-25",
+    inspectionExpiry: "2025-09-25",
+  },
 ];
 
 // =============================================================================
@@ -481,37 +643,16 @@ export const vehicles: ZohoVehicle[] = [
 const today = new Date();
 const todayISO = today.toISOString();
 
-export const jobs: ZohoJob[] = [
-  // === Phase 1: 入庫済み（本日の予約、まだチェックインしていない） ===
-  {
-    id: "job-001",
-    field22: todayISO.replace(/T.*/, "T09:00:00+09:00"),
-    arrivalDateTime: todayISO.replace(/T.*/, "T09:00:00+09:00"),
-    field5: "入庫待ち",
-    stage: "入庫待ち",
-    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    field6: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
-    vehicle: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
-    field: null,
-    workOrder: null,
-    field7: "ブレーキから異音がする。高速道路走行時に振動を感じる。",
-    details: "ブレーキから異音がする。高速道路走行時に振動を感じる。",
-    field10: 45000,
-    mileage: 45000,
-    field13: null,
-    approvedWorkItems: null,
-    field19: null,
-    customerFolderUrl: null,
-    ID_BookingId: "booking-001",
-    bookingId: "booking-001",
-    field12: null,
-    attachments: null,
-    tagId: null,
-    serviceKind: "故障診断" as ServiceKind,
-  },
+// 2026年の将来の日時を生成（テスト用）
+// 日本時間（JST）で指定し、ISO形式で返す
+const getFutureDate2026 = (month: number, day: number, hour: number, minute: number = 0): string => {
+  // 日本時間（UTC+9）で日時を作成
+  const futureDate = new Date(Date.UTC(2026, month - 1, day, hour - 9, minute, 0));
+  return futureDate.toISOString();
+};
 
-  // === Phase 1: 入庫済み（作業指示あり） ===
+export const jobs: ZohoJob[] = [
+  // === Phase 1: 入庫済み（受付メモあり） ===
   {
     id: "job-002",
     field22: todayISO.replace(/T.*/, "T10:30:00+09:00"),
@@ -538,7 +679,20 @@ export const jobs: ZohoJob[] = [
     field12: null,
     attachments: null,
     tagId: null,
-  },
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-002-001",
+        jobId: "job-002",
+        serviceKind: "修理・整備" as ServiceKind,
+        status: "未開始" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
 
   // === Phase 2/3: 見積作成待ち（診断完了、タグ紐付け済み） ===
   {
@@ -567,7 +721,35 @@ export const jobs: ZohoJob[] = [
     field12: null,
     attachments: null,
     tagId: "03",
-  },
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-003-001",
+        jobId: "job-003",
+        serviceKind: "車検" as ServiceKind,
+        status: "診断完了" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: ["https://example.com/engine-room.jpg"], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "タイヤ溝残り4mm。次回交換推奨。", evidencePhotoUrls: ["https://example.com/tire.jpg"], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-6", name: "エアコンフィルター", category: "その他", status: "yellow", comment: "やや汚れあり。交換推奨。", evidencePhotoUrls: ["https://example.com/air-filter.jpg"], evidenceVideoUrl: null },
+          ],
+          photos: [
+            { position: "engine-room", url: "https://example.com/engine-room.jpg" },
+            { position: "tire", url: "https://example.com/tire.jpg" },
+            { position: "air-filter", url: "https://example.com/air-filter.jpg" },
+          ],
+          mileage: 78500,
+        },
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2時間前
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前
+      },
+    ]),
+  } as any,
 
   // === Phase 4/5: 作業待ち（見積承認済み、作業開始待ち） ===
   {
@@ -596,7 +778,37 @@ export const jobs: ZohoJob[] = [
     field12: null,
     attachments: null,
     tagId: "05",
-  },
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-004-001",
+        jobId: "job-004",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "承認済み" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 32000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定12ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "エンジンオイル交換", price: 5500, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "前回交換から5,000km経過" },
+            { id: "est-3", name: "オイルフィルター交換", price: 2200, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "オイル交換と同時実施" },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7日後
+        },
+        work: null,
+        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5時間前
+        updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3時間前
+      },
+    ]),
+  } as any,
 
   // === Phase 5/6: 出庫待ち（作業完了、お客様待ち） ===
   {
@@ -625,42 +837,56 @@ export const jobs: ZohoJob[] = [
     attachments: null,
     tagId: "07",
     serviceKind: "タイヤ交換・ローテーション" as ServiceKind,
-  },
-
-  // === 過去データ: 出庫済み（完了済み案件） ===
-  {
-    id: "job-006",
-    field22: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T10:00:00+09:00"),
-    arrivalDateTime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T10:00:00+09:00"),
-    field5: "出庫済み",
-    stage: "出庫済み",
-    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    field6: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
-    vehicle: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
-    field: null,
-    workOrder: null,
-    field7: "オイル交換希望",
-    details: "オイル交換希望",
-    field10: 42000,
-    mileage: 42000,
-    field13: "エンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
-    approvedWorkItems: "エンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
-    field19: "https://drive.google.com/drive/folders/past",
-    customerFolderUrl: "https://drive.google.com/drive/folders/past",
-    ID_BookingId: "booking-006",
-    bookingId: "booking-006",
-    field12: null,
-    attachments: null,
-    tagId: null,
-    serviceKind: "エンジンオイル交換" as ServiceKind,
-  },
+    assignedMechanic: "中村",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-005-001",
+        jobId: "job-005",
+        serviceKind: "タイヤ交換・ローテーション" as ServiceKind,
+        status: "作業完了" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "tire-1", name: "タイヤ（前輪左）", category: "足回り", status: "green", comment: "溝残り良好", evidencePhotoUrls: ["https://example.com/tire-fl.jpg"], evidenceVideoUrl: null },
+            { id: "tire-2", name: "タイヤ（前輪右）", category: "足回り", status: "green", comment: "溝残り良好", evidencePhotoUrls: ["https://example.com/tire-fr.jpg"], evidenceVideoUrl: null },
+            { id: "tire-3", name: "タイヤ（後輪左）", category: "足回り", status: "green", comment: "溝残り良好", evidencePhotoUrls: ["https://example.com/tire-rl.jpg"], evidenceVideoUrl: null },
+            { id: "tire-4", name: "タイヤ（後輪右）", category: "足回り", status: "green", comment: "溝残り良好", evidencePhotoUrls: ["https://example.com/tire-rr.jpg"], evidenceVideoUrl: null },
+            { id: "brake-1", name: "ブレーキパッド", category: "ブレーキ", status: "green", comment: "残量正常", evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [
+            { position: "tire-fl", url: "https://example.com/tire-fl.jpg" },
+            { position: "tire-fr", url: "https://example.com/tire-fr.jpg" },
+            { position: "tire-rl", url: "https://example.com/tire-rl.jpg" },
+            { position: "tire-rr", url: "https://example.com/tire-rr.jpg" },
+          ],
+          mileage: 55000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "タイヤ履き替え（4本）", price: 4400, priority: "required", selected: true, linkedPhotoUrls: ["https://example.com/tire-fl.jpg", "https://example.com/tire-fr.jpg"], linkedVideoUrl: null, note: "スタッドレスから夏タイヤへ交換" },
+            { id: "est-2", name: "タイヤバランス調整", price: 2200, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "4輪バランス調整実施" },
+            { id: "est-3", name: "ブレーキ点検", price: 3300, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "ブレーキパッド残量確認済み" },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: {
+          mechanicName: "中村",
+          completedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前
+          records: [
+            { time: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), content: "タイヤ履き替え完了。バランス調整実施済み。" },
+            { time: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), content: "ブレーキ点検完了。パッド残量正常。" },
+          ],
+        },
+        createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8時間前
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前
+      },
+    ]),
+  } as any,
 
   // === 全入庫区分のサンプルジョブ（入庫待ち） ===
   {
     id: "job-007",
-    field22: todayISO.replace(/T.*/, "T11:30:00+09:00"),
-    arrivalDateTime: todayISO.replace(/T.*/, "T11:30:00+09:00"),
+    field22: getFutureDate2026(1, 15, 9, 0), // 2026年1月15日 09:00
+    arrivalDateTime: getFutureDate2026(1, 15, 9, 0),
     field5: "入庫待ち",
     stage: "入庫待ち",
     field4: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
@@ -686,8 +912,8 @@ export const jobs: ZohoJob[] = [
   },
   {
     id: "job-008",
-    field22: todayISO.replace(/T.*/, "T12:00:00+09:00"),
-    arrivalDateTime: todayISO.replace(/T.*/, "T12:00:00+09:00"),
+    field22: getFutureDate2026(1, 15, 10, 30), // 2026年1月15日 10:30
+    arrivalDateTime: getFutureDate2026(1, 15, 10, 30),
     field5: "入庫待ち",
     stage: "入庫待ち",
     field4: { id: "cust-007", name: "中村 由美" } as ZohoLookup,
@@ -713,8 +939,8 @@ export const jobs: ZohoJob[] = [
   },
   {
     id: "job-009",
-    field22: todayISO.replace(/T.*/, "T13:00:00+09:00"),
-    arrivalDateTime: todayISO.replace(/T.*/, "T13:00:00+09:00"),
+    field22: getFutureDate2026(1, 15, 11, 0), // 2026年1月15日 11:00
+    arrivalDateTime: getFutureDate2026(1, 15, 11, 0),
     field5: "入庫待ち",
     stage: "入庫待ち",
     field4: { id: "cust-008", name: "小林 大輔" } as ZohoLookup,
@@ -740,8 +966,8 @@ export const jobs: ZohoJob[] = [
   },
   {
     id: "job-010",
-    field22: todayISO.replace(/T.*/, "T14:00:00+09:00"),
-    arrivalDateTime: todayISO.replace(/T.*/, "T14:00:00+09:00"),
+    field22: getFutureDate2026(1, 15, 13, 0), // 2026年1月15日 13:00
+    arrivalDateTime: getFutureDate2026(1, 15, 13, 0),
     field5: "入庫待ち",
     stage: "入庫待ち",
     field4: { id: "cust-009", name: "加藤 さくら" } as ZohoLookup,
@@ -819,6 +1045,396 @@ export const jobs: ZohoJob[] = [
     tagId: null,
     serviceKind: "12ヵ月点検" as ServiceKind,
   },
+
+  // === 長期プロジェクト: レストア（進捗30%、20日前開始） ===
+  {
+    id: "job-013",
+    field22: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T09:00:00+09:00"),
+    arrivalDateTime: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T09:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
+    customer: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
+    field6: { id: "veh-006", name: "ポルシェ 911 / 品川 500 は 1111" } as ZohoLookup,
+    vehicle: { id: "veh-006", name: "ポルシェ 911 / 品川 500 は 1111" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "クラシックカーの完全レストア。エンジンオーバーホール、ボディ塗装、内装修復を実施中。",
+    details: "クラシックカーの完全レストア。エンジンオーバーホール、ボディ塗装、内装修復を実施中。",
+    field10: 120000,
+    mileage: 120000,
+    field13: "エンジンオーバーホール: ¥800,000\nボディ塗装: ¥600,000\n内装修復: ¥400,000",
+    approvedWorkItems: "エンジンオーバーホール: ¥800,000\nボディ塗装: ¥600,000\n内装修復: ¥400,000",
+    field19: "https://drive.google.com/drive/folders/restore-001",
+    customerFolderUrl: "https://drive.google.com/drive/folders/restore-001",
+    ID_BookingId: "booking-013",
+    bookingId: "booking-013",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    serviceKind: "レストア" as ServiceKind,
+    assignedMechanic: "中村",
+    workData: {
+      restoreWorkData: {
+        overallProgress: 30,
+        phases: [
+          { name: "エンジン分解", status: "完了", startDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "エンジンオーバーホール", status: "作業中", startDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "ボディ塗装", status: "未開始" },
+          { name: "内装修復", status: "未開始" },
+        ],
+      },
+    },
+    estimateData: {
+      restoreEstimateData: {
+        workDuration: 4, // 4ヶ月
+      },
+    },
+  } as any,
+
+  // === 長期プロジェクト: 板金・塗装（進捗60%、遅延中、25日前開始） ===
+  {
+    id: "job-014",
+    field22: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T10:00:00+09:00"),
+    arrivalDateTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T10:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-007", name: "中村 由美" } as ZohoLookup,
+    customer: { id: "cust-007", name: "中村 由美" } as ZohoLookup,
+    field6: { id: "veh-007", name: "BMW M3 / 港 300 ひ 2222" } as ZohoLookup,
+    vehicle: { id: "veh-007", name: "BMW M3 / 港 300 ひ 2222" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "事故車の板金・塗装。外注先での作業中。予定より遅れている。",
+    details: "事故車の板金・塗装。外注先での作業中。予定より遅れている。",
+    field10: 35000,
+    mileage: 35000,
+    field13: "フロントバンパー板金: ¥150,000\nボンネット塗装: ¥80,000\nドアパネル交換: ¥120,000",
+    approvedWorkItems: "フロントバンパー板金: ¥150,000\nボンネット塗装: ¥80,000\nドアパネル交換: ¥120,000",
+    field19: "https://drive.google.com/drive/folders/bodypaint-001",
+    customerFolderUrl: "https://drive.google.com/drive/folders/bodypaint-001",
+    ID_BookingId: "booking-014",
+    bookingId: "booking-014",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    serviceKind: "板金・塗装" as ServiceKind,
+    assignedMechanic: "永見",
+    workData: {
+      bodyPaintOutsourcingInfo: {
+        progressPercentage: 60,
+        progress: "作業中",
+        isDelayed: true,
+        orderDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+        expectedCompletionDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 既に過ぎている
+      },
+    },
+  } as any,
+
+  // === 長期プロジェクト: レストア（進捗75%、順調、15日前開始） ===
+  {
+    id: "job-015",
+    field22: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T11:00:00+09:00"),
+    arrivalDateTime: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().replace(/T.*/, "T11:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-008", name: "小林 大輔" } as ZohoLookup,
+    customer: { id: "cust-008", name: "小林 大輔" } as ZohoLookup,
+    field6: { id: "veh-008", name: "アウディ RS4 / 渋谷 500 ふ 3333" } as ZohoLookup,
+    vehicle: { id: "veh-008", name: "アウディ RS4 / 渋谷 500 ふ 3333" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "スポーツカーのレストア。エンジンチューニングとサスペンション調整を実施。順調に進行中。",
+    details: "スポーツカーのレストア。エンジンチューニングとサスペンション調整を実施。順調に進行中。",
+    field10: 28000,
+    mileage: 28000,
+    field13: "エンジンチューニング: ¥500,000\nサスペンション調整: ¥300,000\nブレーキシステム強化: ¥200,000",
+    approvedWorkItems: "エンジンチューニング: ¥500,000\nサスペンション調整: ¥300,000\nブレーキシステム強化: ¥200,000",
+    field19: "https://drive.google.com/drive/folders/restore-002",
+    customerFolderUrl: "https://drive.google.com/drive/folders/restore-002",
+    ID_BookingId: "booking-015",
+    bookingId: "booking-015",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    serviceKind: "レストア" as ServiceKind,
+    assignedMechanic: "谷口",
+    workData: {
+      restoreWorkData: {
+        overallProgress: 75,
+        phases: [
+          { name: "エンジンチューニング", status: "完了", startDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "サスペンション調整", status: "完了", startDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "ブレーキシステム強化", status: "作業中", startDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "最終調整", status: "未開始" },
+        ],
+      },
+    },
+    estimateData: {
+      restoreEstimateData: {
+        workDuration: 3, // 3ヶ月
+      },
+    },
+  } as any,
+
+  // === テスト用: 長期プロジェクト - レストア（今日入庫、進捗15%） ===
+  {
+    id: "job-016",
+    field22: todayISO.replace(/T.*/, "T08:30:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T08:30:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-011", name: "渡辺 翔太" } as ZohoLookup,
+    customer: { id: "cust-011", name: "渡辺 翔太" } as ZohoLookup,
+    field6: { id: "veh-011", name: "アウディ Q7 / 品川 300 ま 6666" } as ZohoLookup,
+    vehicle: { id: "veh-011", name: "アウディ Q7 / 品川 300 ま 6666" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "クラシックカー完全レストア開始。全塗装、内装復元、エンジンオーバーホールを予定。",
+    details: "クラシックカー完全レストア開始。全塗装、内装復元、エンジンオーバーホールを予定。",
+    field10: 85000,
+    mileage: 85000,
+    field13: "全塗装: ¥800,000\n内装復元: ¥600,000\nエンジンオーバーホール: ¥1,200,000",
+    approvedWorkItems: "全塗装: ¥800,000\n内装復元: ¥600,000\nエンジンオーバーホール: ¥1,200,000",
+    field19: "https://drive.google.com/drive/folders/restore-003",
+    customerFolderUrl: "https://drive.google.com/drive/folders/restore-003",
+    ID_BookingId: "booking-016",
+    bookingId: "booking-016",
+    field12: null,
+    attachments: null,
+    tagId: "08",
+    field_service_kinds: ["レストア"] as ServiceKind[],
+    serviceKind: "レストア" as ServiceKind,
+    assignedMechanic: "中村",
+    workData: {
+      restoreWorkData: {
+        overallProgress: 15,
+        phases: [
+          { name: "車体分解", status: "完了", startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "エンジン分解", status: "作業中", startDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "エンジンオーバーホール", status: "未開始" },
+          { name: "ボディ塗装準備", status: "未開始" },
+          { name: "全塗装", status: "未開始" },
+          { name: "内装復元", status: "未開始" },
+          { name: "最終組み立て", status: "未開始" },
+        ],
+      },
+    },
+    estimateData: {
+      restoreEstimateData: {
+        workDuration: 6, // 6ヶ月
+      },
+    },
+  } as any,
+
+  // === テスト用: 長期プロジェクト - 板金・塗装（今日入庫、進捗45%、順調） ===
+  {
+    id: "job-017",
+    field22: todayISO.replace(/T.*/, "T09:15:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T09:15:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-012", name: "新規 テスト" } as ZohoLookup,
+    customer: { id: "cust-012", name: "新規 テスト" } as ZohoLookup,
+    field6: { id: "veh-012", name: "BMW M5 / 港 500 て 7777" } as ZohoLookup,
+    vehicle: { id: "veh-012", name: "BMW M5 / 港 500 て 7777" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "事故によるフロント周りの板金・塗装。外注先で順調に進行中。",
+    details: "事故によるフロント周りの板金・塗装。外注先で順調に進行中。",
+    field10: 42000,
+    mileage: 42000,
+    field13: "フロントバンパー板金・塗装: ¥180,000\nボンネット板金・塗装: ¥120,000\nヘッドライト交換: ¥80,000",
+    approvedWorkItems: "フロントバンパー板金・塗装: ¥180,000\nボンネット板金・塗装: ¥120,000\nヘッドライト交換: ¥80,000",
+    field19: "https://drive.google.com/drive/folders/bodypaint-002",
+    customerFolderUrl: "https://drive.google.com/drive/folders/bodypaint-002",
+    ID_BookingId: "booking-017",
+    bookingId: "booking-017",
+    field12: null,
+    attachments: null,
+    tagId: "09",
+    field_service_kinds: ["板金・塗装"] as ServiceKind[],
+    serviceKind: "板金・塗装" as ServiceKind,
+    assignedMechanic: "永見",
+    workData: {
+      bodyPaintOutsourcingInfo: {
+        progressPercentage: 45,
+        progress: "作業中",
+        isDelayed: false,
+        orderDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+        expectedCompletionDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(), // 10日後
+      },
+    },
+  } as any,
+
+  // === テスト用: 長期プロジェクト - レストア（今日入庫、進捗90%、ほぼ完了） ===
+  {
+    id: "job-018",
+    field22: todayISO.replace(/T.*/, "T10:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T10:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
+    customer: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
+    field6: { id: "veh-013", name: "ポルシェ カイエン / 品川 500 す 8888" } as ZohoLookup,
+    vehicle: { id: "veh-013", name: "ポルシェ カイエン / 品川 500 す 8888" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "SUVのレストア。エンジン、サスペンション、内装をオーバーホール。最終調整段階。",
+    details: "SUVのレストア。エンジン、サスペンション、内装をオーバーホール。最終調整段階。",
+    field10: 95000,
+    mileage: 95000,
+    field13: "エンジンオーバーホール: ¥900,000\nサスペンションオーバーホール: ¥600,000\n内装復元: ¥500,000",
+    approvedWorkItems: "エンジンオーバーホール: ¥900,000\nサスペンションオーバーホール: ¥600,000\n内装復元: ¥500,000",
+    field19: "https://drive.google.com/drive/folders/restore-004",
+    customerFolderUrl: "https://drive.google.com/drive/folders/restore-004",
+    ID_BookingId: "booking-018",
+    bookingId: "booking-018",
+    field12: null,
+    attachments: null,
+    tagId: "10",
+    field_service_kinds: ["レストア"] as ServiceKind[],
+    serviceKind: "レストア" as ServiceKind,
+    assignedMechanic: "谷口",
+    workData: {
+      restoreWorkData: {
+        overallProgress: 90,
+        phases: [
+          { name: "エンジンオーバーホール", status: "完了", startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "サスペンションオーバーホール", status: "完了", startDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "内装復元", status: "完了", startDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "最終調整・テスト走行", status: "作業中", startDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+        ],
+      },
+    },
+    estimateData: {
+      restoreEstimateData: {
+        workDuration: 4, // 4ヶ月
+      },
+    },
+  } as any,
+
+  // === テスト用: 長期プロジェクト - 板金・塗装（今日入庫、進捗25%、遅延中） ===
+  {
+    id: "job-019",
+    field22: todayISO.replace(/T.*/, "T11:30:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T11:30:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-013", name: "長期 プロジェクト" } as ZohoLookup,
+    customer: { id: "cust-013", name: "長期 プロジェクト" } as ZohoLookup,
+    field6: { id: "veh-014", name: "メルセデス・ベンツ Gクラス / 新宿 300 つ 9999" } as ZohoLookup,
+    vehicle: { id: "veh-014", name: "メルセデス・ベンツ Gクラス / 新宿 300 つ 9999" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "側面パネルの大規模板金・塗装。外注先での作業が遅延。要確認。",
+    details: "側面パネルの大規模板金・塗装。外注先での作業が遅延。要確認。",
+    field10: 78000,
+    mileage: 78000,
+    field13: "左側面パネル板金: ¥250,000\n左側面パネル塗装: ¥150,000\nドア交換: ¥180,000",
+    approvedWorkItems: "左側面パネル板金: ¥250,000\n左側面パネル塗装: ¥150,000\nドア交換: ¥180,000",
+    field19: "https://drive.google.com/drive/folders/bodypaint-003",
+    customerFolderUrl: "https://drive.google.com/drive/folders/bodypaint-003",
+    ID_BookingId: "booking-019",
+    bookingId: "booking-019",
+    field12: null,
+    attachments: null,
+    tagId: "11",
+    field_service_kinds: ["板金・塗装"] as ServiceKind[],
+    serviceKind: "板金・塗装" as ServiceKind,
+    assignedMechanic: "中村",
+    workData: {
+      bodyPaintOutsourcingInfo: {
+        progressPercentage: 25,
+        progress: "作業中",
+        isDelayed: true,
+        orderDate: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+        expectedCompletionDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5日前（既に過ぎている）
+      },
+    },
+  } as any,
+
+  // === テスト用: 長期プロジェクト - レストア（今日入庫、進捗50%、順調） ===
+  {
+    id: "job-020",
+    field22: todayISO.replace(/T.*/, "T13:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T13:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-014", name: "テスト ユーザー" } as ZohoLookup,
+    customer: { id: "cust-014", name: "テスト ユーザー" } as ZohoLookup,
+    field6: { id: "veh-015", name: "アウディ TT / 品川 300 ね 0000" } as ZohoLookup,
+    vehicle: { id: "veh-015", name: "アウディ TT / 品川 300 ね 0000" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "コンパクトスポーツカーのレストア。ボディ塗装とパワートレインオーバーホールを実施中。",
+    details: "コンパクトスポーツカーのレストア。ボディ塗装とパワートレインオーバーホールを実施中。",
+    field10: 65000,
+    mileage: 65000,
+    field13: "ボディ全塗装: ¥700,000\nパワートレインオーバーホール: ¥850,000\nサスペンション調整: ¥350,000",
+    approvedWorkItems: "ボディ全塗装: ¥700,000\nパワートレインオーバーホール: ¥850,000\nサスペンション調整: ¥350,000",
+    field19: "https://drive.google.com/drive/folders/restore-005",
+    customerFolderUrl: "https://drive.google.com/drive/folders/restore-005",
+    ID_BookingId: "booking-020",
+    bookingId: "booking-020",
+    field12: null,
+    attachments: null,
+    tagId: "12",
+    field_service_kinds: ["レストア"] as ServiceKind[],
+    serviceKind: "レストア" as ServiceKind,
+    assignedMechanic: "永見",
+    workData: {
+      restoreWorkData: {
+        overallProgress: 50,
+        phases: [
+          { name: "車体分解・準備", status: "完了", startDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "パワートレイン分解", status: "完了", startDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(), endDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "パワートレインオーバーホール", status: "作業中", startDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() },
+          { name: "ボディ塗装準備", status: "未開始" },
+          { name: "ボディ全塗装", status: "未開始" },
+          { name: "サスペンション調整", status: "未開始" },
+          { name: "最終組み立て", status: "未開始" },
+        ],
+      },
+    },
+    estimateData: {
+      restoreEstimateData: {
+        workDuration: 5, // 5ヶ月
+      },
+    },
+  } as any,
+
+  // === 全要素揃いサンプル（UI確認用） ===
+  // 変更通知、代車、タグ、整備士、承認済み作業内容、受付メモ、お客様入力情報、お客様共有フォルダがすべて揃っている
+  {
+    id: "job-021",
+    field22: todayISO.replace(/T.*/, "T14:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T14:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
+    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
+    field6: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
+    vehicle: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
+    field: "[山田] お客様から追加でエアコンフィルター交換も希望とのこと。また、タイヤの溝も確認してほしいとのことです。",
+    workOrder: "[山田] お客様から追加でエアコンフィルター交換も希望とのこと。また、タイヤの溝も確認してほしいとのことです。",
+    field7: "【事前入力】ブレーキから異音がする。高速道路走行時に振動を感じる。エアコンの効きも最近悪くなってきた気がする。",
+    details: "【事前入力】ブレーキから異音がする。高速道路走行時に振動を感じる。エアコンの効きも最近悪くなってきた気がする。",
+    field10: 45000,
+    mileage: 45000,
+    field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nエアコンフィルター交換: ¥3,300\nブレーキパッド交換（前輪）: ¥18,000\nブレーキローター交換（前輪）: ¥25,000",
+    approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nエアコンフィルター交換: ¥3,300\nブレーキパッド交換（前輪）: ¥18,000\nブレーキローター交換（前輪）: ¥25,000",
+    field19: "https://drive.google.com/drive/folders/sample-folder-001",
+    customerFolderUrl: "https://drive.google.com/drive/folders/sample-folder-001",
+    ID_BookingId: "booking-021",
+    bookingId: "booking-021",
+    field12: null,
+    attachments: null,
+    tagId: "21",
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    assignedMechanic: "谷口",
+  },
 ];
 
 // =============================================================================
@@ -846,6 +1462,7 @@ export const smartTags: SmartTag[] = [
   { tagId: "18", jobId: null, linkedAt: null, status: "available" },
   { tagId: "19", jobId: null, linkedAt: null, status: "available" },
   { tagId: "20", jobId: null, linkedAt: null, status: "available" },
+  { tagId: "21", jobId: "job-021", linkedAt: todayISO, status: "in_use" },
 ];
 
 // =============================================================================
@@ -863,6 +1480,7 @@ export const courtesyCars: CourtesyCar[] = [
   { carId: "CAR-008", name: "メルセデス・ベンツ Cクラス", licensePlate: "品川 500 く 0008", jobId: null, rentedAt: null, status: "available" },
   { carId: "CAR-009", name: "アウディ A4", licensePlate: "品川 500 け 0009", jobId: null, rentedAt: null, status: "available" },
   { carId: "CAR-010", name: "BMW X1", licensePlate: "品川 500 こ 0010", jobId: null, rentedAt: null, status: "available" },
+  { carId: "CAR-011", name: "メルセデス・ベンツ GLAクラス", licensePlate: "品川 500 さ 0011", jobId: "job-021", rentedAt: todayISO, status: "in_use" },
 ];
 
 // =============================================================================
@@ -952,6 +1570,30 @@ export function getAvailableTags(): SmartTag[] {
 export function getTodayJobs(): ZohoJob[] {
   const todayStr = new Date().toISOString().split("T")[0];
   return jobs.filter((j) => j.field22.startsWith(todayStr));
+}
+
+/**
+ * すべての長期プロジェクトを取得（過去30日以内 + 今日）
+ * 長期プロジェクト管理画面用
+ */
+export function getAllLongTermProjectJobs(): ZohoJob[] {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999); // 今日の終わりまで
+  
+  return jobs.filter((j) => {
+    // 長期プロジェクトかどうかをチェック
+    const serviceKinds = j.field_service_kinds || (j.serviceKind ? [j.serviceKind] : []);
+    const isLongTerm = serviceKinds.includes("レストア" as ServiceKind) || 
+                       serviceKinds.includes("板金・塗装" as ServiceKind);
+    
+    if (!isLongTerm) return false;
+    
+    // 過去30日以内または今日の日付のジョブ
+    const jobDate = new Date(j.field22);
+    return jobDate >= thirtyDaysAgo && jobDate <= today;
+  });
 }
 
 /**

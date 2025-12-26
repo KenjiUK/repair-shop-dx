@@ -73,12 +73,12 @@ const STATUS_CONFIG: Record<
   yellow: {
     icon: AlertCircle,
     label: "注意",
-    bgActive: "bg-yellow-500",
-    bgInactive: "bg-yellow-100 hover:bg-yellow-200",
+    bgActive: "bg-amber-500", // yellow → amber (40歳以上ユーザー向け、統一)
+    bgInactive: "bg-amber-100 hover:bg-amber-200", // yellow → amber
     textActive: "text-white",
-    textInactive: "text-yellow-700",
+    textInactive: "text-amber-900", // text-yellow-700 → text-amber-900 (40歳以上ユーザー向け、コントラスト向上)
     shape: "triangle", // 三角形：注意状態
-    borderStyle: "border-2 border-yellow-600 border-dashed",
+    borderStyle: "border-2 border-amber-600 border-dashed", // yellow → amber
   },
   red: {
     icon: XCircle,
@@ -96,7 +96,7 @@ const STATUS_CONFIG: Record<
     bgActive: "",
     bgInactive: "bg-slate-100 hover:bg-slate-200",
     textActive: "",
-    textInactive: "text-slate-600",
+    textInactive: "text-slate-700", // text-slate-600 → text-slate-700 (40歳以上ユーザー向け、コントラスト向上)
     shape: "circle",
     borderStyle: "border border-slate-300 border-dotted",
   },
@@ -126,9 +126,9 @@ const STATUS_CONFIG: Record<
     bgActive: "bg-slate-500",
     bgInactive: "bg-slate-100 hover:bg-slate-200",
     textActive: "text-white",
-    textInactive: "text-slate-600",
+    textInactive: "text-slate-700", // text-slate-600 → text-slate-700 (40歳以上ユーザー向け、コントラスト向上)
     shape: "circle",
-    borderStyle: "border border-slate-400 border-dashed",
+    borderStyle: "border border-slate-500 border-dashed",
   },
   not_applicable: {
     icon: Minus,
@@ -136,27 +136,27 @@ const STATUS_CONFIG: Record<
     bgActive: "bg-slate-500",
     bgInactive: "bg-slate-100 hover:bg-slate-200",
     textActive: "text-white",
-    textInactive: "text-slate-600",
+    textInactive: "text-slate-700", // text-slate-600 → text-slate-700 (40歳以上ユーザー向け、コントラスト向上)
     shape: "square",
-    borderStyle: "border border-slate-400",
+    borderStyle: "border border-slate-500",
   },
 };
 
 const SIZE_CONFIG = {
   sm: {
-    height: "h-8",
-    iconSize: "h-3 w-3",
-    textSize: "text-xs",
+    height: "h-10", // h-8 (32px) → h-10 (40px) (40歳以上ユーザー向け、DESIGN_SYSTEM.md準拠。デスクトップのみ、最小限の使用)
+    iconSize: "h-4 w-4", // h-3 w-3 → h-4 w-4 (40歳以上ユーザー向け、DESIGN_SYSTEM.md準拠)
+    textSize: "text-base", // text-xs → text-base (40歳以上ユーザー向け)
   },
   md: {
     height: "h-12",
     iconSize: "h-4 w-4",
-    textSize: "text-xs",
+    textSize: "text-base", // text-xs → text-base (40歳以上ユーザー向け)
   },
   lg: {
     height: "h-16",
     iconSize: "h-5 w-5",
-    textSize: "text-sm",
+    textSize: "text-base", // text-sm → text-base (40歳以上ユーザー向け)
   },
 };
 

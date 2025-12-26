@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CreateFolderOptions, DriveFolder, ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API フォルダ作成エンドポイント
@@ -24,27 +25,13 @@ function errorResponse(
 }
 
 /**
- * Google Drive API アクセストークンを取得
- * TODO: 実際の認証実装時に実装
- */
-async function getAccessToken(): Promise<string> {
-  // TODO: Google OAuth認証を実装
-  // 現時点では環境変数から取得（開発用）
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
-/**
  * フォルダを作成
  */
 async function createFolderInDrive(
   folderName: string,
   parentFolderId?: string
 ): Promise<DriveFolder> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getGoogleAccessToken();
 
   // フォルダメタデータを作成
   const metadata = {
@@ -87,7 +74,7 @@ async function findExistingFolder(
   folderName: string,
   parentFolderId?: string
 ): Promise<DriveFolder | null> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getGoogleAccessToken();
 
   let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   if (parentFolderId) {
@@ -166,6 +153,10 @@ export async function POST(request: NextRequest) {
     return errorResponse(message, "FOLDER_CREATE_ERROR", 500);
   }
 }
+
+
+
+
 
 
 

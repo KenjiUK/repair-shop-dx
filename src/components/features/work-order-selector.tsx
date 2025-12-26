@@ -63,11 +63,10 @@ export function WorkOrderSelector({
   if (workOrders.length === 0) {
     return (
       <div className="flex items-center justify-between gap-4 p-4 border rounded-lg bg-slate-50">
-        <p className="text-sm text-slate-600">作業が登録されていません</p>
+        <p className="text-base text-slate-700">作業が登録されていません</p>
         {showAddButton && onAddWorkOrder && (
           <Button
             variant="outline"
-            size="sm"
             onClick={onAddWorkOrder}
             className="bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
           >
@@ -108,7 +107,6 @@ export function WorkOrderSelector({
           {showAddButton && onAddWorkOrder && (
             <Button
               variant="outline"
-              size="sm"
               onClick={onAddWorkOrder}
               className="bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shrink-0"
             >
@@ -131,8 +129,8 @@ export function WorkOrderSelector({
             return (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">{selectedWorkOrder.serviceKind}</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-base font-medium">{selectedWorkOrder.serviceKind}</p>
+                  <p className="text-base text-slate-700 mt-1">
                     ステータス: {selectedWorkOrder.status}
                   </p>
                 </div>
@@ -147,6 +145,14 @@ export function WorkOrderSelector({
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

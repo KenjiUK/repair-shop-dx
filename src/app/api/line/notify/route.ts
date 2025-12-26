@@ -34,15 +34,26 @@ export async function POST(request: NextRequest) {
       console.warn("LINE_CHANNEL_ACCESS_TOKEN is not set. Using mock response.");
       
       // モックレスポンス
-      const message = createNotificationMessage(body.type, {
-        customerName: body.data?.customerName as string || "顧客名",
-        vehicleName: body.data?.vehicleName as string || "車両名",
-        licensePlate: body.data?.licensePlate as string | undefined,
-        serviceKind: body.data?.serviceKind as string || "作業種類",
-        jobId: body.jobId,
-        magicLinkUrl: body.data?.magicLinkUrl as string | undefined,
-        additionalData: body.data,
-      });
+      // カスタムメッセージがある場合はそれを使用、なければテンプレートを使用
+      let message;
+      if (body.type === "parts_arrived" && body.data?.message) {
+        // 全部品到着通知でカスタムメッセージが指定されている場合
+        message = {
+          type: "text" as const,
+          text: body.data.message as string,
+        };
+      } else {
+        message = createNotificationMessage(body.type, {
+          customerName: body.data?.customerName as string || "顧客名",
+          vehicleName: body.data?.vehicleName as string || "車両名",
+          licensePlate: body.data?.licensePlate as string | undefined,
+          serviceKind: body.data?.serviceKind as string || "作業種類",
+          jobId: body.jobId,
+          magicLinkUrl: body.data?.magicLinkUrl as string | undefined,
+          bookingLink: body.data?.bookingLink as string | undefined,
+          additionalData: body.data,
+        });
+      }
 
       console.log("LINE通知（モック）:", {
         lineUserId: body.lineUserId,
@@ -58,15 +69,26 @@ export async function POST(request: NextRequest) {
 
     // 実際のLINE Messaging API呼び出し
     // 参考: https://developers.line.biz/ja/reference/messaging-api/#send-push-message
-    const message = createNotificationMessage(body.type, {
-      customerName: body.data?.customerName as string || "顧客名",
-      vehicleName: body.data?.vehicleName as string || "車両名",
-      licensePlate: body.data?.licensePlate as string | undefined,
-      serviceKind: body.data?.serviceKind as string || "作業種類",
-      jobId: body.jobId,
-      magicLinkUrl: body.data?.magicLinkUrl as string | undefined,
-      additionalData: body.data,
-    });
+    // カスタムメッセージがある場合はそれを使用、なければテンプレートを使用
+    let message;
+    if (body.type === "parts_arrived" && body.data?.message) {
+      // 全部品到着通知でカスタムメッセージが指定されている場合
+      message = {
+        type: "text" as const,
+        text: body.data.message as string,
+      };
+    } else {
+      message = createNotificationMessage(body.type, {
+        customerName: body.data?.customerName as string || "顧客名",
+        vehicleName: body.data?.vehicleName as string || "車両名",
+        licensePlate: body.data?.licensePlate as string | undefined,
+        serviceKind: body.data?.serviceKind as string || "作業種類",
+        jobId: body.jobId,
+        magicLinkUrl: body.data?.magicLinkUrl as string | undefined,
+        bookingLink: body.data?.bookingLink as string | undefined,
+        additionalData: body.data,
+      });
+    }
 
     const lineResponse = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",

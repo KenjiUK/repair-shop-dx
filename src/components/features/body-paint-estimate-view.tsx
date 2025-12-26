@@ -201,23 +201,23 @@ export function BodyPaintEstimateView({
       {vendorEstimate && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <FileText className="h-5 w-5 shrink-0" />
               外注先からの見積もり回答
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-slate-600">外注先名</Label>
-                <p className="text-sm font-medium text-slate-900 mt-1">
+                <Label className="text-base text-slate-800">外注先名</Label>
+                <p className="text-base font-medium text-slate-900 mt-1">
                   {vendorEstimate.vendorName || "-"}
                 </p>
               </div>
               {vendorEstimate.total && (
                 <div>
-                  <Label className="text-xs text-slate-600">見積金額</Label>
-                  <p className="text-sm font-medium text-slate-900 mt-1">
+                  <Label className="text-base text-slate-800">見積金額</Label>
+                  <p className="text-base font-medium text-slate-900 mt-1">
                     ¥{vendorEstimate.total.toLocaleString()}
                   </p>
                 </div>
@@ -225,9 +225,9 @@ export function BodyPaintEstimateView({
             </div>
             {vendorEstimate.estimateText && (
               <div>
-                <Label className="text-xs text-slate-600">見積もり内容</Label>
+                <Label className="text-base text-slate-800">見積もり内容</Label>
                 <div className="mt-1 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                  <p className="text-base text-slate-800 whitespace-pre-wrap">
                     {vendorEstimate.estimateText}
                   </p>
                 </div>
@@ -235,16 +235,16 @@ export function BodyPaintEstimateView({
             )}
             {vendorEstimate.responseDate && (
               <div>
-                <Label className="text-xs text-slate-600">見積もり回答日</Label>
-                <p className="text-sm font-medium text-slate-900 mt-1">
+                <Label className="text-base text-slate-800">見積もり回答日</Label>
+                <p className="text-base font-medium text-slate-900 mt-1">
                   {vendorEstimate.responseDate}
                 </p>
               </div>
             )}
             {vendorEstimate.note && (
               <div>
-                <Label className="text-xs text-slate-600">備考</Label>
-                <p className="text-sm text-slate-700 mt-1">{vendorEstimate.note}</p>
+                <Label className="text-base text-slate-800">備考</Label>
+                <p className="text-base text-slate-800 mt-1">{vendorEstimate.note}</p>
               </div>
             )}
           </CardContent>
@@ -254,7 +254,7 @@ export function BodyPaintEstimateView({
       {/* 自社見積もり作成 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Calculator className="h-5 w-5" />
             自社見積もり作成
           </CardTitle>
@@ -268,22 +268,21 @@ export function BodyPaintEstimateView({
                 className="p-4 border border-slate-200 rounded-lg space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-slate-900 text-sm">
+                  <h4 className="font-medium text-slate-900 text-base">
                     項目 #{index + 1}
                   </h4>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => handleRemoveItem(item.id)}
                     disabled={disabled || items.length <= 1}
-                    className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                    className="h-6 w-6 p-0 text-slate-700 hover:text-red-600"
                   >
                     ×
                   </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">項目名</Label>
+                  <Label className="text-base text-slate-800">項目名</Label>
                   <Input
                     value={item.name}
                     onChange={(e) =>
@@ -291,13 +290,13 @@ export function BodyPaintEstimateView({
                     }
                     placeholder="例: 板金費用、塗装費用、部品費用"
                     disabled={disabled}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">数量</Label>
+                    <Label className="text-base text-slate-800">数量</Label>
                     <Input
                       type="number"
                       value={item.quantity}
@@ -307,13 +306,13 @@ export function BodyPaintEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                       min="0"
                       step="0.01"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">単価</Label>
+                    <Label className="text-base text-slate-800">単価</Label>
                     <Input
                       type="number"
                       value={item.unitPrice}
@@ -323,24 +322,24 @@ export function BodyPaintEstimateView({
                         })
                       }
                       disabled={disabled}
-                      className="text-sm"
+                      className="text-base"
                       min="0"
                       step="1"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">金額</Label>
+                    <Label className="text-base text-slate-800">金額</Label>
                     <Input
                       type="number"
                       value={item.amount}
                       disabled
-                      className="text-sm bg-slate-50"
+                      className="text-base bg-slate-50"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-600">備考</Label>
+                  <Label className="text-base text-slate-800">備考</Label>
                   <Textarea
                     value={item.note || ""}
                     onChange={(e) =>
@@ -349,7 +348,7 @@ export function BodyPaintEstimateView({
                     placeholder="備考を入力..."
                     disabled={disabled}
                     rows={2}
-                    className="text-sm"
+                    className="text-base"
                   />
                 </div>
               </div>
@@ -359,7 +358,6 @@ export function BodyPaintEstimateView({
           {/* 見積もり項目追加ボタン */}
           <Button
             variant="outline"
-            size="sm"
             onClick={handleAddItem}
             disabled={disabled}
             className="w-full"
@@ -382,20 +380,20 @@ export function BodyPaintEstimateView({
       {/* 作業期間 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Calendar className="h-5 w-5" />
             作業期間
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm">作業期間（月）</Label>
+            <Label className="text-base">作業期間（月）</Label>
             <Select
               value={workDuration.toString()}
               onValueChange={(value) => handleWorkDurationChange(parseInt(value))}
               disabled={disabled}
             >
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-12 text-base">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -404,7 +402,7 @@ export function BodyPaintEstimateView({
                 <SelectItem value="3">3カ月</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-slate-500">
+            <p className="text-base text-slate-700">
               外注先での作業期間は1カ月から3カ月（損傷の程度による）
             </p>
           </div>
@@ -414,7 +412,7 @@ export function BodyPaintEstimateView({
       {/* 保険対応 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Shield className="h-5 w-5" />
             保険対応
           </CardTitle>
@@ -434,14 +432,14 @@ export function BodyPaintEstimateView({
                 disabled={disabled}
                 className="h-4 w-4 rounded border-slate-300"
               />
-              <Label htmlFor="has-insurance" className="text-sm cursor-pointer">
+              <Label htmlFor="has-insurance" className="text-base cursor-pointer">
                 保険対応あり
               </Label>
             </div>
 
             {hasInsurance && (
               <div className="space-y-2 pl-6">
-                <Label className="text-sm">保険会社名</Label>
+                <Label className="text-base">保険会社名</Label>
                 <Input
                   value={insuranceCompany || ""}
                   onChange={(e) => {
@@ -451,21 +449,21 @@ export function BodyPaintEstimateView({
                   }}
                   placeholder="保険会社名を入力"
                   disabled={disabled}
-                  className="text-sm"
+                  className="text-base"
                 />
               </div>
             )}
           </div>
 
           {hasInsurance && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-xs text-amber-800 font-medium mb-1">
+                  <p className="text-base text-amber-900 font-medium mb-1">
                     保険対応の場合
                   </p>
-                  <p className="text-xs text-amber-700">
+                  <p className="text-base text-amber-800">
                     保険会社への見積もり提出と承認が必要です
                   </p>
                 </div>

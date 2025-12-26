@@ -2,8 +2,9 @@
 
 import React, { useRef, useState } from "react";
 import { Camera, CheckCircle2, Loader2 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { compressImage } from "@/lib/compress";
+import { compressImage, addWatermark, convertToAspectRatio32, saveImageToLocal } from "@/lib/compress";
 
 // =============================================================================
 // 型定義
@@ -95,8 +96,20 @@ export function PhotoCaptureButton({
     setIsProcessing(true);
 
     try {
-      // 画像圧縮
-      const compressedFile = await compressImage(file);
+      // 処理フロー: アスペクト比変換 → ウォーターマーク合成 → 画像圧縮
+      const aspect32File = await convertToAspectRatio32(file);
+      const watermarkedFile = await addWatermark(aspect32File);
+      const compressedFile = await compressImage(watermarkedFile);
+
+      // ローカル端末に保存
+      try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const localFileName = `${position}_${timestamp}.jpg`;
+        await saveImageToLocal(compressedFile, localFileName);
+      } catch (localSaveError) {
+        // ローカル保存のエラーは無視（処理は続行）
+        console.warn("ローカル保存に失敗しました（処理は続行されます）:", localSaveError);
+      }
 
       // コールバック実行
       await onCapture(position, compressedFile);
@@ -111,8 +124,8 @@ export function PhotoCaptureButton({
   const isCompressing = photoData?.isCompressing || isProcessing;
 
   const sizeClasses = {
-    sm: "h-16 text-xs",
-    default: "h-24 text-sm",
+    sm: "h-16 text-base",
+    default: "h-24 text-base",
     lg: "h-32 text-base",
   };
 
@@ -138,35 +151,37 @@ export function PhotoCaptureButton({
           sizeClasses[size],
           hasPhoto
             ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-            : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800",
+            : "border-slate-300 bg-slate-50 hover:border-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800",
           (isCompressing || disabled) && "opacity-50 cursor-wait"
         )}
       >
         {isCompressing ? (
           <div className="flex flex-col items-center gap-1">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-            <span className="text-xs text-slate-500">圧縮中...</span>
+            <Loader2 className="h-6 w-6 animate-spin text-slate-700" />
+            <span className="text-base text-slate-700">圧縮中...</span>
           </div>
         ) : hasPhoto ? (
           <div className="flex flex-col items-center gap-1">
-            <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+            <CheckCircle2 className="h-6 w-6 text-green-700 dark:text-green-400" />
             <span className="font-medium text-green-700 dark:text-green-300">{label}</span>
-            <span className="text-xs text-green-600 dark:text-green-400">撮影済み ✓</span>
+            <span className="text-base text-green-700 dark:text-green-500">撮影済み ✓</span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1">
-            <Camera className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            <span className="font-medium text-slate-700 dark:text-slate-300">📸 {label}</span>
+            <Camera className="h-6 w-6 text-slate-700 dark:text-slate-300" />
+            <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>
           </div>
         )}
       </button>
 
       {hasPhoto && photoData?.previewUrl && (
         <div className="absolute -top-2 -right-2 w-12 h-12 rounded-lg overflow-hidden border-2 border-white dark:border-slate-800 shadow-md">
-          <img
+          <Image
             src={photoData.previewUrl}
             alt={label}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
+            unoptimized
           />
         </div>
       )}

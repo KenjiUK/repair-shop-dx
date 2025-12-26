@@ -12,6 +12,13 @@ import {
   STORE_NAMES,
 } from "./offline-storage";
 import { ErrorCodes } from "./error-handling";
+import { saveDiagnosis } from "./api";
+import {
+  DiagnosisItem,
+  EnhancedOBDDiagnosticResult,
+  QualityInspection,
+  ManufacturerInquiry,
+} from "@/types";
 
 // =============================================================================
 // 同期処理の型定義
@@ -26,8 +33,38 @@ type SyncHandler = (entry: SyncQueueEntry) => Promise<void>;
  * ストア名ごとの同期ハンドラー
  */
 const syncHandlers: Record<string, SyncHandler> = {
-  // 各ストアごとの同期処理を実装
-  // 例: [STORE_NAMES.JOBS]: async (entry) => { ... }
+  // 診断データの同期ハンドラー
+  [STORE_NAMES.DIAGNOSIS]: async (entry) => {
+    if (entry.type === "update" && entry.data) {
+      const diagnosisData = entry.data as {
+        items: DiagnosisItem[];
+        photos: { position: string; url: string }[];
+        mileage?: number;
+        version?: number | null;
+        enhancedOBDDiagnosticResult?: EnhancedOBDDiagnosticResult | null;
+        qualityInspection?: QualityInspection | null;
+        manufacturerInquiry?: ManufacturerInquiry | null;
+      };
+      
+      // workOrderIdは同期キューから取得（entry.dataに含まれている場合）
+      const workOrderId = (entry.data as { workOrderId?: string })?.workOrderId || undefined;
+      
+      const result = await saveDiagnosis(entry.dataId, workOrderId, {
+        items: diagnosisData.items || [],
+        photos: diagnosisData.photos || [],
+        mileage: diagnosisData.mileage,
+        version: diagnosisData.version || null,
+        enhancedOBDDiagnosticResult: diagnosisData.enhancedOBDDiagnosticResult || undefined,
+        qualityInspection: diagnosisData.qualityInspection || undefined,
+        manufacturerInquiry: diagnosisData.manufacturerInquiry || undefined,
+        isComplete: (entry.data as { isComplete?: boolean })?.isComplete || undefined,
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || "診断データの同期に失敗しました");
+      }
+    }
+  },
 };
 
 // =============================================================================

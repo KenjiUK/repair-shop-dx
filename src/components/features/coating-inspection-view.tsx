@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PhotoCaptureButton, PhotoData } from "./photo-capture-button";
 import { Camera, MessageSquare, Car } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // 型定義
@@ -130,32 +131,36 @@ export function CoatingInspectionView({
   return (
     <div className="space-y-4">
       {/* 車体の状態確認 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
+              <Car className="h-5 w-5 shrink-0" />
               車体の状態確認
             </span>
-            <Badge variant={completedCount === totalCount ? "default" : "secondary"}>
-              {completedCount} / {totalCount}
+            <Badge variant={completedCount === totalCount ? "default" : "secondary"} className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{completedCount}</span> / <span className="tabular-nums">{totalCount}</span>
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 進捗バー */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">進捗</span>
-              <span className="font-medium">{percentage}%</span>
-            </div>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 transition-all duration-500"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-          </div>
+          <Card className="border border-slate-300 rounded-xl shadow-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-medium text-slate-700">進捗</span>
+                  <span className="text-slate-700 font-medium tabular-nums">{percentage}%</span>
+                </div>
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* 車体箇所別の状態確認 */}
           <div className="space-y-3">
@@ -168,14 +173,13 @@ export function CoatingInspectionView({
               };
 
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="p-3 border border-slate-200 rounded-lg space-y-2"
+                  className="border border-slate-300 rounded-xl shadow-md"
                 >
-                  {/* 箇所名と状態選択 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h5 className="font-medium text-slate-900 text-sm">{item.location}</h5>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                      <span>{item.location}</span>
                       {item.condition !== "unchecked" && (
                         <Badge
                           variant={
@@ -185,12 +189,15 @@ export function CoatingInspectionView({
                               ? "secondary"
                               : "destructive"
                           }
-                          className="text-xs"
+                          className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap"
                         >
                           {getBodyConditionStatusText(item.condition)}
                         </Badge>
                       )}
-                    </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 状態選択 */}
                     <div className="flex flex-wrap gap-2">
                       {conditionOptions.map((option) => (
                         <button
@@ -202,62 +209,59 @@ export function CoatingInspectionView({
                             }
                           }}
                           disabled={disabled}
-                          className={`
-                            px-3 py-1.5 text-xs rounded-md border transition-colors
-                            ${
-                              item.condition === option
-                                ? "bg-slate-900 text-white border-slate-900"
-                                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                            }
-                            ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-                          `}
+                          className={cn(
+                            "h-12 px-4 text-base font-medium rounded-md border transition-colors shrink-0",
+                            item.condition === option
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50",
+                            disabled && "opacity-50 cursor-not-allowed"
+                          )}
                         >
                           {getBodyConditionStatusText(option)}
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  {/* 写真撮影 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>写真（Before）</span>
+                    {/* 写真撮影 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <Camera className="h-4 w-4 shrink-0" />
+                        <span>写真（Before）</span>
+                      </div>
+                      <PhotoCaptureButton
+                        position={item.id}
+                        label={`${item.location}の写真を撮影`}
+                        photoData={photoData}
+                        onCapture={async (position, file) => {
+                          if (onPhotoCapture) {
+                            await onPhotoCapture(item.id, file);
+                          }
+                        }}
+                        disabled={disabled}
+                      />
                     </div>
-                    <PhotoCaptureButton
-                      position={item.id}
-                      label={`${item.location}の写真を撮影`}
-                      photoData={photoData}
-                      onCapture={async (position, file) => {
-                        if (onPhotoCapture) {
-                          await onPhotoCapture(item.id, file);
-                        }
-                      }}
-                      disabled={disabled}
-                      size="sm"
-                    />
-                  </div>
 
-                  {/* コメント */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>コメント</span>
+                    {/* コメント */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <MessageSquare className="h-4 w-4 shrink-0" />
+                        <span>コメント</span>
+                      </div>
+                      <Textarea
+                        value={item.comment || ""}
+                        onChange={(e) => {
+                          if (onCommentChange) {
+                            onCommentChange(item.id, e.target.value);
+                          }
+                        }}
+                        placeholder="コメントを入力..."
+                        disabled={disabled}
+                        rows={2}
+                        className="text-base"
+                      />
                     </div>
-                    <Textarea
-                      value={item.comment || ""}
-                      onChange={(e) => {
-                        if (onCommentChange) {
-                          onCommentChange(item.id, e.target.value);
-                        }
-                      }}
-                      placeholder="コメントを入力..."
-                      disabled={disabled}
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -265,17 +269,17 @@ export function CoatingInspectionView({
       </Card>
 
       {/* 既存コーティングの状態確認 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Car className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <Car className="h-5 w-5 shrink-0" />
             既存コーティングの状態確認
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label className="text-sm">既存コーティングの種類</Label>
+              <Label className="text-base font-medium">既存コーティングの種類</Label>
               <Textarea
                 value={existingCoating?.type || ""}
                 onChange={(e) => {
@@ -289,11 +293,11 @@ export function CoatingInspectionView({
                 placeholder="既存コーティングの種類を入力..."
                 disabled={disabled}
                 rows={2}
-                className="text-sm"
+                className="text-base"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">施工日</Label>
+              <Label className="text-base font-medium">施工日</Label>
               <input
                 type="date"
                 value={existingCoating?.appliedDate || ""}
@@ -306,11 +310,11 @@ export function CoatingInspectionView({
                   }
                 }}
                 disabled={disabled}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md"
+                className="w-full h-12 px-3 text-base border border-slate-300 rounded-md bg-white"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">状態</Label>
+              <Label className="text-base font-medium">状態</Label>
               <div className="flex flex-wrap gap-2">
                 {(["良好", "劣化", "剥がれ", "不明"] as const).map((option) => (
                   <button
@@ -325,15 +329,13 @@ export function CoatingInspectionView({
                       }
                     }}
                     disabled={disabled}
-                    className={`
-                      px-3 py-1.5 text-xs rounded-md border transition-colors
-                      ${
-                        existingCoating?.condition === option
-                          ? "bg-slate-900 text-white border-slate-900"
-                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                      }
-                      ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-                    `}
+                    className={cn(
+                      "h-12 px-4 text-base font-medium rounded-md border transition-colors shrink-0",
+                      existingCoating?.condition === option
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50",
+                      disabled && "opacity-50 cursor-not-allowed"
+                    )}
                   >
                     {option}
                   </button>
@@ -341,7 +343,7 @@ export function CoatingInspectionView({
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-sm">写真</Label>
+              <Label className="text-base font-medium">写真</Label>
               <PhotoCaptureButton
                 position="existing-coating"
                 label="既存コーティングの写真を撮影"
@@ -359,7 +361,6 @@ export function CoatingInspectionView({
                   }
                 }}
                 disabled={disabled}
-                size="sm"
               />
             </div>
           </div>

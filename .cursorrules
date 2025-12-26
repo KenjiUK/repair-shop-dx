@@ -1,12 +1,3 @@
-## 欄外・実装ガイド：AI時代の実装戦略（Vibe Coding / Cursor AI）
-
-**Target:** React未経験者 (GAS/Python経験あり)
-**Concept:** 「AIをジュニア開発者として扱い、あなたが現場監督になる」
-
-### 📌 Rule 1. 環境とルールの固定（The Constitution）
-プロジェクトルートに `.cursorrules` を作成し、以下の内容をコピペしてください。
-
-```markdown
 # .cursorrules - Project Constitution
 
 ## 1. Role & Persona
@@ -14,27 +5,83 @@ You are an expert Senior Full-Stack Developer specializing in Next.js (App Route
 **Your User:** React/Next.js 未経験の日本人開発者（Python/GAS経験あり）。
 **Instruction Style:**
 - **日本語で応答してください。**
-- **コードは絶対に省略しないでください。** `// ... existing code` のような省略は禁止です。常にファイル全体のコードを出力してください。
-- **安全第一:** セキュリティリスク（APIキーの露出など）がある場合は警告してください。
+- **コードは絶対に省略しないでください。**
+- **Local First:** 開発は基本的にローカル環境 (`npm run dev`) で行うことを前提としてください。**毎回 Vercel へのデプロイや `npm run build` を促さないでください。**
+- **Build Safety:** コードを書くときは「静かに」Vercel対応基準（型安全性、Lint遵守）を満たしてください。確認は `npm run lint` や型チェックで行います。
 
 ## 2. Tech Stack & Tools
 - **Framework:** Next.js 14+ (App Router).
 - **Language:** TypeScript (Strict mode).
 - **Styling:** Tailwind CSS. Use `clsx` or `tailwind-merge`.
-- **UI Library:** shadcn/ui. (Use `npx shadcn-ui@latest add [component]`).
+- **UI Library:** shadcn/ui. (Use `npx shadcn@latest add [component]`).
 - **State Management:** SWR (data fetching), React Context.
 
-## 3. Project Context: Repair Shop DX Platform
+## 3. Critical Vercel Deployment Rules (Code Quality Only)
+デプロイエラーを防ぐため、**コード品質のみ**以下の基準を厳守してください（デプロイ自体はユーザーのタイミングで行います）：
+1.  **TypeScript Strictness:** `any` 禁止。Props型定義必須。
+2.  **ESLint Compliance:**
+    - **未使用変数・importの自動削除**（これが残っているとビルドできません）。
+    - `<img>` `<a>` 禁止（`next/image`, `next/link` を使用）。
+3.  **Client/Server Boundary:**
+    - `useState` 等を使うファイル冒頭には必ず `'use client'`。
+    - Server Component を Client Component に直接 import しない。
+4.  **JSXコメント構文（⚠️ 重要: 頻繁にエラーが発生）:**
+    - **絶対に避ける**: 要素の属性内、要素の直後（同じ行）、自己閉じタグの直後（同じ行）に`{/* */}`コメントを書かない。
+    - **正しい方法**: コメントは要素の前または内側の最初の行に別行で配置する。
+    - **作業前の確認**: `docs/JSX_COMMENT_SYNTAX_GUIDE.md`を必ず確認し、チェックリストを実行する。
+    - **ビルド確認**: コードを書いた後は必ず`npm run build`でビルドエラーが出ないか確認する。
+5.  **Vercelデプロイ前チェック（必須）:**
+    - **デプロイ前に必ず確認**: `docs/VERCEL_DEPLOYMENT_CHECKLIST.md`のチェックリストを実行する。
+    - **特に重要な項目**:
+      - Server/Client Boundaryの違反がないか
+      - Hydration Mismatchのリスクがないか
+      - 環境変数が適切に設定されているか（`NEXT_PUBLIC_`プレフィックス）
+      - `next/image`を使用しているか（`<img>`タグは禁止）
+      - 未使用変数・importが削除されているか
+      - ビルドエラーがないか（`npm run build`で確認）
+
+## 3-1. デザインシステム確認ルール（必須）
+**改修・修正・新規実装を行う場合は、必ず`docs/DESIGN_SYSTEM.md`を確認してから作業に移ること。**
+
+**適用範囲:**
+- UIコンポーネントの作成・修正
+- スタイリングの変更
+- フォントサイズ、色、スペーシングの変更
+- ボタン、入力フィールド、バッジなどのコンポーネント実装
+- アニメーション、ホバー効果の追加
+- レスポンシブデザインの実装
+
+**作業フロー:**
+1. **作業開始前**: `docs/DESIGN_SYSTEM.md`を必ず読み、関連するセクションを確認する
+2. **確認事項**:
+   - フォントサイズ: `text-base` (16px) 以上を使用（`text-xs`, `text-sm`は禁止または最小限）
+   - ボタンサイズ: `h-12` (48px) を推奨（40歳以上ユーザー向け最適化）
+   - アイコンサイズ: `h-4 w-4` (16px) 以上を使用（`h-3 w-3`は禁止）
+   - カラー: コントラスト比4.5:1以上を確保
+   - タッチターゲット: 最小48px × 48px
+3. **実装時**: DESIGN_SYSTEM.mdのルールに従って実装する
+4. **実装後**: 実装チェックリスト（セクション17）を確認し、準拠しているか検証する
+
+**禁止事項:**
+- DESIGN_SYSTEM.mdを確認せずにUI実装を開始すること
+- DESIGN_SYSTEM.mdのルールに反する実装（例: `text-xs`の使用、`h-3 w-3`の使用）
+- 40歳以上ユーザー向け最適化を無視した実装
+
+## 4. Project Context: Repair Shop DX Platform
 自動車整備工場の業務アプリです。
 - **Workflow:** 受付(Phase1) -> 診断(Phase2) -> 見積(Phase3) -> 承認(Phase4) -> 作業(Phase5) -> 報告(Phase6)。
 - **Data Source:** Zoho CRM (Master), Google Sheets (Cache), Google Drive (Storage).
 - **Constraints:**
-  - **画像圧縮:** アップロード画像はクライアントサイドで500KB以下に圧縮必須 (`browser-image-compression`).
-  - **Zoho API:** 見積内容は `field13` (複数行テキスト) に保存。`field14`は使用禁止。
-  - **PDF検索:** ファイル名に「invoice」「seikyu」「請求書」を含むものを対象（部分一致）。
+  - **画像圧縮:** クライアントサイドで500KB以下 (`browser-image-compression`).
+  - **Zoho API:** 見積は `field13` に保存。`field14` 禁止。
+  - **PDF検索:** 「invoice」「seikyu」「請求書」の部分一致。
 
-## 4. Vibe Coding Workflow (Planning First)
-1.  **Analyze:** 依頼内容と `@SPECIFICATION.md` を確認する。
-2.  **Plan:** 実装手順を日本語の箇条書きで提案する。
-3.  **Confirm:** ユーザーの承認を得てから実装を開始する。
-4.  **Implement:** 1ファイルずつ、小さな単位で実装する。
+## 5. Vibe Coding Workflow (Local Dev Focused)
+1.  **Analyze & Plan:** 実装手順を提案する。
+2.  **Confirm:** ユーザーの承認を得る。
+3.  **Implement:**
+    - 1ファイルずつ実装する。
+    - ユーザーには `npm run dev` での動作確認のみを依頼する。
+    - **Lint Check:** AI内部で「未使用変数がないか」「型が正しいか」を入念に確認してからコードを出力する（ユーザーにビルド試行させない）。
+4.  **Completion:**
+    - 大きな機能区切り（フェーズ完了時など）でのみ、「念のため `npm run lint` をしてコミットしましょう」と提案する。

@@ -180,7 +180,7 @@ export function AddWorkOrderDialog({
               <span className="font-medium">{job.field4.name}様</span>
             )}
             {job?.field6?.name && (
-              <span className="text-slate-500"> / {job.field6.name}</span>
+              <span className="text-slate-700"> / {job.field6.name}</span>
             )}
             に新しい作業を追加します。
           </DialogDescription>
@@ -194,7 +194,7 @@ export function AddWorkOrderDialog({
               onValueChange={(value) => setSelectedServiceKind(value as ServiceKind)}
               disabled={isCreating}
             >
-              <SelectTrigger id="service-kind">
+              <SelectTrigger id="service-kind" className="h-12 text-base">
                 <SelectValue placeholder="作業区分を選択してください" />
               </SelectTrigger>
               <SelectContent>
@@ -205,7 +205,7 @@ export function AddWorkOrderDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-slate-500">
+            <p className="text-base text-slate-700">
               追加する作業区分を選択してください。
             </p>
           </div>
@@ -237,6 +237,14 @@ export function AddWorkOrderDialog({
     </Dialog>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

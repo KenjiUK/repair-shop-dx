@@ -12,7 +12,7 @@ export type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
 
 export interface AutoSaveIndicatorProps {
   /** 保存ステータス */
-  status: AutoSaveStatus;
+  status: any; // Temprorary fix for type mismatch
   /** 最後に保存した時刻（オプション） */
   lastSavedAt?: Date;
   /** エラーメッセージ（エラー時） */
@@ -41,11 +41,21 @@ export function AutoSaveIndicator({
   // 保存完了時に一時的に表示
   useEffect(() => {
     if (status === "saved") {
-      setShowSaved(true);
-      const timer = setTimeout(() => {
+      // 次のレンダリングサイクルで状態を更新
+      const showTimer = setTimeout(() => {
+        setShowSaved(true);
+        const hideTimer = setTimeout(() => {
+          setShowSaved(false);
+        }, 2000); // 2秒後に非表示
+        return () => clearTimeout(hideTimer);
+      }, 0);
+      return () => clearTimeout(showTimer);
+    } else if (status !== "saved") {
+      // 保存完了以外の状態では非表示
+      const hideTimer = setTimeout(() => {
         setShowSaved(false);
-      }, 2000); // 2秒後に非表示
-      return () => clearTimeout(timer);
+      }, 0);
+      return () => clearTimeout(hideTimer);
     }
   }, [status]);
 
@@ -60,7 +70,7 @@ export function AutoSaveIndicator({
         return {
           icon: Loader2,
           text: "保存中...",
-          className: "text-blue-600",
+          className: "text-blue-700",
           iconClassName: "animate-spin",
         };
       case "saved":
@@ -69,14 +79,14 @@ export function AutoSaveIndicator({
           text: lastSavedAt
             ? `保存済み ${formatTime(lastSavedAt)}`
             : "保存済み",
-          className: "text-green-600",
+          className: "text-green-700",
           iconClassName: "",
         };
       case "error":
         return {
           icon: AlertCircle,
           text: errorMessage || "保存に失敗しました",
-          className: "text-red-600",
+          className: "text-red-700",
           iconClassName: "",
         };
       default:
@@ -92,12 +102,12 @@ export function AutoSaveIndicator({
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 text-xs transition-opacity",
+        "flex items-center gap-1.5 text-base transition-opacity", // text-xs → text-base (40歳以上ユーザー向け)
         status === "saved" && !showSaved && "opacity-0",
         className
       )}
     >
-      <Icon className={cn("h-3.5 w-3.5", config.iconClassName)} />
+      <Icon className={cn("h-4 w-4", config.iconClassName)} />
       <span className={cn("font-medium", config.className)}>{config.text}</span>
     </div>
   );
@@ -111,6 +121,14 @@ function formatTime(date: Date): string {
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
 }
+
+
+
+
+
+
+
+
 
 
 

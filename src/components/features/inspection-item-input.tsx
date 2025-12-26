@@ -10,8 +10,9 @@ import { TrafficLightButtonGroup, TrafficLightStatus } from "./traffic-light-but
 import { PhotoCaptureButton, PhotoData } from "./photo-capture-button";
 import { VideoCaptureButton, VideoData } from "./video-capture-button";
 import { InspectionItem, MeasurementDefinition } from "@/lib/inspection-items";
-import { Camera, Video, MessageSquare, X } from "lucide-react";
+import { Camera, Video, MessageSquare, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 // =============================================================================
 // Props
@@ -26,8 +27,8 @@ interface InspectionItemInputProps {
   onMeasurementChange?: (itemId: string, value: number) => void;
   /** 写真撮影ハンドラ */
   onPhotoCapture?: (itemId: string, file: File) => void | Promise<void>;
-  /** 動画撮影ハンドラ */
-  onVideoCapture?: (itemId: string, file: File) => void | Promise<void>;
+  /** 動画撮影ハンドラ（音声認識テキスト付き） */
+  onVideoCapture?: (itemId: string, file: File, transcription?: string) => void | Promise<void>;
   /** コメント変更ハンドラ */
   onCommentChange?: (itemId: string, comment: string) => void;
   /** 写真データ */
@@ -90,10 +91,10 @@ export function InspectionItemInput({
     }
   };
 
-  // 動画撮影ハンドラ（不具合時のみ）
-  const handleVideoCapture = async (position: string, file: File) => {
+  // 動画撮影ハンドラ（不具合時のみ、音声認識対応）
+  const handleVideoCapture = async (position: string, file: File, transcription?: string) => {
     if (onVideoCapture && (item.status === "yellow" || item.status === "red")) {
-      await onVideoCapture(item.id, file);
+      await onVideoCapture(item.id, file, transcription);
     }
   };
 
@@ -125,12 +126,12 @@ export function InspectionItemInput({
       : null;
 
   return (
-    <Card>
+      <Card id={`diagnosis-item-${item.id}`} className="border border-slate-300 rounded-xl shadow-md">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center justify-between">
+        <CardTitle className="text-lg font-semibold text-slate-900 flex items-center justify-between">
           <span>{item.name}</span>
           {item.skipRule && (
-            <Badge variant="outline" className="ml-2">
+            <Badge variant="outline" className="ml-2 text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
               {item.skipRule}
             </Badge>
           )}
@@ -150,7 +151,7 @@ export function InspectionItemInput({
         {/* 測定値入力（測定が必要な場合） */}
         {item.measurement && (
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">
+            <label className="text-base font-medium text-slate-800">
               測定値
             </label>
             <div className="flex items-center gap-2">
@@ -165,28 +166,29 @@ export function InspectionItemInput({
                 className={cn(
                   "flex-1",
                   measurementWarning === "critical" && "border-red-500",
-                  measurementWarning === "warning" && "border-yellow-500"
+                  measurementWarning === "warning" && "border-amber-500" // yellow → amber (40歳以上ユーザー向け、統一)
                 )}
               />
-              <span className="text-sm text-slate-600 whitespace-nowrap">
+              <span className="text-base text-slate-800 break-words sm:whitespace-nowrap">
                 {item.measurement.unit}
               </span>
             </div>
             {item.measurement.recommended && (
-              <p className="text-xs text-slate-500">
+              <p className="text-base text-slate-700">
                 推奨値: {item.measurement.recommended}
                 {item.measurement.unit}
               </p>
             )}
             {measurementWarning === "critical" && (
-              <p className="text-xs text-red-600 font-medium">
+              <p className="text-base text-red-700 font-medium">
                 ⚠️ 交換推奨（{item.measurement.replacementThreshold}
                 {item.measurement.unit}以下）
               </p>
             )}
             {measurementWarning === "warning" && (
-              <p className="text-xs text-yellow-600 font-medium">
-                ⚠️ 注意（{item.measurement.warningThreshold}
+              <p className="text-base text-amber-900 font-medium flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                注意（{item.measurement.warningThreshold}
                 {item.measurement.unit}以下）
               </p>
             )}
@@ -202,7 +204,6 @@ export function InspectionItemInput({
             photoData={photoData}
             onCapture={handlePhotoCapture}
             disabled={disabled}
-            size="sm"
           />
 
           {/* 動画撮影ボタン（不具合時のみ、最大15秒） */}
@@ -210,8 +211,9 @@ export function InspectionItemInput({
             (item.status === "yellow" || item.status === "red") && (
               <VideoCaptureButton
                 position={item.id}
-                label="動画"
+                label="実況解説動画"
                 videoData={videoData}
+                enableTranscription={true}
                 onCapture={handleVideoCapture}
                 disabled={disabled}
                 maxDuration={item.maxVideoDuration || 15}
@@ -222,15 +224,14 @@ export function InspectionItemInput({
           <Button
             type="button"
             variant="outline"
-            size="sm"
             onClick={() => setShowCommentInput(!showCommentInput)}
             disabled={disabled}
-            className="flex items-center gap-1"
+            className="flex items-center gap-1.5 h-12 text-base font-medium"
           >
-            <MessageSquare className="h-3 w-3" />
+            <MessageSquare className="h-4 w-4 shrink-0" />
             コメント
             {item.comment && (
-              <Badge variant="secondary" className="ml-1 h-4 px-1 text-xs">
+              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-base font-medium shrink-0 whitespace-nowrap">
                 1
               </Badge>
             )}
@@ -247,13 +248,12 @@ export function InspectionItemInput({
               placeholder="コメントを入力..."
               disabled={disabled}
               rows={2}
-              className="text-sm"
+              className="text-base"
             />
             <div className="flex justify-end">
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => {
                   setComment("");
                   setShowCommentInput(false);
@@ -262,8 +262,9 @@ export function InspectionItemInput({
                   }
                 }}
                 disabled={disabled}
+                className="h-12 text-base font-medium"
               >
-                <X className="h-3 w-3 mr-1" />
+                <X className="h-4 w-4 mr-1.5 shrink-0" />
                 クリア
               </Button>
             </div>
@@ -275,10 +276,12 @@ export function InspectionItemInput({
           <div className="flex gap-2 flex-wrap">
             {photoData.previewUrl && (
               <div className="relative w-24 h-24 rounded border overflow-hidden">
-                <img
+                <Image
                   src={photoData.previewUrl}
                   alt="写真プレビュー"
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  unoptimized
                 />
               </div>
             )}

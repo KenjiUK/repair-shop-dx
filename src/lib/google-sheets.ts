@@ -139,21 +139,25 @@ export async function findVehicleMasterById(
     });
 
     if (response.status === 404) {
-      // APIが404を返した場合、モックデータから検索を試みる
-      const mockData = getMockVehicleMasterById(vehicleId);
-      if (mockData) {
-        console.log("[Google Sheets] Using mock data for vehicle:", vehicleId);
-        return mockData;
+      // 本番環境ではモックデータを使用しない
+      if (process.env.NODE_ENV === "development" && !process.env.GOOGLE_SHEETS_MASTER_DATA_ID) {
+        const mockData = getMockVehicleMasterById(vehicleId);
+        if (mockData) {
+          console.log("[Google Sheets] Development mode: Using mock data for vehicle:", vehicleId);
+          return mockData;
+        }
       }
       return null;
     }
 
     if (!response.ok) {
-      // APIエラーの場合、モックデータから検索を試みる
-      const mockData = getMockVehicleMasterById(vehicleId);
-      if (mockData) {
-        console.log("[Google Sheets] API error, using mock data for vehicle:", vehicleId);
-        return mockData;
+      // 本番環境ではモックデータを使用しない
+      if (process.env.NODE_ENV === "development" && !process.env.GOOGLE_SHEETS_MASTER_DATA_ID) {
+        const mockData = getMockVehicleMasterById(vehicleId);
+        if (mockData) {
+          console.log("[Google Sheets] Development mode: API error, using mock data for vehicle:", vehicleId);
+          return mockData;
+        }
       }
       throw await parseErrorResponse(response);
     }
@@ -161,11 +165,13 @@ export async function findVehicleMasterById(
     const data = await response.json();
     return data.data || null;
   } catch (error) {
-    // ネットワークエラーなどの場合、モックデータから検索を試みる
-    const mockData = getMockVehicleMasterById(vehicleId);
-    if (mockData) {
-      console.log("[Google Sheets] Fetch error, using mock data for vehicle:", vehicleId);
-      return mockData;
+    // 本番環境ではモックデータを使用しない
+    if (process.env.NODE_ENV === "development" && !process.env.GOOGLE_SHEETS_MASTER_DATA_ID) {
+      const mockData = getMockVehicleMasterById(vehicleId);
+      if (mockData) {
+        console.log("[Google Sheets] Development mode: Fetch error, using mock data for vehicle:", vehicleId);
+        return mockData;
+      }
     }
     
     if (error instanceof GoogleSheetsError) {
@@ -305,6 +311,14 @@ export function getVehicleMasterByIdKey(vehicleId: string): string {
 export function getCustomerMasterByIdKey(customerId: string): string {
   return `google-sheets/customers/${customerId}`;
 }
+
+
+
+
+
+
+
+
 
 
 

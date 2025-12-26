@@ -18,6 +18,7 @@ export interface VideoData {
   isProcessing?: boolean;
   error?: string;
   duration?: number; // 秒
+  transcription?: string; // 音声認識テキスト（実況解説）
 }
 
 export interface VideoCaptureButtonProps {
@@ -28,7 +29,7 @@ export interface VideoCaptureButtonProps {
   /** 動画データ */
   videoData?: VideoData;
   /** 撮影時のコールバック */
-  onCapture: (position: VideoPosition, file: File) => void | Promise<void>;
+  onCapture: (position: VideoPosition, file: File, transcription?: string) => void | Promise<void>;
   /** 無効化フラグ */
   disabled?: boolean;
   /** カスタムクラス名 */
@@ -43,6 +44,12 @@ export interface VideoCaptureButtonProps {
   onRecording?: (isRecording: boolean) => void;
   /** 録画完了時のコールバック（Blobを返す） */
   onRecordComplete?: (position: VideoPosition, blob: Blob) => void | Promise<void>;
+  /** 画質モード（standard: 標準, high: 高画質・ブログ用） */
+  qualityMode?: "standard" | "high";
+  /** 音声認識を有効にするか */
+  enableTranscription?: boolean;
+  /** 音声認識完了時のコールバック */
+  onTranscriptionComplete?: (position: VideoPosition, text: string) => void | Promise<void>;
 }
 
 // =============================================================================
@@ -58,6 +65,7 @@ export interface VideoCaptureButtonProps {
  * - ファイルサイズチェック（デフォルト: 10MB）
  * - プレビュー表示
  * - ローディング状態表示
+ * - 高画質モード（VP9コーデック、ブログ用）
  */
 export function VideoCaptureButton({
   position,
@@ -71,6 +79,9 @@ export function VideoCaptureButton({
   cameraMode = "environment",
   onRecording,
   onRecordComplete,
+  qualityMode = "standard",
+  enableTranscription = false,
+  onTranscriptionComplete,
 }: VideoCaptureButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -88,12 +99,47 @@ export function VideoCaptureButton({
   };
 
   /**
+   * 対応しているMIMEタイプを取得（優先順位付き）
+   */
+  const getSupportedMimeType = (): string | null => {
+    const mimeTypes = qualityMode === "high"
+      ? [
+        // 高画質モード: VP9を優先（VP8より高画質・高効率）
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ]
+      : [
+        // 標準モード: VP8を優先（互換性重視）
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ];
+
+    for (const mimeType of mimeTypes) {
+      if (MediaRecorder.isTypeSupported(mimeType)) {
+        return mimeType;
+      }
+    }
+    return null;
+  };
+
+  /**
    * リアルタイム録画を開始
    */
   const handleStartRecording = async () => {
     try {
+      // 高画質モードの場合、解像度とフレームレートを最適化
+      const videoConstraints = qualityMode === "high"
+        ? {
+          facingMode: cameraMode,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
+        }
+        : { facingMode: cameraMode };
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: cameraMode },
+        video: videoConstraints,
         audio: true,
       });
 
@@ -102,8 +148,16 @@ export function VideoCaptureButton({
         videoRef.current.play();
       }
 
+      // 対応しているMIMEタイプを取得
+      const mimeType = getSupportedMimeType();
+      if (!mimeType) {
+        toast.error("このブラウザでは動画録画がサポートされていません");
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "video/webm;codecs=vp8,opus",
+        mimeType,
       });
 
       recordedChunksRef.current = [];
@@ -146,10 +200,56 @@ export function VideoCaptureButton({
         }
 
         // Fileオブジェクトに変換してonCaptureも呼び出す
-        const file = new File([blob], `video-${position}-${Date.now()}.webm`, {
-          type: "video/webm",
+        const fileType = blob.type || "video/webm";
+        const fileExtension = fileType.includes("vp9") || fileType.includes("vp8") ? "webm" : "webm";
+        const fileName = `video-${position}-${Date.now()}.${fileExtension}`;
+        const file = new File([blob], fileName, {
+          type: fileType,
         });
-        await onCapture(position, file);
+
+        // ファイルサイズを通知
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        if (qualityMode === "high") {
+          toast.success("高画質動画を録画しました", {
+            description: `${fileSizeMB}MB (WebM/VP9)`,
+          });
+        }
+
+        // 音声認識を実行（有効な場合）
+        let transcription: string | undefined;
+        if (enableTranscription) {
+          try {
+            toast.info("音声を文字起こし中...", { duration: 2000 });
+            const formData = new FormData();
+            formData.append("video", file);
+
+            const transcribeResponse = await fetch("/api/gemini/transcribe", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (transcribeResponse.ok) {
+              const transcribeData = await transcribeResponse.json();
+              if (transcribeData.success && transcribeData.text) {
+                transcription = transcribeData.text;
+                toast.success("音声認識が完了しました");
+                if (onTranscriptionComplete) {
+                  await onTranscriptionComplete(position, transcription!);
+                }
+              } else {
+                console.warn("音声認識結果が空です");
+              }
+            } else {
+              console.error("音声認識エラー:", await transcribeResponse.text());
+              toast.warning("音声認識に失敗しましたが、動画は保存されました");
+            }
+          } catch (error) {
+            console.error("音声認識処理エラー:", error);
+            toast.warning("音声認識に失敗しましたが、動画は保存されました");
+          }
+        }
+
+        await onCapture(position, file, transcription);
       };
 
       mediaRecorderRef.current = mediaRecorder;
@@ -212,8 +312,42 @@ export function VideoCaptureButton({
     setIsProcessing(true);
 
     try {
+      // 音声認識を実行（有効な場合）
+      let transcription: string | undefined;
+      if (enableTranscription) {
+        try {
+          toast.info("音声を文字起こし中...", { duration: 2000 });
+          const formData = new FormData();
+          formData.append("video", file);
+
+          const transcribeResponse = await fetch("/api/gemini/transcribe", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (transcribeResponse.ok) {
+            const transcribeData = await transcribeResponse.json();
+            if (transcribeData.success && transcribeData.text) {
+              transcription = transcribeData.text;
+              toast.success("音声認識が完了しました");
+              if (onTranscriptionComplete) {
+                await onTranscriptionComplete(position, transcription!);
+              }
+            } else {
+              console.warn("音声認識結果が空です");
+            }
+          } else {
+            console.error("音声認識エラー:", await transcribeResponse.text());
+            toast.warning("音声認識に失敗しましたが、動画は保存されました");
+          }
+        } catch (error) {
+          console.error("音声認識処理エラー:", error);
+          toast.warning("音声認識に失敗しましたが、動画は保存されました");
+        }
+      }
+
       // コールバック実行
-      await onCapture(position, file);
+      await onCapture(position, file, transcription);
     } catch (error) {
       console.error("動画処理エラー:", error);
     } finally {
@@ -263,7 +397,7 @@ export function VideoCaptureButton({
           "active:scale-95",
           hasVideo
             ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-            : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800",
+            : "border-slate-300 bg-slate-50 hover:border-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800",
           (isProcessingState || disabled) && "opacity-50 cursor-wait"
         )}
       >
@@ -273,34 +407,34 @@ export function VideoCaptureButton({
               <div className="w-6 h-6 rounded-full bg-red-500 animate-pulse" />
               <div className="absolute inset-0 w-6 h-6 rounded-full border-2 border-red-600 animate-ping" />
             </div>
-            <span className="text-sm font-medium text-red-700">録画中</span>
-            <span className="text-xs text-red-600">
+            <span className="text-base font-medium text-red-700">録画中</span>
+            <span className="text-base text-red-700">
               {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")} / {Math.floor(maxDuration / 60)}:{(maxDuration % 60).toString().padStart(2, "0")}
             </span>
           </div>
         ) : isProcessingState ? (
           <div className="flex flex-col items-center gap-1">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-            <span className="text-xs text-slate-500">処理中...</span>
+            <Loader2 className="h-6 w-6 animate-spin text-slate-700" />
+            <span className="text-base text-slate-700">処理中...</span>
           </div>
         ) : hasVideo ? (
           <div className="flex flex-col items-center gap-1">
-            <CheckCircle2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{label}</span>
-            <span className="text-xs text-blue-600 dark:text-blue-400">録画済み ✓</span>
+            <CheckCircle2 className="h-6 w-6 text-blue-700 dark:text-blue-400" />
+            <span className="text-base font-medium text-blue-700 dark:text-blue-300">{label}</span>
+            <span className="text-base text-blue-700 dark:text-blue-500">録画済み ✓</span>
             {videoData?.duration && (
-              <span className="text-xs text-blue-500 dark:text-blue-400">
+              <span className="text-base text-blue-700 dark:text-blue-500">
                 {Math.round(videoData.duration)}秒
               </span>
             )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1">
-            <Video className="h-6 w-6 text-slate-500 dark:text-slate-400" />
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            <Video className="h-6 w-6 text-slate-700 dark:text-slate-300" />
+            <span className="text-base font-medium text-slate-800 dark:text-slate-300">
               🎥 {label}
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="text-base text-slate-700 dark:text-slate-300">
               最大{maxDuration}秒
             </span>
           </div>

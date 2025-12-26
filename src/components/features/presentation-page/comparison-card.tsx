@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface ComparisonCardProps {
   itemName: string;
@@ -26,34 +27,34 @@ export function ComparisonCard({
   const [viewMode, setViewMode] = useState<"split" | "before" | "after">("split");
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2">
+    <Card className="overflow-hidden border border-slate-300 rounded-xl shadow-md">
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">{itemName}</CardTitle>
-            <Badge variant="outline" className="mt-1">{category}</Badge>
+            <CardTitle className="text-xl font-bold text-slate-900">{itemName}</CardTitle>
+            <Badge variant="outline" className="mt-1 text-base font-medium px-2.5 py-1">{category}</Badge>
           </div>
           <div className="flex gap-1">
             <Button
               variant={viewMode === "before" ? "default" : "ghost"}
-              size="sm"
               onClick={() => setViewMode("before")}
+              className="h-12 text-base font-medium"
             >
-              Before
+              作業前
             </Button>
             <Button
               variant={viewMode === "split" ? "default" : "ghost"}
-              size="sm"
               onClick={() => setViewMode("split")}
+              className="h-12 w-12 p-0"
             >
-              <ArrowLeftRight className="h-4 w-4" />
+              <ArrowLeftRight className="h-5 w-5" />
             </Button>
             <Button
               variant={viewMode === "after" ? "default" : "ghost"}
-              size="sm"
               onClick={() => setViewMode("after")}
+              className="h-12 text-base font-medium"
             >
-              After
+              作業後
             </Button>
           </div>
         </div>
@@ -62,36 +63,51 @@ export function ComparisonCard({
         {viewMode === "split" ? (
           <div className="grid grid-cols-2 gap-1 p-2">
             <div className="relative">
-              <img
+              <Image
                 src={beforeUrl}
-                alt="Before"
+                alt="作業前"
+                width={400}
+                height={300}
                 className="w-full aspect-[4/3] object-cover rounded"
+                loading="lazy"
+                quality={85}
+                unoptimized
               />
-              <Badge className="absolute top-2 left-2 bg-slate-800">Before</Badge>
+              <Badge className="absolute top-2 left-2 bg-slate-800 text-base font-medium px-2.5 py-1">作業前</Badge>
             </div>
             <div className="relative">
-              <img
+              <Image
                 src={afterUrl}
-                alt="After"
+                alt="作業後"
+                width={400}
+                height={300}
                 className="w-full aspect-[4/3] object-cover rounded"
+                loading="lazy"
+                quality={85}
+                unoptimized
               />
-              <Badge className="absolute top-2 left-2 bg-green-600">After</Badge>
+              <Badge className="absolute top-2 left-2 bg-green-600 text-base font-medium px-2.5 py-1">作業後</Badge>
             </div>
           </div>
         ) : (
           <div className="relative p-2">
-            <img
+            <Image
               src={viewMode === "before" ? beforeUrl : afterUrl}
-              alt={viewMode}
+              alt={viewMode === "before" ? "作業前" : "作業後"}
+              width={800}
+              height={600}
               className="w-full aspect-[4/3] object-cover rounded"
+              loading="lazy"
+              quality={85}
+              unoptimized
             />
             <Badge
               className={cn(
-                "absolute top-4 left-4",
+                "absolute top-4 left-4 text-base font-medium px-2.5 py-1",
                 viewMode === "before" ? "bg-slate-800" : "bg-green-600"
               )}
             >
-              {viewMode === "before" ? "Before" : "After"}
+              {viewMode === "before" ? "作業前" : "作業後"}
             </Badge>
           </div>
         )}
@@ -99,3 +115,11 @@ export function ComparisonCard({
     </Card>
   );
 }
+
+
+
+
+
+
+
+

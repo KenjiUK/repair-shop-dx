@@ -19,6 +19,7 @@ import {
   X,
   Download,
   ExternalLink,
+  Clipboard,
 } from "lucide-react";
 import { uploadFile, searchInvoicePdf } from "@/lib/google-drive";
 import { DriveFile } from "@/types";
@@ -222,8 +223,8 @@ export function InvoiceUpload({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <FileText className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+          <FileText className="h-5 w-5 shrink-0" />
           請求書PDF管理
         </CardTitle>
       </CardHeader>
@@ -242,13 +243,12 @@ export function InvoiceUpload({
             <Button
               onClick={handleSaveInvoiceId}
               variant="outline"
-              size="sm"
               disabled={!invoiceId.trim()}
             >
               保存
             </Button>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-base text-slate-700">
             基幹システム（スマートカーディーラー）で作成した請求書のIDを入力してください
           </p>
         </div>
@@ -258,14 +258,14 @@ export function InvoiceUpload({
         {/* 既存の請求書PDF表示 */}
         {uploadedFile && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-300 rounded-lg">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                <CheckCircle2 className="h-5 w-5 text-green-700 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-green-900 truncate">
+                  <p className="text-base font-medium text-green-900 truncate">
                     {uploadedFile.name}
                   </p>
-                  <p className="text-xs text-green-700">
+                  <p className="text-base text-green-800">
                     アップロード済み
                   </p>
                 </div>
@@ -274,16 +274,14 @@ export function InvoiceUpload({
                 <Button
                   onClick={handleViewInvoice}
                   variant="outline"
-                  size="sm"
-                  className="h-8"
+                  size="icon-sm"
                 >
                   <Download className="h-4 w-4" />
                 </Button>
                 <Button
                   onClick={handleRemoveFile}
                   variant="ghost"
-                  size="sm"
-                  className="h-8"
+                  size="icon-sm"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -334,14 +332,15 @@ export function InvoiceUpload({
             )}
 
             {/* ファイル名要件の説明 */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-800 font-medium mb-1">
-                📋 ファイル名要件
+            <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg">
+              <p className="text-base text-blue-900 font-medium mb-1 flex items-center gap-1">
+                <Clipboard className="h-4 w-4" />
+                ファイル名要件
               </p>
-              <p className="text-xs text-blue-700">
+              <p className="text-base text-blue-800">
                 ファイル名に「invoice」「seikyu」「請求書」のいずれかを含めてください
               </p>
-              <p className="text-xs text-blue-600 mt-1">
+              <p className="text-base text-blue-700 mt-1">
                 例: 田中様_請求書_20241217.pdf, invoice_20241217.pdf, seikyu_20241217.pdf
               </p>
             </div>
@@ -351,12 +350,12 @@ export function InvoiceUpload({
         {/* 基幹システムでの統合請求書作成手順 */}
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
           <div className="flex items-start gap-2 mb-2">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-slate-900 mb-1">
+              <p className="text-base font-medium text-slate-900 mb-1">
                 基幹システムでの統合請求書作成手順
               </p>
-              <ol className="text-xs text-slate-700 space-y-1 list-decimal list-inside">
+              <ol className="text-base text-slate-800 space-y-1 list-decimal list-inside">
                 <li>基幹システム（スマートカーディーラー）で統合請求書を作成・確定</li>
                 <li>請求書をPDFで書き出し（ファイル名に「invoice」「seikyu」「請求書」を含める）</li>
                 <li>上記の「請求書PDFファイル」からアップロード</li>

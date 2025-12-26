@@ -1,21 +1,90 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
+// Note: クライアントコンポーネントはデフォルトで動的レンダリングされるため、force-dynamicは不要
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { compressImage, getImagePreviewUrl } from "@/lib/compress";
-import { fetchJobById, saveDiagnosis, updateJobStatus, assignMechanic, fetchCustomerById, fetchAllCourtesyCars } from "@/lib/api";
+import Image from "next/image";
+import { fetchJobById, saveDiagnosis, updateJobStatus, assignMechanic, fetchCustomerById, fetchAllCourtesyCars, updateJobField7 } from "@/lib/api";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { saveToIndexedDB, addToSyncQueue, STORE_NAMES } from "@/lib/offline-storage";
 import { uploadFile, getOrCreateWorkOrderFolder } from "@/lib/google-drive";
 import { markChangeRequestCompleted } from "@/lib/customer-update";
 import { getCurrentMechanicName } from "@/lib/auth";
-import { MechanicSelectDialog } from "@/components/features/mechanic-select-dialog";
+import { setNavigationHistory, getBackHref, getPageTypeFromPath } from "@/lib/navigation-history";
+import { PhotoManager, PhotoItem } from "@/components/features/photo-manager";
+import { ConflictResolutionDialog } from "@/components/features/conflict-resolution-dialog";
+
+// ダイアログコンポーネントを動的インポート（コード分割）
+const MechanicSelectDialog = dynamic(
+  () => import("@/components/features/mechanic-select-dialog").then(mod => ({ default: mod.MechanicSelectDialog })),
+  {
+    loading: () => <Skeleton className="h-12 w-full" />,
+    ssr: false
+  }
+);
+
+const DiagnosisFeeDialog = dynamic(
+  () => import("@/components/features/diagnosis-fee-dialog").then(mod => ({ default: mod.DiagnosisFeeDialog })),
+  {
+    loading: () => <Skeleton className="h-12 w-full" />,
+    ssr: false
+  }
+);
+
+const TemporaryReturnDialog = dynamic(
+  () => import("@/components/features/temporary-return-dialog").then(mod => ({ default: mod.TemporaryReturnDialog })),
+  {
+    loading: () => <Skeleton className="h-12 w-full" />,
+    ssr: false
+  }
+);
+
+const JobMemoDialog = dynamic(
+  () => import("@/components/features/job-memo-dialog").then(mod => ({ default: mod.JobMemoDialog })),
+  {
+    loading: () => <Skeleton className="h-12 w-full" />,
+    ssr: false
+  }
+);
+
+const DiagnosisPreviewDialog = dynamic(
+  () => import("@/components/features/diagnosis-preview-dialog").then(mod => ({ default: mod.DiagnosisPreviewDialog })),
+  {
+    loading: () => <Skeleton className="h-12 w-full" />,
+    ssr: false
+  }
+);
+
+const BlogPhotoCaptureDialog = dynamic(
+  () => import("@/components/features/blog-photo-capture-dialog").then(mod => ({ default: mod.BlogPhotoCaptureDialog })),
+  {
+    loading: () => <Skeleton className="h-12 w-full" />,
+    ssr: false
+  }
+);
 import { toast } from "sonner";
 import { triggerHapticFeedback } from "@/lib/haptic-feedback";
 import { DiagnosisStatus, ZohoJob } from "@/types";
@@ -32,12 +101,24 @@ import {
   Loader2,
   AlertOctagon,
   MessageSquare,
+  Notebook,
+  NotebookPen,
   Bell,
+  Eye,
+  Search,
+  Home,
+  Calendar,
+  Clock,
+  Calculator,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
 import { CompactJobHeader } from "@/components/layout/compact-job-header";
-import { User, FileText } from "lucide-react";
+import { OfflineBanner, OnlineBanner } from "@/components/features/offline-banner";
+import { User, FileText, Printer, Activity } from "lucide-react";
+import { generateWorkOrderPDF, createWorkOrderPDFDataFromJob } from "@/lib/work-order-pdf-generator";
 
 // =============================================================================
 // Helper Functions
@@ -59,18 +140,36 @@ function formatTime(isoString: string): string {
 /**
  * ステータスバッジのスタイルを取得
  */
+/**
+ * ステータスバッジのスタイルを取得
+ * セマンティックカラーシステムに基づく統一ルール
+ */
 function getStatusBadgeStyle(status: string): string {
   switch (status) {
     case "入庫待ち":
-    case "見積作成待ち":
-    case "作業待ち":
-      return "bg-red-50 text-red-700 border-red-200";
+      return "bg-blue-50 text-blue-700 border-blue-300";
     case "入庫済み":
-      return "bg-blue-50 text-blue-700 border-blue-200";
+      return "bg-blue-50 text-blue-700 border-blue-300";
+    case "見積作成待ち":
+      return "bg-indigo-50 text-indigo-600 border-indigo-300";
     case "見積提示済み":
-      return "bg-yellow-50 text-yellow-700 border-yellow-200";
+      return "bg-amber-50 text-amber-700 border-amber-300";
+    case "作業待ち":
+      return "bg-orange-50 text-orange-700 border-orange-300";
+    case "出庫待ち":
+      return "bg-green-50 text-green-700 border-green-300";
     case "出庫済み":
-      return "bg-gray-50 text-gray-500 border-gray-200";
+      return "bg-slate-50 text-slate-700 border-slate-300";
+    case "部品調達待ち":
+      return "bg-amber-50 text-amber-700 border-amber-300";
+    case "部品発注待ち":
+      return "bg-orange-50 text-orange-700 border-orange-300";
+    case "入庫済み":
+      return "bg-blue-50 text-blue-700 border-blue-300";
+    case "見積提示済み":
+      return "bg-amber-50 text-amber-900 border-amber-300"; // yellow → amber, text-amber-700 → text-amber-900 (40歳以上ユーザー向け、コントラスト向上)
+    case "出庫済み":
+      return "bg-slate-50 text-slate-700 border-slate-300"; // text-slate-600 → text-slate-700, border-slate-200 → border-slate-300 (40歳以上ユーザー向け、コントラスト向上)
     default:
       return "bg-slate-100 text-slate-700 border-slate-300";
   }
@@ -82,16 +181,28 @@ import { ServiceKind } from "@/types";
 import { TrafficLightStatus } from "@/components/features/traffic-light-button";
 import { PhotoData as PhotoDataType } from "@/components/features/photo-capture-button";
 import { OBDDiagnosticResultSection, OBDDiagnosticResult } from "@/components/features/obd-diagnostic-result-section";
+import { EnhancedOBDDiagnosticSection } from "@/components/features/enhanced-obd-diagnostic-section";
+import { EnhancedOBDDiagnosticResult, RestoreProgress, QualityInspection, ManufacturerInquiry } from "@/types";
+import { RestoreProgressSection } from "@/components/features/restore-progress-section";
+import { QualityInspectionSection } from "@/components/features/quality-inspection-section";
+import { ManufacturerInquirySection } from "@/components/features/manufacturer-inquiry-section";
 import { FaultDiagnosisView } from "@/components/features/fault-diagnosis-view";
 import { Symptom, FaultDiagnosisData } from "@/lib/fault-diagnosis-types";
 import { ErrorLampInfo } from "@/lib/error-lamp-types";
 import { parseErrorLampInfoFromField7 } from "@/lib/error-lamp-parser";
+import { appendTemporaryReturnInfoToField7, parseTemporaryReturnInfoFromField7 } from "@/lib/temporary-return-parser";
+import { parseJobMemosFromField26 } from "@/lib/job-memo-parser";
 import { AudioInputButton, AudioData } from "@/components/features/audio-input-button";
 import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
 import { WorkOrderSelector } from "@/components/features/work-order-selector";
 import { AddWorkOrderDialog } from "@/components/features/add-work-order-dialog";
 import { hasChangeRequests } from "@/lib/customer-description-append";
+import { useAutoSave } from "@/hooks/use-auto-save";
+import { SaveStatusIndicator } from "@/components/features/save-status-indicator";
 import { TireInspectionView } from "@/components/features/tire-inspection-view";
+import { usePageTiming } from "@/hooks/use-page-timing";
+import { useDirtyCheck } from "@/lib/dirty-check";
+import { withFetcherTiming } from "@/lib/api-timing";
 import {
   TireInspectionItem,
   getInitialTireInspectionItems,
@@ -151,7 +262,17 @@ import {
 // Types
 // =============================================================================
 
-type PhotoPosition = "front" | "rear" | "left" | "right";
+// 写真撮影位置の定義（名称統一）
+type PhotoPosition =
+  | "front"        // 前（外観）
+  | "rear"         // 後（外観）
+  | "left"         // 左（外観）
+  | "right"        // 右（外観）
+  | "engine"       // エンジンルーム
+  | "interior"     // 室内・内装
+  | "undercarriage" // 下回り・足回り
+  | "dashboard"    // ダッシュボード
+  | "damage";      // 損傷箇所
 
 interface PhotoData {
   position: PhotoPosition;
@@ -178,6 +299,12 @@ async function jobFetcher(jobId: string): Promise<ZohoJob> {
   }
   return result.data!;
 }
+
+/**
+ * ジョブ取得フェッチャー（API応答時間計測付き）
+ */
+const jobFetcherWithTiming = (jobId: string) =>
+  withFetcherTiming(() => jobFetcher(jobId), "fetchJobById", "diagnosis");
 
 // =============================================================================
 // Initial Data
@@ -276,35 +403,37 @@ function PhotoCaptureButton({
           "active:scale-95",
           hasPhoto
             ? "border-green-500 bg-green-50"
-            : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100",
+            : "border-slate-300 bg-slate-50 hover:border-slate-500 hover:bg-slate-100",
           (photoData.isCompressing || disabled) && "opacity-50 cursor-wait"
         )}
       >
         {photoData.isCompressing ? (
           <div className="flex flex-col items-center gap-1">
-            <div className="animate-spin h-6 w-6 border-2 border-slate-400 border-t-transparent rounded-full" />
-            <span className="text-xs text-slate-500">圧縮中...</span>
+            <div className="animate-spin h-6 w-6 border-2 border-slate-500 border-t-transparent rounded-full" />
+            <span className="text-base text-slate-700">圧縮中...</span>
           </div>
         ) : hasPhoto ? (
           <div className="flex flex-col items-center gap-1">
-            <CheckCircle2 className="h-6 w-6 text-green-600" />
-            <span className="text-sm font-medium text-green-700">{label}</span>
-            <span className="text-xs text-green-600">撮影済み ✓</span>
+            <CheckCircle2 className="h-6 w-6 text-green-700" />
+            <span className="text-base font-medium text-green-800">{label}</span>
+            <span className="text-base text-green-700">撮影済み ✓</span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1">
-            <Camera className="h-6 w-6 text-slate-500" />
-            <span className="text-sm font-medium text-slate-700">📸 {label}</span>
+            <Camera className="h-6 w-6 text-slate-700" />
+            <span className="text-base font-medium text-slate-800">{label}</span>
           </div>
         )}
       </button>
 
       {hasPhoto && (
         <div className="absolute -top-2 -right-2 w-12 h-12 rounded-lg overflow-hidden border-2 border-white shadow-md">
-          <img
+          <Image
             src={photoData.previewUrl!}
             alt={label}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
+            sizes="48px"
           />
         </div>
       )}
@@ -340,10 +469,10 @@ function TrafficLightButton({
     yellow: {
       icon: AlertCircle,
       label: "注意",
-      bgActive: "bg-yellow-500",
-      bgInactive: "bg-yellow-100 hover:bg-yellow-200",
+      bgActive: "bg-amber-500", // yellow → amber (40歳以上ユーザー向け、統一)
+      bgInactive: "bg-amber-100 hover:bg-amber-200", // yellow → amber
       textActive: "text-white",
-      textInactive: "text-yellow-700",
+      textInactive: "text-amber-900", // text-yellow-700 → text-amber-900 (40歳以上ユーザー向け、コントラスト向上)
     },
     red: {
       icon: XCircle,
@@ -378,9 +507,11 @@ function TrafficLightButton({
         isSelected ? textActive : textInactive,
         disabled && "opacity-50 cursor-not-allowed"
       )}
+      aria-label={label || `${status}を選択`}
+      aria-pressed={isSelected}
     >
-      <Icon className="h-4 w-4 shrink-0" />
-      <span className="text-xs font-medium">{label}</span>
+      <Icon className="h-5 w-5 shrink-0" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
+      <span className="text-base font-medium">{label}</span>
     </button>
   );
 }
@@ -398,12 +529,12 @@ function CheckItemRow({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 sm:gap-3 py-3">
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-slate-800 truncate">{item.name}</p>
-        <p className="text-xs text-slate-500">{item.category}</p>
+    <div id={`diagnosis-item-${item.id}`} className="flex items-center gap-2 sm:gap-3 py-3" role="row" aria-label={`診断項目: ${item.name}`}>
+      <div className="flex-1 min-w-0" role="gridcell">
+        <p className="text-base font-medium text-slate-800 truncate">{item.name}</p>
+        <p className="text-base text-slate-700">{item.category}</p>
       </div>
-      <div className="flex gap-1">
+      <div className="flex gap-1" role="group" aria-label={`${item.name}の状態を選択`}>
         <TrafficLightButton
           status="green"
           currentStatus={item.status}
@@ -433,7 +564,7 @@ function CheckItemRow({
 function HeaderSkeleton() {
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
-      <div className="max-w-2xl mx-auto px-4 py-3">
+      <div className="max-w-4xl mx-auto px-4 py-3">
         <Skeleton className="h-4 w-32 mb-2" />
         <div className="flex items-center justify-between">
           <div>
@@ -454,16 +585,16 @@ function HeaderSkeleton() {
 function ErrorDisplay({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md" role="alert">
         <CardContent className="py-8 text-center">
-          <AlertOctagon className="h-12 w-12 mx-auto text-red-500 mb-4 shrink-0" />
-          <h2 className="text-lg font-bold text-slate-800 mb-2">エラー</h2>
-          <p className="text-slate-600 mb-4">{message}</p>
+          <AlertOctagon className="h-12 w-12 mx-auto text-red-600 mb-4 shrink-0" aria-hidden="true" />
+          <h2 className="text-xl font-bold text-slate-900 mb-2">エラー</h2>
+          <p className="text-slate-700 mb-4">{message}</p>
           <div className="flex gap-2 justify-center">
             <Button variant="outline" asChild>
-              <Link href="/">トップへ戻る</Link>
+              <Link href="/" aria-label="トップページへ戻る">トップへ戻る</Link>
             </Button>
-            <Button onClick={onRetry}>再試行</Button>
+            <Button onClick={onRetry} aria-label="再試行">再試行</Button>
           </div>
         </CardContent>
       </Card>
@@ -475,29 +606,36 @@ function ErrorDisplay({ message, onRetry }: { message: string; onRetry: () => vo
 // Main Page Component
 // =============================================================================
 
-export default function DiagnosisPage() {
+function DiagnosisPageContent() {
   const router = useRouter();
   // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
   const params = useParams();
   const searchParams = useSearchParams();
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
-  
+
+  console.log("[DiagnosisPage] params:", params);
+  console.log("[DiagnosisPage] jobId:", jobId);
+
   // URLパラメータからworkOrderIdを取得
   const workOrderId = useMemo(() => {
     const woId = searchParams?.get("workOrderId");
     return woId || null;
   }, [searchParams]);
 
-  // SWRでジョブデータを取得
+  // ページ表示時間の計測
+  usePageTiming("diagnosis", true);
+
+  // SWRでジョブデータを取得（API応答時間を計測）
   const {
     data: job,
     error: jobError,
     isLoading: isJobLoading,
     mutate: mutateJob,
-  } = useSWR(jobId ? `job-${jobId}` : null, () => jobFetcher(jobId), {
-    revalidateOnFocus: false,
+  } = useSWR(jobId ? `job-${jobId}` : null, () => jobFetcherWithTiming(jobId), {
+    // グローバル設定を使用（swrGlobalConfig）
+    // 初回アクセス時は必ずデータを取得する
     revalidateOnMount: true,
-    dedupingInterval: 0, // キャッシュを無効化
+    // その他の設定はグローバル設定を継承
   });
 
   // ワークオーダーを取得
@@ -511,24 +649,119 @@ export default function DiagnosisPage() {
       if (!customerId) return null;
       const result = await fetchCustomerById(customerId);
       return result.success ? result.data : null;
+    },
+    {
+      // グローバル設定を使用（swrGlobalConfig）
+      // 顧客情報は頻繁に変更されないため、キャッシュを活用
+      revalidateOnMount: false, // キャッシュがあれば再検証しない
+      // その他の設定はグローバル設定を継承
     }
   );
-  
-  // 代車情報を取得
+
+  // 代車情報を取得（グローバルキャッシュを活用）
   const {
     data: courtesyCarsResponse,
   } = useSWR("courtesy-cars", async () => {
     const result = await fetchAllCourtesyCars();
     return result.success ? result.data : [];
+  }, {
+    // グローバル設定を使用（swrGlobalConfig）
+    // 代車情報は頻繁に変更されないため、キャッシュを活用
+    revalidateOnMount: false, // キャッシュがあれば再検証しない
+    // その他の設定はグローバル設定を継承
   });
   const courtesyCars = courtesyCarsResponse || [];
-  
+
+  // オンライン状態を監視
+  const isOnline = useOnlineStatus();
+
   // 変更申請があるかチェック
   const hasChangeRequest = customerData ? hasChangeRequests(customerData.Description) : false;
-  
+
+  // 常連顧客かどうか（簡易判定：顧客データが存在する場合は常連とみなす）
+  const isRegularCustomer = !!customerData;
+
   // 変更対応完了処理中フラグ
   const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
-  
+
+  // ブログ用写真撮影ダイアログの状態
+  const [isBlogPhotoCaptureDialogOpen, setIsBlogPhotoCaptureDialogOpen] = useState(false);
+
+  // PDF生成中フラグ
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  /**
+   * 作業指示書PDF出力
+   */
+  const handlePrintWorkOrder = async () => {
+    if (!job) return;
+
+    setIsGeneratingPDF(true);
+    triggerHapticFeedback("medium");
+
+    try {
+      // 代車情報を取得（配列チェックを追加）
+      const courtesyCar = Array.isArray(courtesyCars) ? courtesyCars.find(car => car.jobId === job.id) : undefined;
+
+      // ジョブ情報からPDFデータを生成（新しい情報を含める）
+      const pdfData = await createWorkOrderPDFDataFromJob({
+        ...job,
+        field10: job.field10 || null,
+        tagId: job.tagId || null,
+        field13: job.field13 || null,
+        courtesyCar: courtesyCar ? {
+          name: courtesyCar.name,
+          licensePlate: courtesyCar.licensePlate || undefined,
+        } : null,
+      });
+      if (!pdfData) {
+        toast.error("PDFデータの生成に失敗しました");
+        return;
+      }
+
+      // PDFを生成
+      const result = await generateWorkOrderPDF(pdfData);
+      if (!result.success || !result.data) {
+        throw new Error(result.error?.message || "PDF生成に失敗しました");
+      }
+
+      // PDFをダウンロード
+      const url = URL.createObjectURL(result.data);
+      const link = document.createElement("a");
+      link.href = url;
+
+      // ファイル名を生成（ユーザー視点で分かりやすい形式）
+      const date = new Date();
+      const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+      const customerName = (job.field4?.name || "未登録").replace(/[\/\\:*?"<>|]/g, "_"); // ファイル名に使えない文字を置換
+      const vehicleName = job.field6?.name
+        ? job.field6.name.split(" / ")[0].replace(/[\/\\:*?"<>|]/g, "_")
+        : "";
+
+      // ファイル名: 作業指示書_日付_顧客名_車両名.pdf
+      const fileName = vehicleName
+        ? `作業指示書_${dateStr}_${customerName}_${vehicleName}.pdf`
+        : `作業指示書_${dateStr}_${customerName}.pdf`;
+
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      triggerHapticFeedback("success");
+      toast.success("作業指示書PDFを生成しました");
+    } catch (error) {
+      console.error("PDF生成エラー:", error);
+      triggerHapticFeedback("error");
+      toast.error("PDF生成に失敗しました", {
+        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   /**
    * 変更対応完了処理
    */
@@ -570,45 +803,104 @@ export default function DiagnosisPage() {
     return job.field_service_kinds || (job.serviceKind ? [job.serviceKind] : []);
   }, [job]);
 
+  // 選択中のワークオーダーのサービス種類を優先（複数作業管理の場合）
+  const primaryServiceKind = useMemo(() => {
+    if (selectedWorkOrder?.serviceKind) {
+      return selectedWorkOrder.serviceKind as ServiceKind;
+    }
+    // ワークオーダーがない場合、serviceKindsの最初のものを使用
+    return serviceKinds.length > 0 ? (serviceKinds[0] as ServiceKind) : undefined;
+  }, [selectedWorkOrder, serviceKinds]);
+
+  // デバッグログ（開発環境のみ）
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[診断画面] サービス種類判定:", {
+        serviceKinds,
+        primaryServiceKind,
+        selectedWorkOrderId: selectedWorkOrder?.id,
+        selectedWorkOrderServiceKind: selectedWorkOrder?.serviceKind,
+      });
+    }
+  }, [serviceKinds, primaryServiceKind, selectedWorkOrder]);
+
   const isInspection = useMemo(() => {
+    // 選択中のワークオーダーのサービス種類を優先
+    if (primaryServiceKind) {
+      return primaryServiceKind === "車検" || primaryServiceKind === "12ヵ月点検";
+    }
+    // フォールバック：serviceKindsから判定
     return serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const is12MonthInspection = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "12ヵ月点検";
+    }
     return serviceKinds.includes("12ヵ月点検" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isEngineOilChange = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "エンジンオイル交換";
+    }
     return serviceKinds.includes("エンジンオイル交換" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isTireReplacement = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "タイヤ交換・ローテーション";
+    }
     return serviceKinds.includes("タイヤ交換・ローテーション" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isMaintenance = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "その他のメンテナンス";
+    }
     return serviceKinds.includes("その他のメンテナンス" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isTuningParts = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "チューニング" || primaryServiceKind === "パーツ取付";
+    }
     return (
       serviceKinds.includes("チューニング" as ServiceKind) ||
       serviceKinds.includes("パーツ取付" as ServiceKind)
     );
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isCoating = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "コーティング";
+    }
     return serviceKinds.includes("コーティング" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isBodyPaint = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "板金・塗装";
+    }
     return serviceKinds.includes("板金・塗装" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isRestore = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "レストア";
+    }
     return serviceKinds.includes("レストア" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isOther = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "その他";
+    }
     return serviceKinds.includes("その他" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isFaultDiagnosis = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "故障診断";
+    }
     return serviceKinds.includes("故障診断" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
   const isRepair = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "修理・整備";
+    }
     return serviceKinds.includes("修理・整備" as ServiceKind);
-  }, [serviceKinds]);
+  }, [primaryServiceKind, serviceKinds]);
 
   // 入庫区分に基づいてflowTypeを決定
   const flowType = useMemo(() => {
@@ -631,12 +923,30 @@ export default function DiagnosisPage() {
   // 作業追加ダイアログの状態管理
   const [isAddWorkOrderDialogOpen, setIsAddWorkOrderDialogOpen] = useState(false);
 
-  // 写真データの状態管理
+  // 写真位置のラベル定義（名称統一）
+  const photoPositionLabels: Record<PhotoPosition, string> = {
+    front: "前（外観）",
+    rear: "後（外観）",
+    left: "左（外観）",
+    right: "右（外観）",
+    engine: "エンジンルーム",
+    interior: "室内・内装",
+    undercarriage: "下回り・足回り",
+    dashboard: "ダッシュボード",
+    damage: "損傷箇所",
+  };
+
+  // 写真データの状態管理（全位置を初期化）
   const [photos, setPhotos] = useState<Record<PhotoPosition, PhotoData>>({
     front: { position: "front", file: null, previewUrl: null, isCompressing: false },
     rear: { position: "rear", file: null, previewUrl: null, isCompressing: false },
     left: { position: "left", file: null, previewUrl: null, isCompressing: false },
     right: { position: "right", file: null, previewUrl: null, isCompressing: false },
+    engine: { position: "engine", file: null, previewUrl: null, isCompressing: false },
+    interior: { position: "interior", file: null, previewUrl: null, isCompressing: false },
+    undercarriage: { position: "undercarriage", file: null, previewUrl: null, isCompressing: false },
+    dashboard: { position: "dashboard", file: null, previewUrl: null, isCompressing: false },
+    damage: { position: "damage", file: null, previewUrl: null, isCompressing: false },
   });
 
   // チェックリストの状態管理
@@ -658,6 +968,18 @@ export default function DiagnosisPage() {
 
   // OBD診断結果の状態管理（12ヵ月点検の場合）
   const [obdDiagnosticResult, setObdDiagnosticResult] = useState<OBDDiagnosticResult | undefined>();
+
+  // 拡張OBD診断結果の状態管理（改善提案 #4）
+  const [enhancedOBDDiagnosticResult, setEnhancedOBDDiagnosticResult] = useState<EnhancedOBDDiagnosticResult | null>(null);
+
+  // レストア作業進捗の状態管理（改善提案 #4）
+  const [restoreProgress, setRestoreProgress] = useState<RestoreProgress | null>(null);
+
+  // 品質管理・最終検査の状態管理（改善提案 #4）
+  const [qualityInspection, setQualityInspection] = useState<QualityInspection | null>(null);
+
+  // メーカー問い合わせの状態管理（改善提案 #4）
+  const [manufacturerInquiry, setManufacturerInquiry] = useState<ManufacturerInquiry | null>(null);
 
   // 診断機結果の状態管理（修理・整備の場合）
   const [repairDiagnosticToolResult, setRepairDiagnosticToolResult] = useState<OBDDiagnosticResult | undefined>();
@@ -757,17 +1079,241 @@ export default function DiagnosisPage() {
 
   // 送信中フラグ
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+  const [conflictInfo, setConflictInfo] = useState<{ currentVersion: number; submittedVersion: number } | null>(null);
+
+  // 診断料金入力ダイアログの状態
+  const [isDiagnosisFeeDialogOpen, setIsDiagnosisFeeDialogOpen] = useState(false);
+  const [diagnosisFee, setDiagnosisFee] = useState<number | null>(null);
+  const [diagnosisDuration, setDiagnosisDuration] = useState<number | null>(null);
+
+  // 診断担当者の状態管理
+  const [diagnosisMechanic, setDiagnosisMechanic] = useState<string>("");
+
+  // 作業メモダイアログの状態
+  const [isJobMemoDialogOpen, setIsJobMemoDialogOpen] = useState(false);
+
+  // 診断結果プレビューダイアログの状態（改善提案 #15）
+  const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+
+  // 一時帰宅/入庫選択ダイアログの状態
+  const [isTemporaryReturnDialogOpen, setIsTemporaryReturnDialogOpen] = useState(false);
+
+  // 一時帰宅情報の状態
+  const [isTemporaryReturn, setIsTemporaryReturn] = useState<boolean | null>(null);
+  const [reentryDateTime, setReentryDateTime] = useState<string | null>(null);
+
+  // jobデータから一時帰宅情報を初期化
+  useEffect(() => {
+    if (job?.field7) {
+      const parsedReentryDateTime = parseTemporaryReturnInfoFromField7(job.field7);
+      setReentryDateTime(parsedReentryDateTime);
+      setIsTemporaryReturn(parsedReentryDateTime !== null);
+    } else {
+      setReentryDateTime(null);
+      setIsTemporaryReturn(null);
+    }
+  }, [job?.field7]);
+
+  // 診断データの読み込み（selectedWorkOrderから復元）
+  useEffect(() => {
+    if (!selectedWorkOrder?.diagnosis) {
+      // 診断データがない場合は初期化
+      setEnhancedOBDDiagnosticResult(null);
+      setRestoreProgress(null);
+      // 写真データも初期化
+      setPhotos({
+        front: { position: "front", file: null, previewUrl: null, isCompressing: false },
+        rear: { position: "rear", file: null, previewUrl: null, isCompressing: false },
+        left: { position: "left", file: null, previewUrl: null, isCompressing: false },
+        right: { position: "right", file: null, previewUrl: null, isCompressing: false },
+        engine: { position: "engine", file: null, previewUrl: null, isCompressing: false },
+        interior: { position: "interior", file: null, previewUrl: null, isCompressing: false },
+        undercarriage: { position: "undercarriage", file: null, previewUrl: null, isCompressing: false },
+        dashboard: { position: "dashboard", file: null, previewUrl: null, isCompressing: false },
+        damage: { position: "damage", file: null, previewUrl: null, isCompressing: false },
+      });
+      return;
+    }
+
+    const diagnosis = selectedWorkOrder.diagnosis;
+
+    // 写真データを復元
+    if (diagnosis.photos && Array.isArray(diagnosis.photos)) {
+      const restoredPhotos: Record<PhotoPosition, PhotoData> = {
+        front: { position: "front", file: null, previewUrl: null, isCompressing: false },
+        rear: { position: "rear", file: null, previewUrl: null, isCompressing: false },
+        left: { position: "left", file: null, previewUrl: null, isCompressing: false },
+        right: { position: "right", file: null, previewUrl: null, isCompressing: false },
+        engine: { position: "engine", file: null, previewUrl: null, isCompressing: false },
+        interior: { position: "interior", file: null, previewUrl: null, isCompressing: false },
+        undercarriage: { position: "undercarriage", file: null, previewUrl: null, isCompressing: false },
+        dashboard: { position: "dashboard", file: null, previewUrl: null, isCompressing: false },
+        damage: { position: "damage", file: null, previewUrl: null, isCompressing: false },
+      };
+
+      // 保存された写真データを復元
+      diagnosis.photos.forEach((photo: { position: string; url: string }) => {
+        const position = photo.position as PhotoPosition;
+        if (position && restoredPhotos[position] !== undefined) {
+          restoredPhotos[position] = {
+            position,
+            file: null, // ファイルは復元できないためnull
+            previewUrl: photo.url,
+            isCompressing: false,
+          };
+        }
+      });
+
+      setPhotos(restoredPhotos);
+    } else {
+      // 写真データがない場合は初期化
+      setPhotos({
+        front: { position: "front", file: null, previewUrl: null, isCompressing: false },
+        rear: { position: "rear", file: null, previewUrl: null, isCompressing: false },
+        left: { position: "left", file: null, previewUrl: null, isCompressing: false },
+        right: { position: "right", file: null, previewUrl: null, isCompressing: false },
+        engine: { position: "engine", file: null, previewUrl: null, isCompressing: false },
+        interior: { position: "interior", file: null, previewUrl: null, isCompressing: false },
+        undercarriage: { position: "undercarriage", file: null, previewUrl: null, isCompressing: false },
+        dashboard: { position: "dashboard", file: null, previewUrl: null, isCompressing: false },
+        damage: { position: "damage", file: null, previewUrl: null, isCompressing: false },
+      });
+    }
+
+    // enhancedOBDDiagnosticResultを復元
+    if (diagnosis.enhancedOBDDiagnosticResult) {
+      setEnhancedOBDDiagnosticResult(diagnosis.enhancedOBDDiagnosticResult as EnhancedOBDDiagnosticResult);
+    } else {
+      setEnhancedOBDDiagnosticResult(null);
+    }
+
+    // restoreProgressを復元
+    if (diagnosis.restoreProgress) {
+      setRestoreProgress(diagnosis.restoreProgress as RestoreProgress);
+    } else {
+      setRestoreProgress(null);
+    }
+
+    // qualityInspectionを復元
+    if (diagnosis.qualityInspection) {
+      setQualityInspection(diagnosis.qualityInspection as QualityInspection);
+    } else {
+      setQualityInspection(null);
+    }
+
+    // manufacturerInquiryを復元
+    if (diagnosis.manufacturerInquiry) {
+      setManufacturerInquiry(diagnosis.manufacturerInquiry as ManufacturerInquiry);
+    } else {
+      setManufacturerInquiry(null);
+    }
+
+    // 診断担当者を復元
+    if (diagnosis.mechanicName) {
+      setDiagnosisMechanic(diagnosis.mechanicName);
+    } else {
+      // 既存のジョブの担当整備士を初期値として使用
+      setDiagnosisMechanic(job?.assignedMechanic || "");
+    }
+  }, [selectedWorkOrder?.diagnosis, job?.assignedMechanic]);
+
+  // URL.createObjectURLで生成したURLのクリーンアップ
+  useEffect(() => {
+    return () => {
+      // 写真のプレビューURLをクリーンアップ（inspectionPhotoDataも含む）
+      Object.values(photos).forEach((photo) => {
+        if (photo.previewUrl && photo.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(photo.previewUrl);
+        }
+      });
+      Object.values(inspectionPhotoData).forEach((photo) => {
+        if (photo.previewUrl && photo.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(photo.previewUrl);
+        }
+      });
+      // 動画のプレビューURLをクリーンアップ
+      Object.values(inspectionVideoData).forEach((video) => {
+        if (video.previewUrl && video.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(video.previewUrl);
+        }
+      });
+      Object.values(bodyPaintVideoData).forEach((video) => {
+        if (video.previewUrl && video.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(video.previewUrl);
+        }
+      });
+      Object.values(faultVideoDataMap).forEach((video) => {
+        if (video.previewUrl && video.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(video.previewUrl);
+        }
+      });
+      // 音声のURLをクリーンアップ
+      if (faultAudioData?.audioUrl && faultAudioData.audioUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(faultAudioData.audioUrl);
+      }
+      // OBD診断結果のファイルURLをクリーンアップ
+      if (obdDiagnosticResult?.fileUrl && obdDiagnosticResult.fileUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(obdDiagnosticResult.fileUrl);
+      }
+    };
+  }, [photos, inspectionPhotoData, inspectionVideoData, bodyPaintVideoData, faultVideoDataMap, faultAudioData, obdDiagnosticResult]);
+
+  // 診断完了後のアクション（診断料金入力後、一時帰宅/入庫選択後に実行）
+  const [pendingCompleteAction, setPendingCompleteAction] = useState<(() => void) | null>(null);
+  const [pendingTemporaryReturnAction, setPendingTemporaryReturnAction] = useState<(() => void) | null>(null);
 
   // 整備士選択モーダルの状態
   // 仕様書3-1, 3-2: 整備士が自分のスマホで案件を選んで診断画面を開いた時点で整備士を記録
   const [isMechanicDialogOpen, setIsMechanicDialogOpen] = useState(false);
   const [isAssigningMechanic, setIsAssigningMechanic] = useState(false);
 
+  // ナビゲーション履歴を記録（ページ表示時に実行）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // リファラー（遷移元）を取得
+    const referrer = document.referrer;
+
+    // 同じオリジン（同じドメイン）からの遷移かどうかを確認
+    if (referrer) {
+      try {
+        const referrerUrl = new URL(referrer);
+        const currentOrigin = window.location.origin;
+
+        // 同じオリジンのみ記録（外部サイトからの遷移は無視）
+        if (referrerUrl.origin === currentOrigin) {
+          const referrerPath = referrerUrl.pathname + referrerUrl.search;
+          const referrerType = getPageTypeFromPath(referrerUrl.pathname);
+
+          // 現在のページと同じページへの遷移は記録しない（リロードなど）
+          const currentPath = window.location.pathname + window.location.search;
+          if (referrerPath !== currentPath) {
+            // 履歴を記録（前の画面のパスとタイプを記録）
+            setNavigationHistory(referrerPath, referrerType);
+          } else {
+            // 同じページへの遷移（リロードなど）は履歴を保持
+            // 既存の履歴があればそのまま使用
+          }
+        } else {
+          // 外部サイトからの遷移は履歴をクリア
+          // トップページから来たとみなすため、履歴は記録しない（getBackHrefが"/"を返す）
+        }
+      } catch (error) {
+        console.error("[Diagnosis] Failed to record navigation history:", error);
+        // エラーが発生した場合も履歴をクリア
+      }
+    } else {
+      // リファラーがない場合（直接アクセス、QRコードなど）は履歴を記録しない
+      // トップページから来たとみなすため、履歴は記録しない（getBackHrefが"/"を返す）
+    }
+  }, []);
+
   // 診断画面を開いた時点で、整備士を選択させる（仕様書3-1, 3-2参照）
   // 仕様書: 整備士が自分のスマホで案件を選んで診断画面を開いた時点で整備士を記録
   useEffect(() => {
     if (!job) return;
-    
+
     // 既に割り当て済みならスキップ
     if (job.assignedMechanic) return;
 
@@ -793,7 +1339,7 @@ export default function DiagnosisPage() {
         // ただし、診断画面での自動割り当てには使用しない
         // トップページでの整備士選択時のみ使用
         localStorage.setItem("currentMechanic", mechanicName);
-        
+
         // SWRのキャッシュを更新
         await mutateJob();
 
@@ -813,14 +1359,13 @@ export default function DiagnosisPage() {
 
   /**
    * 整備士選択ダイアログを閉じる
+   * モーダルを選ばずに閉じても、そのまま続けられるようにする
+   * 保存時にはエラーチェックで進めないようにする
    */
   const handleMechanicDialogClose = (open: boolean) => {
     if (isAssigningMechanic) return; // 処理中は閉じない
     setIsMechanicDialogOpen(open);
-    // キャンセルされた場合、前のページに戻る
-    if (!open && !job?.assignedMechanic) {
-      router.push("/");
-    }
+    // モーダルを閉じても前のページに戻らない（続けられるようにする）
   };
 
   /**
@@ -922,9 +1467,9 @@ export default function DiagnosisPage() {
         prev.map((item) =>
           item.id === itemId
             ? {
-                ...item,
-                photoUrls: [...(item.photoUrls || []), previewUrl],
-              }
+              ...item,
+              photoUrls: [...(item.photoUrls || []), previewUrl],
+            }
             : item
         )
       );
@@ -937,11 +1482,12 @@ export default function DiagnosisPage() {
   };
 
   /**
-   * 車検用：動画撮影ハンドラ
+   * 車検用：動画撮影ハンドラ（音声認識対応）
    */
   const handleInspectionVideoCapture = async (
     itemId: string,
-    file: File
+    file: File,
+    transcription?: string
   ) => {
     try {
       // 動画のプレビューURLを生成（簡易実装）
@@ -954,17 +1500,28 @@ export default function DiagnosisPage() {
           file,
           previewUrl,
           isProcessing: false,
+          transcription: transcription || undefined,
         },
       }));
 
-      // 検査項目に動画URLを追加
+      // 検査項目に動画URLと実況解説テキストを追加
       setInspectionItems((prev) =>
         prev.map((item) =>
-          item.id === itemId ? { ...item, videoUrl: previewUrl } : item
+          item.id === itemId
+            ? {
+              ...item,
+              videoUrl: previewUrl,
+              comment: transcription || item.comment, // 音声認識テキストがあればコメントに設定
+            }
+            : item
         )
       );
 
-      toast.success("動画を撮影しました");
+      if (transcription) {
+        toast.success("動画を撮影しました（実況解説を文字起こし済み）");
+      } else {
+        toast.success("動画を撮影しました");
+      }
     } catch (error) {
       console.error("動画処理エラー:", error);
       toast.error("動画の処理に失敗しました");
@@ -993,10 +1550,10 @@ export default function DiagnosisPage() {
 
     try {
       // 顧客情報と車両情報を取得
-      const customerId = (job.field4 as any)?.ID1 || (job.field4 as any)?.id || "";
-      const customerName = (job.field4 as any)?.Last_Name || (job.field4 as any)?.name || "顧客";
-      const vehicleId = (job.field6 as any)?.Name || (job.field6 as any)?.id || "";
-      const vehicleName = (job.field6 as any)?.Name || "車両";
+      const customerId = job.field4?.ID1 || job.field4?.id || "";
+      const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+      const vehicleId = job.field6?.Name || job.field6?.id || "";
+      const vehicleName = job.field6?.Name || job.field6?.name || "車両";
       const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
 
       // ワークオーダーフォルダを取得または作成
@@ -1055,10 +1612,10 @@ export default function DiagnosisPage() {
 
     try {
       // 顧客情報と車両情報を取得
-      const customerId = (job.field4 as any)?.ID1 || (job.field4 as any)?.id || "";
-      const customerName = (job.field4 as any)?.Last_Name || (job.field4 as any)?.name || "顧客";
-      const vehicleId = (job.field6 as any)?.Name || (job.field6 as any)?.id || "";
-      const vehicleName = (job.field6 as any)?.Name || "車両";
+      const customerId = job.field4?.ID1 || job.field4?.id || "";
+      const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+      const vehicleId = job.field6?.Name || job.field6?.id || "";
+      const vehicleName = job.field6?.Name || job.field6?.name || "車両";
       const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
 
       // ワークオーダーフォルダを取得または作成
@@ -1187,9 +1744,9 @@ export default function DiagnosisPage() {
         prev.map((item) =>
           item.id === itemId
             ? {
-                ...item,
-                photoUrls: [...(item.photoUrls || []), previewUrl],
-              }
+              ...item,
+              photoUrls: [...(item.photoUrls || []), previewUrl],
+            }
             : item
         )
       );
@@ -1260,9 +1817,9 @@ export default function DiagnosisPage() {
         prev.map((item) =>
           item.id === itemId
             ? {
-                ...item,
-                photoUrls: [...(item.photoUrls || []), previewUrl],
-              }
+              ...item,
+              photoUrls: [...(item.photoUrls || []), previewUrl],
+            }
             : item
         )
       );
@@ -1346,9 +1903,9 @@ export default function DiagnosisPage() {
         prev.map((item) =>
           item.id === itemId
             ? {
-                ...item,
-                photoUrls: [...(item.photoUrls || []), previewUrl],
-              }
+              ...item,
+              photoUrls: [...(item.photoUrls || []), previewUrl],
+            }
             : item
         )
       );
@@ -1407,9 +1964,9 @@ export default function DiagnosisPage() {
           prev.map((item) =>
             item.id === itemId
               ? {
-                  ...item,
-                  photoUrls: [...(item.photoUrls || []), previewUrl],
-                }
+                ...item,
+                photoUrls: [...(item.photoUrls || []), previewUrl],
+              }
               : item
           )
         );
@@ -1488,9 +2045,9 @@ export default function DiagnosisPage() {
         prev.map((loc) =>
           loc.id === locationId
             ? {
-                ...loc,
-                photoUrls: [...(loc.photoUrls || []), previewUrl],
-              }
+              ...loc,
+              photoUrls: [...(loc.photoUrls || []), previewUrl],
+            }
             : loc
         )
       );
@@ -1503,9 +2060,13 @@ export default function DiagnosisPage() {
   };
 
   /**
-   * 板金・塗装用：動画撮影ハンドラ
+   * 板金・塗装用：動画撮影ハンドラ（音声認識対応）
    */
-  const handleBodyPaintVideoCapture = async (locationId: string, file: File) => {
+  const handleBodyPaintVideoCapture = async (
+    locationId: string,
+    file: File,
+    transcription?: string
+  ) => {
     try {
       const previewUrl = URL.createObjectURL(file);
 
@@ -1516,6 +2077,7 @@ export default function DiagnosisPage() {
           file,
           previewUrl,
           isProcessing: false,
+          transcription: transcription || undefined,
         },
       }));
 
@@ -1523,14 +2085,19 @@ export default function DiagnosisPage() {
         prev.map((loc) =>
           loc.id === locationId
             ? {
-                ...loc,
-                videoUrl: previewUrl,
-              }
+              ...loc,
+              videoUrl: previewUrl,
+              comment: transcription || loc.comment, // 音声認識テキストがあればコメントに設定
+            }
             : loc
         )
       );
 
-      toast.success("動画を撮影しました");
+      if (transcription) {
+        toast.success("動画を撮影しました（実況解説を文字起こし済み）");
+      } else {
+        toast.success("動画を撮影しました");
+      }
     } catch (error) {
       console.error("動画撮影エラー:", error);
       toast.error("動画の撮影に失敗しました");
@@ -1616,9 +2183,9 @@ export default function DiagnosisPage() {
           prev.map((c) =>
             c.id === itemId
               ? {
-                  ...c,
-                  photoUrls: [...(c.photoUrls || []), previewUrl],
-                }
+                ...c,
+                photoUrls: [...(c.photoUrls || []), previewUrl],
+              }
               : c
           )
         );
@@ -1629,9 +2196,9 @@ export default function DiagnosisPage() {
             prev.map((loc) =>
               loc.id === itemId
                 ? {
-                    ...loc,
-                    photoUrls: [...(loc.photoUrls || []), previewUrl],
-                  }
+                  ...loc,
+                  photoUrls: [...(loc.photoUrls || []), previewUrl],
+                }
                 : loc
             )
           );
@@ -1694,9 +2261,9 @@ export default function DiagnosisPage() {
         prev.map((item) =>
           item.id === itemId
             ? {
-                ...item,
-                photoUrls: [...(item.photoUrls || []), previewUrl],
-              }
+              ...item,
+              photoUrls: [...(item.photoUrls || []), previewUrl],
+            }
             : item
         )
       );
@@ -1719,10 +2286,10 @@ export default function DiagnosisPage() {
 
     try {
       // 顧客情報と車両情報を取得
-      const customerId = (job.field4 as any)?.ID1 || (job.field4 as any)?.id || "";
-      const customerName = (job.field4 as any)?.Last_Name || (job.field4 as any)?.name || "顧客";
-      const vehicleId = (job.field6 as any)?.Name || (job.field6 as any)?.id || "";
-      const vehicleName = (job.field6 as any)?.Name || "車両";
+      const customerId = job.field4?.ID1 || job.field4?.id || "";
+      const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+      const vehicleId = job.field6?.Name || job.field6?.id || "";
+      const vehicleName = job.field6?.Name || job.field6?.name || "車両";
       const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
 
       // ワークオーダーフォルダを取得または作成
@@ -1778,9 +2345,13 @@ export default function DiagnosisPage() {
   };
 
   /**
-   * 故障診断用：動画撮影ハンドラ
+   * 故障診断用：動画撮影ハンドラ（音声認識対応）
    */
-  const handleFaultVideoCapture = async (position: string, file: File) => {
+  const handleFaultVideoCapture = async (
+    position: string,
+    file: File,
+    transcription?: string
+  ) => {
     try {
       const previewUrl = URL.createObjectURL(file);
 
@@ -1791,10 +2362,15 @@ export default function DiagnosisPage() {
           file,
           previewUrl,
           isProcessing: false,
+          transcription: transcription || undefined,
         },
       }));
 
-      toast.success("動画を撮影しました");
+      if (transcription) {
+        toast.success("動画を撮影しました（実況解説を文字起こし済み）");
+      } else {
+        toast.success("動画を撮影しました");
+      }
     } catch (error) {
       console.error("動画処理エラー:", error);
       toast.error("動画の処理に失敗しました");
@@ -1833,10 +2409,492 @@ export default function DiagnosisPage() {
   };
 
   /**
-   * 診断完了ハンドラ
+   * プレビューダイアログを開く（改善提案 #15）
    */
-  const handleComplete = async () => {
+  const handleOpenPreview = () => {
+    setIsPreviewDialogOpen(true);
+  };
+
+  /**
+   * プレビューから編集（改善提案 #15）
+   */
+  const handleEditFromPreview = (itemIndex: number) => {
+    // 診断項目のIDを取得（inspectionItemsまたはcheckItemsから）
+    let targetItemId: string | null = null;
+
+    if (isInspection && inspectionItems.length > itemIndex) {
+      targetItemId = inspectionItems[itemIndex].id;
+    } else if (!isInspection && checkItems.length > itemIndex) {
+      targetItemId = checkItems[itemIndex].id;
+    }
+
+    if (targetItemId) {
+      const itemElement = document.getElementById(`diagnosis-item-${targetItemId}`);
+      if (itemElement) {
+        itemElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        // 少し遅延させてからフォーカス（視覚的なフィードバック）
+        // メモリリーク防止: タイマーIDを保持（この関数はイベントハンドラー内で実行されるため、クリーンアップは不要）
+        // ただし、コンポーネントがアンマウントされた場合の安全性を確保するため、DOM要素の存在確認を追加
+        setTimeout(() => {
+          const element = document.getElementById(`diagnosis-item-${targetItemId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
+      }
+    }
+  };
+
+  /**
+   * プレビューから保存（改善提案 #15）
+   */
+  const handleSaveFromPreview = () => {
+    setIsPreviewDialogOpen(false);
+    handleComplete();
+  };
+
+  /**
+   * 現在の診断データを構築する関数（途中保存用）
+   */
+  const buildDiagnosisData = useCallback((): any => {
+    if (!job) return null;
+
+    // 写真データを整形
+    const photoData = Object.values(photos)
+      .filter((p) => p.file)
+      .map((p) => ({
+        position: p.position,
+        url: p.previewUrl || "",
+      }));
+
+    // 診断データを整形
+    let diagnosisData: any;
+
+    if (isInspection) {
+      // 車検・12ヵ月点検用の診断データ
+      diagnosisData = {
+        items: inspectionItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          status: (item.status === "adjust" || item.status === "clean" || item.status === "skip" || item.status === "not_applicable")
+            ? "unchecked" as DiagnosisStatus
+            : item.status as DiagnosisStatus,
+          comment: item.comment || null,
+          measurementValue: item.measurementValue,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: item.videoUrl || null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        qualityInspection: qualityInspection || undefined,
+        manufacturerInquiry: manufacturerInquiry || undefined,
+      };
+    } else if (isEngineOilChange) {
+      // エンジンオイル交換用の診断データ
+      diagnosisData = {
+        items: engineOilInspectionItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: "engine_oil",
+          status: (item.status === "ok" ? "green" : item.status === "attention" ? "yellow" : item.status === "replace" ? "red" : "unchecked") as DiagnosisStatus,
+          comment: item.comment || null,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        qualityInspection: qualityInspection || undefined,
+      };
+    } else if (isTireReplacement) {
+      // タイヤ交換・ローテーション用の診断データ
+      diagnosisData = {
+        items: tireInspectionItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          status: (item.status === "ok" ? "green" : item.status === "attention" ? "yellow" : item.status === "replace" ? "red" : "unchecked") as DiagnosisStatus,
+          comment: item.comment || null,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: null,
+          measurementValue: item.category === "tire" && item.id === "tire-1"
+            ? JSON.stringify(tireTreadDepth)
+            : item.category === "pressure" && item.id === "pressure-1"
+              ? JSON.stringify(tirePressure)
+              : null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        manufacturerInquiry: manufacturerInquiry || undefined,
+      };
+    } else if (isMaintenance) {
+      // その他のメンテナンス用の診断データ
+      if (!selectedMaintenanceMenu) {
+        return null;
+      }
+      diagnosisData = {
+        items: maintenanceInspectionItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          status: (item.status === "ok" ? "green" : item.status === "attention" ? "yellow" : item.status === "replace" ? "red" : "unchecked") as DiagnosisStatus,
+          comment: item.comment || null,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: null,
+          measurementValue: Object.keys(maintenanceMeasurements).length > 0
+            ? JSON.stringify(maintenanceMeasurements)
+            : null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        qualityInspection: qualityInspection || undefined,
+      };
+    } else if (isTuningParts) {
+      // チューニング・パーツ取付用の診断データ
+      if (!selectedTuningPartsType) {
+        return null;
+      }
+      diagnosisData = {
+        items: tuningPartsInspectionItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          status: (item.status === "ok" ? "green" : item.status === "attention" ? "yellow" : item.status === "replace" ? "red" : "unchecked") as DiagnosisStatus,
+          comment: item.comment || null,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        qualityInspection: qualityInspection || undefined,
+        manufacturerInquiry: manufacturerInquiry || undefined,
+      };
+    } else if (isCoating) {
+      // コーティング用の診断データ
+      diagnosisData = {
+        items: coatingBodyConditions.map((item) => ({
+          id: item.id,
+          name: item.location,
+          category: "body_condition",
+          status: (item.condition === "良好" ? "green" : item.condition === "軽微な傷" || item.condition === "汚れあり" ? "yellow" : item.condition === "深刻な傷" ? "red" : "unchecked") as DiagnosisStatus,
+          comment: item.comment || null,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+      };
+    } else if (isBodyPaint) {
+      // 板金・塗装用の診断データ
+      if (bodyPaintDamageLocations.length === 0) {
+        return null;
+      }
+      diagnosisData = {
+        items: bodyPaintDamageLocations.map((damage) => ({
+          id: damage.id,
+          name: `${damage.location} - ${damage.type} - ${damage.severity}`,
+          category: "damage",
+          status: (damage.severity === "軽微" ? "yellow" : damage.severity === "中程度" ? "orange" : "red") as DiagnosisStatus,
+          comment: damage.comment || null,
+          evidencePhotoUrls: damage.photoUrls || [],
+          evidenceVideoUrl: damage.videoUrl || null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        qualityInspection: qualityInspection || undefined,
+        manufacturerInquiry: manufacturerInquiry || undefined,
+      };
+    } else if (isRestore) {
+      // レストア用の診断データ
+      if (!restoreType || restoreLocations.length === 0) {
+        return null;
+      }
+      diagnosisData = {
+        items: [
+          ...restoreConditionChecks.map((check) => ({
+            id: check.id,
+            name: `${check.location} - ${check.condition}`,
+            category: "condition",
+            status: (check.condition === "良好" ? "green" : check.condition === "軽微な劣化" ? "yellow" : check.condition === "中程度の劣化" ? "orange" : "red") as DiagnosisStatus,
+            comment: check.comment || null,
+            evidencePhotoUrls: check.photoUrls || [],
+            evidenceVideoUrl: null,
+          })),
+          ...restoreLocations.map((location) => ({
+            id: location.id,
+            name: `${location.location} - ${location.restoreType} - ${location.severity}`,
+            category: "restore",
+            status: (location.severity === "軽微" ? "yellow" : location.severity === "中程度" ? "orange" : "red") as DiagnosisStatus,
+            comment: location.comment || null,
+            evidencePhotoUrls: location.photoUrls || [],
+            evidenceVideoUrl: null,
+          })),
+        ],
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        restoreProgress: restoreProgress || undefined,
+        qualityInspection: qualityInspection || undefined,
+      };
+    } else if (isOther) {
+      // その他用の診断データ
+      diagnosisData = {
+        items: otherDiagnosisItems.map((item) => ({
+          id: item.id,
+          name: item.name || "未入力",
+          category: "custom",
+          status: (item.condition ? "yellow" : "unchecked") as DiagnosisStatus,
+          comment: item.comment || null,
+          evidencePhotoUrls: item.photoUrls || [],
+          evidenceVideoUrl: null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        qualityInspection: qualityInspection || undefined,
+      };
+    } else if (isFaultDiagnosis) {
+      // 故障診断用の診断データ
+      diagnosisData = {
+        items: selectedSymptoms.map((symptom) => ({
+          id: symptom.id,
+          name: symptom.name,
+          category: symptom.category,
+          status: "red" as DiagnosisStatus,
+          comment: null,
+          evidencePhotoUrls: [],
+          evidenceVideoUrl: null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+        qualityInspection: qualityInspection || undefined,
+        manufacturerInquiry: manufacturerInquiry || undefined,
+      };
+    } else {
+      // その他の診断用の診断データ（既存のロジック）
+      diagnosisData = {
+        items: checkItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          status: item.status,
+          comment: null,
+          evidencePhotoUrls: [],
+          evidenceVideoUrl: null,
+        })),
+        photos: photoData,
+        mechanicName: diagnosisMechanic || undefined,
+        enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+      };
+    }
+
+    return diagnosisData;
+  }, [
+    job,
+    photos,
+    isInspection,
+    inspectionItems,
+    enhancedOBDDiagnosticResult,
+    qualityInspection,
+    manufacturerInquiry,
+    isEngineOilChange,
+    engineOilInspectionItems,
+    isTireReplacement,
+    tireInspectionItems,
+    tireTreadDepth,
+    tirePressure,
+    isMaintenance,
+    selectedMaintenanceMenu,
+    maintenanceInspectionItems,
+    maintenanceMeasurements,
+    isTuningParts,
+    selectedTuningPartsType,
+    tuningPartsInspectionItems,
+    isCoating,
+    coatingBodyConditions,
+    isBodyPaint,
+    bodyPaintDamageLocations,
+    isRestore,
+    restoreType,
+    restoreLocations,
+    restoreConditionChecks,
+    restoreProgress,
+    isOther,
+    otherDiagnosisItems,
+    isFaultDiagnosis,
+    selectedSymptoms,
+    checkItems,
+    diagnosisMechanic,
+  ]);
+
+  /**
+   * 診断データを下書き保存する関数
+   */
+  const saveDraftDiagnosis = useCallback(async (diagnosisData: any) => {
+    if (!job || !diagnosisData) return;
+
+    // ワークオーダーがある場合は、ワークオーダーに保存
+    if (selectedWorkOrder?.id) {
+      const updateResult = await updateWorkOrder(jobId, selectedWorkOrder.id, {
+        diagnosis: diagnosisData,
+        // ステータスは変更しない（下書き保存）
+      });
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error?.message || "下書き保存に失敗しました");
+      }
+
+      // ワークオーダーリストを再取得
+      await mutateWorkOrders();
+    }
+    // 単一作業の場合は、下書き保存しない（既存のsaveDiagnosisを使用）
+    // 理由: 単一作業の場合は、診断完了時にのみ保存する仕様
+  }, [job, jobId, selectedWorkOrder?.id, mutateWorkOrders]);
+
+  /**
+   * 自動保存フック
+   * 診断データのスナップショットを作成し、変更を検知して自動保存
+   */
+  const diagnosisDataSnapshot = useMemo(() => {
+    return buildDiagnosisData();
+  }, [
+    job,
+    photos,
+    isInspection,
+    inspectionItems,
+    enhancedOBDDiagnosticResult,
+    qualityInspection,
+    manufacturerInquiry,
+    isEngineOilChange,
+    engineOilInspectionItems,
+    isTireReplacement,
+    tireInspectionItems,
+    tireTreadDepth,
+    tirePressure,
+    isMaintenance,
+    selectedMaintenanceMenu,
+    maintenanceInspectionItems,
+    maintenanceMeasurements,
+    isTuningParts,
+    selectedTuningPartsType,
+    tuningPartsInspectionItems,
+    isCoating,
+    coatingBodyConditions,
+    isBodyPaint,
+    bodyPaintDamageLocations,
+    isRestore,
+    restoreType,
+    restoreLocations,
+    restoreConditionChecks,
+    restoreProgress,
+    isOther,
+    otherDiagnosisItems,
+    isFaultDiagnosis,
+    selectedSymptoms,
+    checkItems,
+  ]);
+
+  const { saveStatus, saveManually, hasUnsavedChanges: autoSaveHasUnsavedChanges } = useAutoSave({
+    data: diagnosisDataSnapshot,
+    onSave: saveDraftDiagnosis,
+    debounceMs: 2000,
+    disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
+    onSaveSuccess: () => {
+      // 保存成功時のトースト通知
+      toast.success("保存しました");
+    },
+    onSaveError: (error) => {
+      console.error("診断データの下書き保存エラー:", error);
+      // 保存失敗時のトースト通知
+      toast.error("保存に失敗しました", {
+        description: error.message || "エラーが発生しました",
+      });
+    },
+  });
+
+  // Dirty Check（未保存変更の検知）
+  useDirtyCheck(autoSaveHasUnsavedChanges, {
+    message: "入力中の内容が保存されていません。このまま移動しますか？",
+    disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
+  });
+
+  /**
+   * 診断完了ハンドラ（直接内部処理を実行）
+   */
+  const handleComplete = () => {
     if (!job) return;
+
+    // セクションで入力された値をそのまま使用して内部処理を実行
+    handleCompleteInternal();
+  };
+
+  /**
+   * 診断完了処理（内部処理）
+   */
+  const handleCompleteInternal = async () => {
+    if (!job) return;
+
+    // エラーチェック：整備士が割り当てられているか確認
+    if (!job.assignedMechanic) {
+      toast.error("担当整備士を選択してください", {
+        description: "診断を完了するには、担当整備士の選択が必要です",
+        action: {
+          label: "整備士を選択",
+          onClick: () => {
+            setIsMechanicDialogOpen(true);
+          },
+        },
+      });
+      return;
+    }
+
+    // エラーチェック：車検・12ヵ月点検の場合、必須項目が入力されているか確認
+    if (isInspection) {
+      const completedItems = inspectionItems.filter(
+        (item) => item.status !== "unchecked"
+      );
+      if (completedItems.length === 0) {
+        toast.error("診断項目を入力してください", {
+          description: "少なくとも1つの項目の状態を選択してください",
+        });
+        return;
+      }
+    }
+
+    // エラーチェック：その他のメンテナンスの場合、メニューが選択されているか確認
+    if (isMaintenance && !selectedMaintenanceMenu) {
+      toast.error("メンテナンスメニューを選択してください");
+      return;
+    }
+
+    // エラーチェック：チューニング・パーツ取付の場合、種類が選択されているか確認
+    if (isTuningParts && !selectedTuningPartsType) {
+      toast.error("種類を選択してください");
+      return;
+    }
+
+    // エラーチェック：板金・塗装の場合、損傷箇所が追加されているか確認
+    if (isBodyPaint && bodyPaintDamageLocations.length === 0) {
+      toast.error("損傷箇所を1つ以上追加してください");
+      return;
+    }
+
+    // エラーチェック：レストアの場合、種類と修復箇所が設定されているか確認
+    if (isRestore) {
+      if (!restoreType) {
+        toast.error("レストアの種類を選択してください");
+        return;
+      }
+      if (restoreLocations.length === 0) {
+        toast.error("修復箇所を1つ以上追加してください");
+        return;
+      }
+    }
 
     setIsSubmitting(true);
 
@@ -1852,8 +2910,8 @@ export default function DiagnosisPage() {
         }));
 
       // 診断データを整形
-      let diagnosisData;
-      
+      let diagnosisData: any;
+
       if (isInspection) {
         // 車検・12ヵ月点検用の診断データ
         diagnosisData = {
@@ -1870,6 +2928,12 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: item.videoUrl || null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
+          // メーカー問い合わせを追加（改善提案 #4）
+          manufacturerInquiry: manufacturerInquiry || undefined,
         };
       } else if (isEngineOilChange) {
         // エンジンオイル交換用の診断データ
@@ -1884,6 +2948,10 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
         };
       } else if (isTireReplacement) {
         // タイヤ交換・ローテーション用の診断データ
@@ -1899,10 +2967,14 @@ export default function DiagnosisPage() {
             measurementValue: item.category === "tire" && item.id === "tire-1"
               ? JSON.stringify(tireTreadDepth)
               : item.category === "pressure" && item.id === "pressure-1"
-              ? JSON.stringify(tirePressure)
-              : null,
+                ? JSON.stringify(tirePressure)
+                : null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // メーカー問い合わせを追加（改善提案 #4）
+          manufacturerInquiry: manufacturerInquiry || undefined,
         };
       } else if (isMaintenance) {
         // その他のメンテナンス用の診断データ
@@ -1925,6 +2997,8 @@ export default function DiagnosisPage() {
               : null,
           })),
           photos: photoData,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
         };
       } else if (isTuningParts) {
         // チューニング・パーツ取付用の診断データ
@@ -1944,6 +3018,12 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
+          // メーカー問い合わせを追加（改善提案 #4）
+          manufacturerInquiry: manufacturerInquiry || undefined,
         };
       } else if (isCoating) {
         // コーティング用の診断データ
@@ -1977,6 +3057,10 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: damage.videoUrl || null,
           })),
           photos: photoData,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
+          // メーカー問い合わせを追加（改善提案 #4）
+          manufacturerInquiry: manufacturerInquiry || undefined,
         };
       } else if (isRestore) {
         // レストア用の診断データ
@@ -2012,6 +3096,12 @@ export default function DiagnosisPage() {
             })),
           ],
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // レストア作業進捗を追加（改善提案 #4）
+          restoreProgress: restoreProgress || undefined,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
         };
       } else if (isOther) {
         // その他用の診断データ
@@ -2026,6 +3116,10 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
         };
       } else if (isFaultDiagnosis) {
         // 故障診断用の診断データ
@@ -2041,6 +3135,12 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
+          // 品質管理・最終検査を追加（改善提案 #4）
+          qualityInspection: qualityInspection || undefined,
+          // メーカー問い合わせを追加（改善提案 #4）
+          manufacturerInquiry: manufacturerInquiry || undefined,
         };
       } else {
         // その他の診断用の診断データ（既存のロジック）
@@ -2055,11 +3155,25 @@ export default function DiagnosisPage() {
             evidenceVideoUrl: null,
           })),
           photos: photoData,
+          // 拡張OBD診断結果を追加（改善提案 #4）
+          enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
         };
       }
 
       // ハプティックフィードバック（診断完了時）
       triggerHapticFeedback("medium");
+
+      // 一時帰宅情報をfield7に保存（複数作業管理の場合も）
+      if (isTemporaryReturn !== null) {
+        if (isTemporaryReturn && reentryDateTime) {
+          const updatedField7 = appendTemporaryReturnInfoToField7(job?.field7, reentryDateTime);
+          await updateJobField7(jobId, updatedField7);
+        } else if (isTemporaryReturn === false) {
+          // 入庫の場合、一時帰宅情報を削除
+          const updatedField7 = appendTemporaryReturnInfoToField7(job?.field7, null);
+          await updateJobField7(jobId, updatedField7);
+        }
+      }
 
       // 診断結果を保存（workOrderIdを含める）
       if (selectedWorkOrder?.id) {
@@ -2067,31 +3181,98 @@ export default function DiagnosisPage() {
         const updateResult = await updateWorkOrder(jobId, selectedWorkOrder.id, {
           diagnosis: diagnosisData,
           status: "見積作成待ち",
+          // 診断料金情報も保存
+          diagnosisFee: diagnosisFee,
+          diagnosisDuration: diagnosisDuration,
         });
-        
+
         if (!updateResult.success) {
           throw new Error(updateResult.error?.message || "診断の保存に失敗しました");
         }
-        
+
         // ワークオーダーリストを再取得
         await mutateWorkOrders();
       } else {
         // 単一作業の場合：既存のsaveDiagnosisを使用
-        const saveResult = await saveDiagnosis(jobId, {
+        // オフライン対応: オフライン時はローカルに保存して同期キューに追加
+        if (!isOnline) {
+          // オフライン時: ローカルに保存
+          const diagnosisDataForStorage = {
+            id: `diagnosis-${jobId}-${Date.now()}`,
+            jobId,
+            data: {
+              items: diagnosisData.items || [],
+              photos: diagnosisData.photos,
+              mileage: job.field10 || undefined,
+              version: job.version || null,
+              enhancedOBDDiagnosticResult: diagnosisData.enhancedOBDDiagnosticResult || undefined,
+              qualityInspection: diagnosisData.qualityInspection || undefined,
+              manufacturerInquiry: diagnosisData.manufacturerInquiry || undefined,
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          // IndexedDBに保存
+          await saveToIndexedDB(STORE_NAMES.DIAGNOSIS, diagnosisDataForStorage);
+
+          // 同期キューに追加
+          await addToSyncQueue({
+            type: "update",
+            storeName: STORE_NAMES.DIAGNOSIS,
+            dataId: jobId,
+            data: diagnosisDataForStorage.data,
+            status: "pending",
+          });
+
+          toast.success("診断データをローカルに保存しました", {
+            description: "オンライン復帰時に自動的に同期されます",
+          });
+
+          // オフライン時はここで処理を終了（ステータス更新や通知はスキップ）
+          triggerHapticFeedback("success");
+          setIsSubmitting(false);
+          return;
+        }
+
+        // オンライン時: 通常の保存処理（診断完了時はisComplete: trueを指定）
+        // 単一作業の場合、workOrderIdはundefined（後方互換性）
+        const saveResult = await saveDiagnosis(jobId, undefined, {
           items: diagnosisData.items || [],
           photos: diagnosisData.photos,
           mileage: job.field10 || undefined,
+          version: job.version || null, // 競合制御用バージョン番号
+          enhancedOBDDiagnosticResult: diagnosisData.enhancedOBDDiagnosticResult || undefined,
+          qualityInspection: diagnosisData.qualityInspection || undefined,
+          manufacturerInquiry: diagnosisData.manufacturerInquiry || undefined,
+          isComplete: true, // 診断完了フラグ（ステータスを「見積作成待ち」に更新）
         });
-        
+
         if (!saveResult.success) {
+          // 競合エラーの場合、特別な処理
+          if (saveResult.error?.code === "CONFLICT") {
+            throw new Error(saveResult.error?.message || "データが他のユーザーによって更新されています。ページを再読み込みして最新のデータを取得してください。");
+          }
           throw new Error(saveResult.error?.message || "診断の保存に失敗しました");
         }
-        
-        // ステータスを更新
-        const statusResult = await updateJobStatus(jobId, "見積作成待ち");
-        
-        if (!statusResult.success) {
-          throw new Error(statusResult.error?.message || "ステータスの更新に失敗しました");
+
+        // バージョン番号を更新
+        if (saveResult.data?.version) {
+          await mutateJob();
+        }
+
+        // ステータス更新はsaveDiagnosis内で処理されるため、ここでは不要
+
+        // 診断料金をジョブに保存（単一作業の場合）
+        if (diagnosisFee !== null || diagnosisDuration !== null) {
+          const { updateJobDiagnosisFee } = await import("@/lib/api");
+          const feeResult = await updateJobDiagnosisFee(jobId, diagnosisFee, diagnosisDuration);
+          if (!feeResult.success) {
+            console.error("[Diagnosis] 診断料金の保存に失敗:", feeResult.error);
+            // 診断料金の保存失敗は警告のみ（診断完了処理は継続）
+            toast.warning("診断料金の保存に失敗しました", {
+              description: feeResult.error?.message,
+            });
+          }
         }
       }
       // 複数作業管理の場合、Job全体のステータスは更新しない（各ワークオーダーのステータスで管理）
@@ -2104,7 +3285,7 @@ export default function DiagnosisPage() {
         if (customer.success && customer.data?.Business_Messaging_Line_Id) {
           const serviceKinds = job.field_service_kinds || (job.serviceKind ? [job.serviceKind] : []);
           const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
-          
+
           const { sendLineNotification } = await import("@/lib/line-api");
           await sendLineNotification({
             lineUserId: customer.data.Business_Messaging_Line_Id || "",
@@ -2125,24 +3306,172 @@ export default function DiagnosisPage() {
 
       // 成功
       triggerHapticFeedback("success"); // 成功時のハプティックフィードバック
+
+      // 見積画面へのURLを生成（複数作業管理対応）
+      const estimateUrl = selectedWorkOrder?.id
+        ? `/admin/estimate/${jobId}?workOrderId=${selectedWorkOrder.id}`
+        : `/admin/estimate/${jobId}`;
+
       toast.success("診断完了", {
-        description: "フロントへ送信しました",
+        id: "diagnosis-complete",
+        description: "見積画面に移動しますか？",
+        action: {
+          label: "見積画面へ",
+          onClick: () => {
+            router.push(estimateUrl);
+          },
+        },
+        duration: 5000,
       });
 
-      // トップページへ遷移
-      router.push("/");
+      // 見積画面への遷移時に履歴を記録
+      const estimateUrlObj = new URL(estimateUrl, window.location.origin);
+      setNavigationHistory(estimateUrlObj.pathname + estimateUrlObj.search, "diagnosis");
+
+      // 3秒後に自動で見積画面へ遷移（オプション）
+      // メモリリーク防止: タイマーIDを保持（この関数はイベントハンドラー内で実行されるため、クリーンアップは不要）
+      // ただし、router.pushはNext.jsが管理するため、通常は問題ない
+      setTimeout(() => {
+        router.push(estimateUrl);
+      }, 3000);
     } catch (error) {
       console.error("診断完了エラー:", error);
       triggerHapticFeedback("error"); // エラー時のハプティックフィードバック
-      toast.error("エラーが発生しました", {
-        description: error instanceof Error ? error.message : "診断の送信に失敗しました",
+      const errorMessage = error instanceof Error ? error.message : "診断の送信に失敗しました";
+      toast.error("診断の送信に失敗しました", {
+        id: "diagnosis-error",
+        description: errorMessage,
+        action: {
+          label: "再試行",
+          onClick: () => {
+            handleComplete();
+          },
+        },
+        duration: 10000, // リトライボタンを表示するため、表示時間を延長
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // エラー状態
+  // 車両情報を抽出（すべてのHooksを早期リターンの前に配置）
+  const vehicleName = useMemo(() => {
+    if (!job?.field6?.name) return "車両未登録";
+    return extractVehicleName(job.field6.name);
+  }, [job?.field6?.name]);
+
+  const licensePlate = useMemo(() => {
+    if (!job?.field6?.name) return "";
+    return extractLicensePlate(job.field6.name);
+  }, [job?.field6?.name]);
+
+  const tagId = useMemo(() => {
+    return job?.tagId || "---";
+  }, [job?.tagId]);
+
+  // 事前入力情報を抽出（field7に「【事前入力】」が含まれている行のみ）
+  const preInputDetails = useMemo(() => {
+    if (!job?.field7) return null;
+    const lines = job.field7.split("\n");
+    const preInputLines = lines.filter(line => line.includes("【事前入力】"));
+    return preInputLines.length > 0 ? preInputLines.join("\n") : null;
+  }, [job?.field7]);
+
+  // detailsとworkOrderも早期リターンの前に配置（jobがundefinedでも安全）
+  const details = useMemo(() => {
+    return job?.field7 || job?.details || "";
+  }, [job?.field7, job?.details]);
+
+  const workOrder = useMemo(() => {
+    return job?.field || job?.workOrder || "";
+  }, [job?.field, job?.workOrder]);
+
+  // カテゴリごとにグループ化（すべてのHooksを早期リターンの前に配置）
+  const itemsByCategory = useMemo(() => {
+    const grouped: Record<string, CheckItem[]> = {};
+    checkItems.forEach((item) => {
+      if (!grouped[item.category]) {
+        grouped[item.category] = [];
+      }
+      grouped[item.category].push(item);
+    });
+    return grouped;
+  }, [checkItems]);
+
+  // カテゴリのリスト（順序を保持）
+  const categories = useMemo(() => {
+    const categorySet = new Set<string>();
+    checkItems.forEach((item) => {
+      categorySet.add(item.category);
+    });
+    // 最初のカテゴリを最初に配置
+    const firstCategory = checkItems.length > 0 ? checkItems[0].category : null;
+    const otherCategories = Array.from(categorySet).filter((cat) => cat !== firstCategory);
+    return firstCategory ? [firstCategory, ...otherCategories] : Array.from(categorySet);
+  }, [checkItems]);
+
+  // カテゴリの開閉状態を管理（初期値は関数として渡す）
+  const [openCategories, setOpenCategories] = useState<Set<string>>(() => {
+    // 初期値は関数として計算（初回レンダリング時のみ実行）
+    // categoriesはまだ計算されていない可能性があるため、空のSetから開始
+    return new Set<string>();
+  });
+
+  // カテゴリが完了したかチェック（すべての項目がunchecked以外）
+  const isCategoryComplete = useCallback((category: string) => {
+    const items = itemsByCategory[category] || [];
+    return items.length > 0 && items.every((item) => item.status !== "unchecked");
+  }, [itemsByCategory]);
+
+  // カテゴリに未入力項目があるかチェック
+  const hasIncompleteItems = useCallback((category: string) => {
+    const items = itemsByCategory[category] || [];
+    return items.some((item) => item.status === "unchecked");
+  }, [itemsByCategory]);
+
+  // カテゴリが初めて計算されたときに、最初のカテゴリを開く
+  useEffect(() => {
+    if (categories.length > 0) {
+      setOpenCategories((prev) => {
+        // 既に何か開いている場合は何もしない
+        if (prev.size > 0) return prev;
+        // 最初のカテゴリを開く
+        return new Set([categories[0]]);
+      });
+    }
+  }, [categories]);
+
+  // 完了カテゴリを自動で閉じる
+  useEffect(() => {
+    // openCategoriesを直接依存配列に含めると無限ループになる可能性があるため、
+    // 関数形式でsetOpenCategoriesを使用
+    categories.forEach((category) => {
+      if (isCategoryComplete(category)) {
+        setOpenCategories((prev) => {
+          // 既に閉じている場合は何もしない
+          if (!prev.has(category)) return prev;
+          const next = new Set(prev);
+          next.delete(category);
+          return next;
+        });
+      }
+    });
+  }, [categories, isCategoryComplete]); // openCategoriesを依存配列から削除
+
+  // カテゴリの開閉を切り替える
+  const toggleCategory = useCallback((category: string) => {
+    setOpenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
+
+  // エラー状態（すべてのHooksの後に配置）
   if (jobError) {
     return (
       <ErrorDisplay
@@ -2152,12 +3481,12 @@ export default function DiagnosisPage() {
     );
   }
 
-  // ローディング状態
+  // ローディング状態（すべてのHooksの後に配置）
   if (isJobLoading) {
     return (
       <div className="min-h-screen bg-slate-50">
         <HeaderSkeleton />
-        <main className="max-w-2xl mx-auto px-4 py-4 pb-32">
+        <main className="max-w-4xl mx-auto px-4 py-6 pb-32">
           <Card className="mb-4">
             <CardHeader className="pb-3">
               <Skeleton className="h-6 w-32" />
@@ -2189,7 +3518,7 @@ export default function DiagnosisPage() {
     );
   }
 
-  // データがない場合
+  // データがない場合（すべてのHooksの後に配置）
   if (!job) {
     return (
       <ErrorDisplay
@@ -2199,43 +3528,40 @@ export default function DiagnosisPage() {
     );
   }
 
-  // 車両情報を抽出
-  const vehicleName = extractVehicleName(job.field6?.name);
-  const licensePlate = extractLicensePlate(job.field6?.name);
-  const tagId = job.tagId || "---";
-  const details = job.field7 || job.details;
-  const workOrder = job.field || job.workOrder;
-  
+  // 以下はjobが存在することが確定した後に使用（Hooksではない通常の変数）
+
   // ヘッダー表示用の変数
   const customerName = job.field4?.name || "未登録";
-  
+
   // 現在の作業名を取得（選択中のワークオーダーから、またはserviceKindsから）
   const currentWorkOrderName = selectedWorkOrder?.serviceKind || (serviceKinds.length > 0 ? serviceKinds[0] : "診断");
-  
-  const diagnosisTitle = isInspection
-    ? "車検診断"
-    : isEngineOilChange
-    ? "エンジンオイル交換診断"
-    : isTireReplacement
-    ? "タイヤ交換・ローテーション診断"
-    : isMaintenance
-    ? "その他のメンテナンス診断"
-    : isTuningParts
-    ? "チューニング・パーツ取付診断"
-    : isCoating
-    ? "コーティング診断"
-    : isBodyPaint
-    ? "板金・塗装診断"
-    : isRestore
-    ? "レストア診断"
-    : isOther
-    ? "その他診断"
-    : isFaultDiagnosis
-    ? "故障診断"
-    : isRepair
-    ? "修理・整備診断"
-    : "診断";
-  
+
+  const diagnosisTitle = is12MonthInspection
+    ? "12ヵ月点検診断"
+    : isInspection
+      ? "車検診断"
+      : isEngineOilChange
+        ? "エンジンオイル交換診断"
+        : isTireReplacement
+          ? "タイヤ交換・ローテーション診断"
+          : isMaintenance
+            ? "その他のメンテナンス診断"
+            : isTuningParts
+              ? "チューニング・パーツ取付診断"
+              : isCoating
+                ? "コーティング診断"
+                : isBodyPaint
+                  ? "板金・塗装診断"
+                  : isRestore
+                    ? "レストア診断"
+                    : isOther
+                      ? "その他診断"
+                      : isFaultDiagnosis
+                        ? "故障診断"
+                        : isRepair
+                          ? "修理・整備診断"
+                          : "診断";
+
   const serviceLabel = serviceKinds.length > 0 ? serviceKinds.join("、") : undefined;
 
   /**
@@ -2257,23 +3583,55 @@ export default function DiagnosisPage() {
     mutateJob();
   };
 
-  // 統計情報
+  // 統計情報（Hooksではない通常の変数）
   const photoCount = Object.values(photos).filter((p) => p.file).length;
+  const totalPhotoPositions = Object.keys(photoPositionLabels).length; // 全写真位置の数
   const checkedCount = checkItems.filter((item) => item.status !== "unchecked").length;
   const redCount = checkItems.filter((item) => item.status === "red").length;
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* オフライン/オンラインバナー */}
+      <OfflineBanner />
+      <OnlineBanner />
+
       {/* ヘッダー */}
-      <AppHeader maxWidthClassName="max-w-2xl">
+      <AppHeader
+        maxWidthClassName="max-w-4xl"
+        backHref={getBackHref(jobId)}
+        hasUnsavedChanges={autoSaveHasUnsavedChanges}
+        statusBadge={
+          job ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-base font-medium px-2.5 py-0.5 rounded-full shrink-0",
+                getStatusBadgeStyle(job.field5)
+              )}
+            >
+              {job.field5}
+            </Badge>
+          ) : undefined
+        }
+        rightArea={
+          selectedWorkOrder?.id ? (
+            <SaveStatusIndicator
+              status={saveStatus}
+              hasUnsavedChanges={autoSaveHasUnsavedChanges}
+              onSave={saveManually}
+              showSaveButton={true}
+            />
+          ) : undefined
+        }
+      >
         {/* ページタイトル */}
         <div className="mb-3">
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-slate-600 shrink-0" />
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Activity className="h-5 w-5 text-slate-700 shrink-0" />
             {diagnosisTitle}
           </h1>
         </div>
-        
+
         {/* 案件情報（JobCardの情報階層に基づく） */}
         <CompactJobHeader
           job={job}
@@ -2284,62 +3642,76 @@ export default function DiagnosisPage() {
           serviceKind={serviceKinds.length > 0 ? serviceKinds[0] : undefined}
           currentWorkOrderName={currentWorkOrderName}
           assignedMechanic={job.assignedMechanic || undefined}
-          backHref="/"
           courtesyCars={courtesyCars}
         />
-        
-        {/* アラート表示 */}
-        {details && (
-          <div className="mt-2 bg-blue-50 border border-blue-200 rounded-md p-2 text-sm text-blue-700 flex items-start gap-2">
-            <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-              <MessageSquare className="h-3 w-3 text-white shrink-0" />
-            </div>
-            <span className="break-words">{details}</span>
-          </div>
-        )}
-        {/* 変更申請ありアイコン（Phase 3: マスタデータ同期） */}
-        {hasChangeRequest && (
-          <div className="mt-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-amber-600 flex items-center justify-center shrink-0">
-                  <Bell className="h-3.5 w-3.5 text-white" />
-                </div>
-                <span className="font-medium text-amber-700">変更申請あり</span>
+
+        {/* お客様入力情報・変更申請あり・受付メモ */}
+        <div className="space-y-3 mt-3">
+          {preInputDetails && (
+            <div className="bg-blue-50 border border-blue-400 rounded-md p-3 text-base">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageSquare className="h-5 w-5 text-blue-600 shrink-0" />
+                <p className="font-medium text-blue-900">お客様入力情報（事前チェックイン）</p>
               </div>
-              <Button
-                onClick={handleMarkChangeRequestCompleted}
-                disabled={isMarkingCompleted}
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs bg-white border-amber-300 text-amber-700 hover:bg-amber-100"
-              >
-                {isMarkingCompleted ? (
-                  <>
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin shrink-0" />
-                    処理中...
-                  </>
-                ) : (
-                  "対応完了"
-                )}
-              </Button>
+              <p className="text-blue-900 whitespace-pre-wrap break-words">{preInputDetails}</p>
             </div>
-            <p className="text-xs text-amber-700">
-              顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
-            </p>
+          )}
+          {/* 変更申請ありアイコン（Phase 3: マスタデータ同期） */}
+          {hasChangeRequest && (
+            <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-amber-600 shrink-0" />
+                  <span className="font-medium text-amber-900">変更申請あり</span>
+                </div>
+                <Button
+                  onClick={handleMarkChangeRequestCompleted}
+                  disabled={isMarkingCompleted}
+                  variant="outline"
+                  className="h-12 text-base font-medium bg-white border-amber-400 text-amber-900 hover:bg-amber-100"
+                >
+                  {isMarkingCompleted ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-1.5 animate-spin shrink-0" />
+                      処理中...
+                    </>
+                  ) : (
+                    "対応完了"
+                  )}
+                </Button>
+              </div>
+              <p className="text-amber-900">
+                顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
+              </p>
+            </div>
+          )}
+          {workOrder && (
+            <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base">
+              <div className="flex items-center gap-2 mb-2">
+                <NotebookPen className="h-5 w-5 text-amber-600 shrink-0" />
+                <p className="font-medium text-amber-900">受付メモ</p>
+              </div>
+              <p className="text-amber-900 break-words">{workOrder}</p>
+            </div>
+          )}
+
+          {/* ブログ用写真撮影ボタン */}
+          <div className="flex justify-end mt-3">
+            <Button
+              onClick={() => setIsBlogPhotoCaptureDialogOpen(true)}
+              variant="outline"
+              className="h-12 text-base font-medium flex items-center gap-2"
+            >
+              <Camera className="h-5 w-5 shrink-0" />
+              ブログ用写真を撮影
+            </Button>
           </div>
-        )}
-        {workOrder && (
-          <div className="mt-2 bg-red-50 border border-red-200 rounded-md p-2 text-sm text-red-800">
-            <AlertTriangle className="h-4 w-4 inline mr-1 shrink-0" />
-            <span className="break-words">{workOrder}</span>
-          </div>
-        )}
+        </div>
       </AppHeader>
 
       {/* ワークオーダー選択UI（複数作業がある場合のみ表示） */}
       {workOrders && workOrders.length > 0 && (
-        <div className="max-w-2xl mx-auto px-4 mb-4">
+        <div className="max-w-4xl mx-auto px-4 mb-6">
           <WorkOrderSelector
             workOrders={workOrders}
             selectedWorkOrderId={selectedWorkOrder?.id || null}
@@ -2351,47 +3723,198 @@ export default function DiagnosisPage() {
       )}
 
       {/* メインコンテンツ */}
-      <main className="max-w-2xl mx-auto px-4 py-4 pb-32">
-        {/* 撮影セクション */}
-        <Card className="mb-4">
+      <main className="max-w-4xl mx-auto px-4 py-6 pb-32">
+        {/* 一時帰宅/入庫選択セクション */}
+        <Card className="mb-4 border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Home className="h-5 w-5 text-orange-700 shrink-0" />
+              診断後の処理
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <Label className="text-base font-medium">処理方法</Label>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 p-3 border rounded-md hover:bg-slate-50 cursor-pointer" onClick={() => !isSubmitting && setIsTemporaryReturn(true)}>
+                  <input
+                    type="radio"
+                    checked={isTemporaryReturn === true}
+                    onChange={() => !isSubmitting && setIsTemporaryReturn(true)}
+                    disabled={isSubmitting}
+                    className="h-5 w-5 text-blue-700"
+                  />
+                  {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
+                  <Label className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Home className="h-5 w-5 text-blue-700 shrink-0" />
+                      <div>
+                        <div className="font-medium text-base">一時帰宅</div>
+                        <div className="text-base text-slate-700">顧客が車を持ち帰り、後日再入庫</div>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-3 border rounded-md hover:bg-slate-50 cursor-pointer" onClick={() => !isSubmitting && setIsTemporaryReturn(false)}>
+                  <input
+                    type="radio"
+                    checked={isTemporaryReturn === false}
+                    onChange={() => !isSubmitting && setIsTemporaryReturn(false)}
+                    disabled={isSubmitting}
+                    className="h-4 w-4 text-green-700"
+                  />
+                  <Label className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-5 w-5 text-green-700 shrink-0" />
+                      <div>
+                        <div className="font-medium text-base">入庫</div>
+                        <div className="text-base text-slate-700">車をそのまま入庫</div>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            {/* 再入庫予定日時（一時帰宅の場合のみ表示） */}
+            {isTemporaryReturn === true && (
+              <div className="space-y-3 p-3 bg-blue-50 rounded-md border border-blue-300">
+                <Label className="text-base font-medium text-blue-900 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  再入庫予定日時
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="reentry-date" className="text-base text-blue-900">
+                      日付
+                    </Label>
+                    <Input
+                      id="reentry-date"
+                      type="date"
+                      value={reentryDateTime ? new Date(reentryDateTime).toISOString().split("T")[0] : ""}
+                      onChange={(e) => {
+                        const date = e.target.value;
+                        const time = reentryDateTime ? new Date(reentryDateTime).toTimeString().slice(0, 5) : "10:00";
+                        if (date) {
+                          const dateTime = new Date(`${date}T${time}:00`);
+                          setReentryDateTime(dateTime.toISOString());
+                        } else {
+                          setReentryDateTime(null);
+                        }
+                      }}
+                      className="h-12 bg-white"
+                      disabled={isSubmitting}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="reentry-time" className="text-base text-blue-900 flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 shrink-0" />
+                      時刻
+                    </Label>
+                    <Input
+                      id="reentry-time"
+                      type="time"
+                      value={reentryDateTime ? new Date(reentryDateTime).toTimeString().slice(0, 5) : "10:00"}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        const date = reentryDateTime ? new Date(reentryDateTime).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+                        if (time) {
+                          const dateTime = new Date(`${date}T${time}:00`);
+                          setReentryDateTime(dateTime.toISOString());
+                        }
+                      }}
+                      className="h-12 bg-white"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 撮影セクション */}
+        <Card className="mb-4 border border-slate-300 rounded-xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
               <span className="flex items-center gap-1.5 sm:gap-2">
                 <Camera className="h-5 w-5 shrink-0" />
-                外観撮影
+                診断写真撮影
               </span>
-              <Badge variant={photoCount === 4 ? "default" : "secondary"} className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                {photoCount}/4
+              <Badge variant={photoCount === totalPhotoPositions ? "default" : "secondary"} className="text-base font-medium px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
+                <span className="tabular-nums">{photoCount}</span>/<span className="tabular-nums">{totalPhotoPositions}</span>
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* 外観 */}
               <PhotoCaptureButton
                 position="front"
-                label="前"
+                label={photoPositionLabels.front}
                 photoData={photos.front}
                 onCapture={handlePhotoCapture}
                 disabled={isSubmitting}
               />
               <PhotoCaptureButton
                 position="rear"
-                label="後"
+                label={photoPositionLabels.rear}
                 photoData={photos.rear}
                 onCapture={handlePhotoCapture}
                 disabled={isSubmitting}
               />
               <PhotoCaptureButton
                 position="left"
-                label="左"
+                label={photoPositionLabels.left}
                 photoData={photos.left}
                 onCapture={handlePhotoCapture}
                 disabled={isSubmitting}
               />
               <PhotoCaptureButton
                 position="right"
-                label="右"
+                label={photoPositionLabels.right}
                 photoData={photos.right}
+                onCapture={handlePhotoCapture}
+                disabled={isSubmitting}
+              />
+              {/* エンジンルーム */}
+              <PhotoCaptureButton
+                position="engine"
+                label={photoPositionLabels.engine}
+                photoData={photos.engine}
+                onCapture={handlePhotoCapture}
+                disabled={isSubmitting}
+              />
+              {/* 室内・内装 */}
+              <PhotoCaptureButton
+                position="interior"
+                label={photoPositionLabels.interior}
+                photoData={photos.interior}
+                onCapture={handlePhotoCapture}
+                disabled={isSubmitting}
+              />
+              {/* 下回り・足回り */}
+              <PhotoCaptureButton
+                position="undercarriage"
+                label={photoPositionLabels.undercarriage}
+                photoData={photos.undercarriage}
+                onCapture={handlePhotoCapture}
+                disabled={isSubmitting}
+              />
+              {/* ダッシュボード */}
+              <PhotoCaptureButton
+                position="dashboard"
+                label={photoPositionLabels.dashboard}
+                photoData={photos.dashboard}
+                onCapture={handlePhotoCapture}
+                disabled={isSubmitting}
+              />
+              {/* 損傷箇所 */}
+              <PhotoCaptureButton
+                position="damage"
+                label={photoPositionLabels.damage}
+                photoData={photos.damage}
                 onCapture={handlePhotoCapture}
                 disabled={isSubmitting}
               />
@@ -2401,64 +3924,88 @@ export default function DiagnosisPage() {
 
         {/* OBD診断結果セクション（12ヵ月点検の場合のみ） */}
         {is12MonthInspection && (
-          <OBDDiagnosticResultSection
-            result={obdDiagnosticResult}
-            onUpload={handleOBDDiagnosticUpload}
-            onRemove={handleOBDDiagnosticRemove}
-            disabled={isSubmitting}
-            className="mb-4"
-          />
+          <>
+            <OBDDiagnosticResultSection
+              result={obdDiagnosticResult}
+              onUpload={handleOBDDiagnosticUpload}
+              onRemove={handleOBDDiagnosticRemove}
+              disabled={isSubmitting}
+              className="mb-4"
+            />
+            {/* 拡張OBD診断結果セクション（改善提案 #4） */}
+            <EnhancedOBDDiagnosticSection
+              result={enhancedOBDDiagnosticResult}
+              onChange={(result) => setEnhancedOBDDiagnosticResult(result)}
+              disabled={isSubmitting}
+              className="mb-4"
+            />
+          </>
         )}
 
         {/* 診断機結果セクション（修理・整備の場合のみ） */}
         {isRepair && (
-          <OBDDiagnosticResultSection
-            result={repairDiagnosticToolResult}
-            onUpload={handleRepairDiagnosticToolUpload}
-            onRemove={handleRepairDiagnosticToolRemove}
-            disabled={isSubmitting}
-            className="mb-4"
-          />
+          <>
+            <OBDDiagnosticResultSection
+              result={repairDiagnosticToolResult}
+              onUpload={handleRepairDiagnosticToolUpload}
+              onRemove={handleRepairDiagnosticToolRemove}
+              disabled={isSubmitting}
+              className="mb-4"
+            />
+            {/* 拡張OBD診断結果セクション（改善提案 #4） */}
+            <EnhancedOBDDiagnosticSection
+              result={enhancedOBDDiagnosticResult}
+              onChange={(result) => setEnhancedOBDDiagnosticResult(result)}
+              disabled={isSubmitting}
+              className="mb-4"
+            />
+          </>
         )}
 
         {/* 診断チェックリスト */}
         {isInspection ? (
-          <InspectionDiagnosisView
-            items={inspectionItems}
-            onStatusChange={handleInspectionStatusChange}
-            onMeasurementChange={handleInspectionMeasurementChange}
-            onPhotoCapture={handleInspectionPhotoCapture}
-            onVideoCapture={handleInspectionVideoCapture}
-            onCommentChange={handleInspectionCommentChange}
-            photoDataMap={inspectionPhotoData}
-            videoDataMap={inspectionVideoData}
-            disabled={isSubmitting}
-          />
+          <div className="mb-4">
+            <InspectionDiagnosisView
+              items={inspectionItems}
+              onStatusChange={handleInspectionStatusChange}
+              onMeasurementChange={handleInspectionMeasurementChange}
+              onPhotoCapture={handleInspectionPhotoCapture}
+              onVideoCapture={handleInspectionVideoCapture}
+              onCommentChange={handleInspectionCommentChange}
+              photoDataMap={inspectionPhotoData}
+              videoDataMap={inspectionVideoData}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : isEngineOilChange ? (
-          <EngineOilInspectionView
-            items={engineOilInspectionItems}
-            onStatusChange={handleEngineOilStatusChange}
-            onPhotoCapture={handleEngineOilPhotoCapture}
-            onCommentChange={handleEngineOilCommentChange}
-            photoDataMap={engineOilPhotoData}
-            disabled={isSubmitting}
-          />
+          <div className="mb-4">
+            <EngineOilInspectionView
+              items={engineOilInspectionItems}
+              onStatusChange={handleEngineOilStatusChange}
+              onPhotoCapture={handleEngineOilPhotoCapture}
+              onCommentChange={handleEngineOilCommentChange}
+              photoDataMap={engineOilPhotoData}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : isTireReplacement ? (
-          <TireInspectionView
-            items={tireInspectionItems}
-            onStatusChange={handleTireStatusChange}
-            onPhotoCapture={handleTirePhotoCapture}
-            onCommentChange={handleTireCommentChange}
-            photoDataMap={tirePhotoData}
-            treadDepth={tireTreadDepth}
-            onTreadDepthChange={setTireTreadDepth}
-            pressure={tirePressure}
-            onPressureChange={setTirePressure}
-            recommendedPressure={recommendedPressure}
-            disabled={isSubmitting}
-          />
+          <div className="mb-4">
+            <TireInspectionView
+              items={tireInspectionItems}
+              onStatusChange={handleTireStatusChange}
+              onPhotoCapture={handleTirePhotoCapture}
+              onCommentChange={handleTireCommentChange}
+              photoDataMap={tirePhotoData}
+              treadDepth={tireTreadDepth}
+              onTreadDepthChange={setTireTreadDepth}
+              pressure={tirePressure}
+              onPressureChange={setTirePressure}
+              recommendedPressure={recommendedPressure}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : isMaintenance ? (
-          <div className="space-y-4">
+          <div className="space-y-4 mb-4">
             <MaintenanceMenuSelector
               selectedMenu={selectedMaintenanceMenu}
               onMenuChange={handleMaintenanceMenuChange}
@@ -2483,7 +4030,7 @@ export default function DiagnosisPage() {
             />
           </div>
         ) : isTuningParts ? (
-          <div className="space-y-4">
+          <div className="space-y-4 mb-4">
             <TuningPartsTypeSelector
               selectedType={selectedTuningPartsType}
               onTypeChange={handleTuningPartsTypeChange}
@@ -2503,114 +4050,396 @@ export default function DiagnosisPage() {
             />
           </div>
         ) : isCoating ? (
-          <CoatingInspectionView
-            bodyConditions={coatingBodyConditions}
-            onBodyConditionChange={handleCoatingBodyConditionChange}
-            onPhotoCapture={handleCoatingPhotoCapture}
-            onCommentChange={handleCoatingCommentChange}
-            photoDataMap={coatingPhotoData}
-            existingCoating={coatingExistingCoating}
-            onExistingCoatingChange={setCoatingExistingCoating}
-            disabled={isSubmitting}
-          />
+          <div className="mb-4">
+            <CoatingInspectionView
+              bodyConditions={coatingBodyConditions}
+              onBodyConditionChange={handleCoatingBodyConditionChange}
+              onPhotoCapture={handleCoatingPhotoCapture}
+              onCommentChange={handleCoatingCommentChange}
+              photoDataMap={coatingPhotoData}
+              existingCoating={coatingExistingCoating}
+              onExistingCoatingChange={setCoatingExistingCoating}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : isBodyPaint ? (
-          <BodyPaintDiagnosisView
-            damageLocations={bodyPaintDamageLocations}
-            onAddDamageLocation={handleBodyPaintAddDamageLocation}
-            onRemoveDamageLocation={handleBodyPaintRemoveDamageLocation}
-            onDamageLocationChange={handleBodyPaintDamageLocationChange}
-            onPhotoCapture={handleBodyPaintPhotoCapture}
-            onVideoCapture={handleBodyPaintVideoCapture}
-            photoDataMap={bodyPaintPhotoData}
-            videoDataMap={bodyPaintVideoData}
-            estimateRequestMethod={bodyPaintEstimateRequestMethod}
-            onEstimateRequestMethodChange={setBodyPaintEstimateRequestMethod}
-            vendorEstimate={bodyPaintVendorEstimate}
-            onVendorEstimateChange={setBodyPaintVendorEstimate}
-            comments={bodyPaintComments}
-            onCommentsChange={setBodyPaintComments}
-            disabled={isSubmitting}
-          />
+          <div className="mb-4">
+            <BodyPaintDiagnosisView
+              damageLocations={bodyPaintDamageLocations}
+              onAddDamageLocation={handleBodyPaintAddDamageLocation}
+              onRemoveDamageLocation={handleBodyPaintRemoveDamageLocation}
+              onDamageLocationChange={handleBodyPaintDamageLocationChange}
+              onPhotoCapture={handleBodyPaintPhotoCapture}
+              onVideoCapture={handleBodyPaintVideoCapture}
+              photoDataMap={bodyPaintPhotoData}
+              videoDataMap={bodyPaintVideoData}
+              estimateRequestMethod={bodyPaintEstimateRequestMethod}
+              onEstimateRequestMethodChange={setBodyPaintEstimateRequestMethod}
+              vendorEstimate={bodyPaintVendorEstimate}
+              onVendorEstimateChange={setBodyPaintVendorEstimate}
+              comments={bodyPaintComments}
+              onCommentsChange={setBodyPaintComments}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : isRestore ? (
-          <RestoreDiagnosisView
-            restoreType={restoreType}
-            onRestoreTypeChange={setRestoreType}
-            conditionChecks={restoreConditionChecks}
-            onAddConditionCheck={handleRestoreAddConditionCheck}
-            onRemoveConditionCheck={handleRestoreRemoveConditionCheck}
-            onConditionCheckChange={handleRestoreConditionCheckChange}
-            restoreLocations={restoreLocations}
-            onAddRestoreLocation={handleRestoreAddRestoreLocation}
-            onRemoveRestoreLocation={handleRestoreRemoveRestoreLocation}
-            onRestoreLocationChange={handleRestoreRestoreLocationChange}
-            onPhotoCapture={handleRestorePhotoCapture}
-            photoDataMap={restorePhotoData}
-            comments={restoreComments}
-            onCommentsChange={setRestoreComments}
-            disabled={isSubmitting}
-          />
+          <div className="space-y-4 mb-4">
+            <RestoreDiagnosisView
+              restoreType={restoreType}
+              onRestoreTypeChange={setRestoreType}
+              conditionChecks={restoreConditionChecks}
+              onAddConditionCheck={handleRestoreAddConditionCheck}
+              onRemoveConditionCheck={handleRestoreRemoveConditionCheck}
+              onConditionCheckChange={handleRestoreConditionCheckChange}
+              restoreLocations={restoreLocations}
+              onAddRestoreLocation={handleRestoreAddRestoreLocation}
+              onRemoveRestoreLocation={handleRestoreRemoveRestoreLocation}
+              onRestoreLocationChange={handleRestoreRestoreLocationChange}
+              onPhotoCapture={handleRestorePhotoCapture}
+              photoDataMap={restorePhotoData}
+              comments={restoreComments}
+              onCommentsChange={setRestoreComments}
+              disabled={isSubmitting}
+            />
+            {/* レストア作業進捗セクション（改善提案 #4） */}
+            <RestoreProgressSection
+              progress={restoreProgress}
+              onChange={(progress) => setRestoreProgress(progress)}
+              disabled={isSubmitting}
+              className="mb-4"
+            />
+          </div>
         ) : isOther ? (
-          <OtherServiceDiagnosisView
-            diagnosisItems={otherDiagnosisItems}
-            onAddDiagnosisItem={handleOtherAddDiagnosisItem}
-            onRemoveDiagnosisItem={handleOtherRemoveDiagnosisItem}
-            onDiagnosisItemChange={handleOtherDiagnosisItemChange}
-            onPhotoCapture={handleOtherPhotoCapture}
-            photoDataMap={otherPhotoData}
-            comments={otherComments}
-            onCommentsChange={setOtherComments}
-            disabled={isSubmitting}
-          />
+          <div className="mb-4">
+            <OtherServiceDiagnosisView
+              diagnosisItems={otherDiagnosisItems}
+              onAddDiagnosisItem={handleOtherAddDiagnosisItem}
+              onRemoveDiagnosisItem={handleOtherRemoveDiagnosisItem}
+              onDiagnosisItemChange={handleOtherDiagnosisItemChange}
+              onPhotoCapture={handleOtherPhotoCapture}
+              photoDataMap={otherPhotoData}
+              comments={otherComments}
+              onCommentsChange={setOtherComments}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : isFaultDiagnosis ? (
-          <FaultDiagnosisView
-            selectedSymptoms={selectedSymptoms}
-            onSymptomChange={setSelectedSymptoms}
-            diagnosticToolResult={faultDiagnosticToolResult}
-            onDiagnosticToolChange={handleFaultDiagnosticToolChange}
-            videoDataMap={faultVideoDataMap}
-            onVideoCapture={handleFaultVideoCapture}
-            audioData={faultAudioData}
-            onAudioCapture={handleFaultAudioCapture}
-            onAudioRemove={handleFaultAudioRemove}
-            errorLampInfo={errorLampInfo || undefined}
-            notes={faultNotes}
-            onNotesChange={setFaultNotes}
-            disabled={isSubmitting}
-          />
+          <div className="space-y-4 mb-4">
+            <FaultDiagnosisView
+              selectedSymptoms={selectedSymptoms}
+              onSymptomChange={setSelectedSymptoms}
+              diagnosticToolResult={faultDiagnosticToolResult}
+              onDiagnosticToolChange={handleFaultDiagnosticToolChange}
+              videoDataMap={faultVideoDataMap}
+              onVideoCapture={handleFaultVideoCapture}
+              audioData={faultAudioData}
+              onAudioCapture={handleFaultAudioCapture}
+              onAudioRemove={handleFaultAudioRemove}
+              errorLampInfo={errorLampInfo || undefined}
+              notes={faultNotes}
+              onNotesChange={setFaultNotes}
+              disabled={isSubmitting}
+            />
+            {/* 拡張OBD診断結果セクション（改善提案 #4） */}
+            <EnhancedOBDDiagnosticSection
+              result={enhancedOBDDiagnosticResult}
+              onChange={(result) => setEnhancedOBDDiagnosticResult(result)}
+              disabled={isSubmitting}
+            />
+          </div>
         ) : (
-          <Card>
+          <Card className="mb-4 border border-slate-300 rounded-xl shadow-md">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
-                <span>🔍 診断チェックリスト</span>
+              <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
+                <span className="flex items-center gap-2">
+                  <Search className="h-5 w-5 text-slate-700 shrink-0" />
+                  診断チェックリスト
+                </span>
                 <div className="flex gap-2">
                   {redCount > 0 && (
-                    <Badge variant="destructive" className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">{redCount}件 要交換</Badge>
+                    <Badge variant="destructive" className="text-base font-medium px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap"><span className="tabular-nums">{redCount}</span>件 要交換</Badge>
                   )}
-                  <Badge variant={checkedCount === checkItems.length ? "default" : "secondary"} className="text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                    {checkedCount}/{checkItems.length}
+                  <Badge variant={checkedCount === checkItems.length ? "default" : "secondary"} className="text-base font-medium px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
+                    <span className="tabular-nums">{checkedCount}</span>/<span className="tabular-nums">{checkItems.length}</span>
                   </Badge>
                 </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="divide-y divide-slate-100">
-                {checkItems.map((item) => (
-                  <CheckItemRow
-                    key={item.id}
-                    item={item}
-                    onStatusChange={handleStatusChange}
-                    disabled={isSubmitting}
-                  />
-                ))}
+              <div className="space-y-2">
+                {categories.map((category) => {
+                  const items = itemsByCategory[category] || [];
+                  const isOpen = openCategories.has(category);
+                  const hasIncomplete = hasIncompleteItems(category);
+                  const isComplete = isCategoryComplete(category);
+
+                  return (
+                    <Collapsible
+                      key={category}
+                      open={isOpen}
+                      onOpenChange={() => toggleCategory(category)}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-between h-12 text-base font-medium text-slate-900 hover:bg-slate-100"
+                          aria-label={`${category}カテゴリを${isOpen ? "閉じる" : "開く"}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{category}</span>
+                            {hasIncomplete && (
+                              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" aria-label="未入力項目あり" />
+                            )}
+                            {isComplete && (
+                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" aria-label="完了" />
+                            )}
+                            <Badge variant="secondary" className="text-base font-medium px-2 py-0.5">
+                              {items.length}件
+                            </Badge>
+                          </div>
+                          {isOpen ? (
+                            <ChevronUp className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 shrink-0" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="divide-y divide-slate-100 pt-2">
+                          {items.map((item) => (
+                            <CheckItemRow
+                              key={item.id}
+                              item={item}
+                              onStatusChange={handleStatusChange}
+                              disabled={isSubmitting}
+                            />
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         )}
+
+        {/* 品質管理・最終検査セクション（全診断タイプ共通、改善提案 #4） */}
+        <QualityInspectionSection
+          inspection={qualityInspection}
+          onChange={(inspection) => setQualityInspection(inspection)}
+          disabled={isSubmitting}
+          className="mb-4"
+        />
+
+        {/* メーカー問い合わせセクション（全診断タイプ共通、改善提案 #4） */}
+        <ManufacturerInquirySection
+          inquiry={manufacturerInquiry}
+          onChange={(inquiry) => setManufacturerInquiry(inquiry)}
+          disabled={isSubmitting}
+          className="mb-4"
+        />
+
+        {/* 作業メモセクション */}
+        <Card className="mb-4 border border-slate-300 rounded-xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Notebook className="h-5 w-5 shrink-0" />
+              作業メモ
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(() => {
+              // メモを取得
+              const memosFromField26 = job.field26
+                ? parseJobMemosFromField26(job.field26)
+                : [];
+              const memosFromJob = job.jobMemos || [];
+              const allMemos = memosFromField26.length > 0 ? memosFromField26 : memosFromJob;
+              const sortedMemos = [...allMemos].sort((a, b) => {
+                const dateA = new Date(a.createdAt).getTime();
+                const dateB = new Date(b.createdAt).getTime();
+                return dateB - dateA; // 降順（新しい順）
+              });
+              const latestMemo = sortedMemos[0];
+
+              return (
+                <>
+                  {latestMemo ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3">
+                      <div className="flex items-center gap-2 text-base text-slate-700 mb-1">
+                        <span>{latestMemo.author}</span>
+                        <span>•</span>
+                        <span>
+                          {new Date(latestMemo.createdAt).toLocaleString("ja-JP", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: "Asia/Tokyo",
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-base text-slate-800 line-clamp-2 whitespace-pre-wrap">
+                        {latestMemo.content}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-base text-slate-700 text-center py-2">
+                      メモがありません
+                    </p>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="w-full h-12 text-base font-medium"
+                    onClick={() => setIsJobMemoDialogOpen(true)}
+                    disabled={isSubmitting}
+                  >
+                    <Notebook className="h-4 w-4 mr-2 shrink-0" />
+                    メモを表示/編集
+                    {allMemos.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+                        <span className="tabular-nums">{allMemos.length}</span>
+                      </Badge>
+                    )}
+                  </Button>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* 診断料金入力セクション */}
+        <Card className="mb-4 border border-slate-300 rounded-xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Calculator className="h-5 w-5 text-orange-700 shrink-0" />
+              診断料金（任意）
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* 診断時間（概算） */}
+            <div className="space-y-2">
+              <Label className="text-base font-medium flex items-center gap-2">
+                <Clock className="h-5 w-5 text-slate-700 shrink-0" />
+                診断時間（概算）
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  value={diagnosisDuration || ""}
+                  onChange={(e) => {
+                    const duration = parseInt(e.target.value);
+                    setDiagnosisDuration(isNaN(duration) ? null : duration);
+                  }}
+                  placeholder="分"
+                  className="w-24"
+                  disabled={isSubmitting}
+                />
+                <span className="text-base text-slate-700">分</span>
+              </div>
+              <p className="text-base text-slate-700">
+                参考情報として記録します（厳密な時間計測不要）
+              </p>
+            </div>
+
+            {/* 診断料金選択 */}
+            <div className="space-y-2">
+              <Label className="text-base font-medium">診断料金</Label>
+              <Select
+                value={diagnosisFee === null ? "custom" : diagnosisFee.toString()}
+                onValueChange={(value) => {
+                  if (value === "custom") {
+                    setDiagnosisFee(null);
+                  } else {
+                    const fee = parseInt(value);
+                    setDiagnosisFee(fee);
+                  }
+                }}
+                disabled={isSubmitting || isRegularCustomer}
+              >
+                <SelectTrigger className="h-12 text-base">
+                  <SelectValue placeholder="診断料金を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">無料</SelectItem>
+                  <SelectItem value="3000">¥3,000</SelectItem>
+                  <SelectItem value="5000">¥5,000</SelectItem>
+                  <SelectItem value="10000">¥10,000</SelectItem>
+                  <SelectItem value="custom">その他（手動入力）</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* その他の場合の手動入力 */}
+              {diagnosisFee === null && (
+                <Input
+                  type="number"
+                  min="0"
+                  value=""
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    setDiagnosisFee(isNaN(value) ? null : value);
+                  }}
+                  placeholder="金額を入力（円）"
+                  className="h-12"
+                  disabled={isSubmitting}
+                />
+              )}
+
+              {/* 常連顧客の場合の表示 */}
+              {isRegularCustomer && (
+                <div className="flex items-center gap-2 text-base text-green-700 bg-green-50 p-2 rounded-md">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <span>常連顧客のため自動で無料に設定されています（上書き可能）</span>
+                </div>
+              )}
+
+              <p className="text-base text-slate-700">
+                <span className="flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 shrink-0 text-slate-700" />
+                  注意: 見積画面でも変更可能です
+                </span>
+              </p>
+            </div>
+
+            {/* 診断担当者 */}
+            <div className="space-y-2">
+              <Label className="text-base font-medium flex items-center gap-2">
+                <User className="h-5 w-5 text-slate-700 shrink-0" />
+                診断担当者
+              </Label>
+              <Input
+                type="text"
+                value={diagnosisMechanic}
+                onChange={(e) => setDiagnosisMechanic(e.target.value)}
+                placeholder="診断担当者の名前を入力"
+                className="h-12 text-base"
+                disabled={isSubmitting}
+              />
+              <p className="text-base text-slate-700">
+                診断を実施した整備士の名前を入力してください
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </main>
 
       {/* 完了ボタン（固定フッター） */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-2">
+          {/* プレビューボタン（改善提案 #15） */}
+          <Button
+            onClick={handleOpenPreview}
+            variant="outline"
+            size="lg"
+            className="w-full h-12 text-base gap-2"
+            disabled={isSubmitting}
+          >
+            <Eye className="h-4 w-4 shrink-0" />
+            プレビュー
+          </Button>
           <Button
             onClick={handleComplete}
             size="lg"
@@ -2649,6 +4478,227 @@ export default function DiagnosisPage() {
         existingServiceKinds={workOrders?.map((wo) => wo.serviceKind as ServiceKind) || serviceKinds}
         onSuccess={handleAddWorkOrderSuccess}
       />
+
+      {/* 診断料金入力ダイアログ */}
+      <DiagnosisFeeDialog
+        open={isDiagnosisFeeDialogOpen}
+        onOpenChange={(open) => {
+          setIsDiagnosisFeeDialogOpen(open);
+          if (!open) {
+            setPendingCompleteAction(null);
+          }
+        }}
+        diagnosisFee={diagnosisFee}
+        onDiagnosisFeeChange={setDiagnosisFee}
+        diagnosisDuration={diagnosisDuration}
+        onDiagnosisDurationChange={setDiagnosisDuration}
+        isRegularCustomer={isRegularCustomer}
+        onConfirm={() => {
+          // 診断料金入力後、一時帰宅/入庫選択ダイアログを表示
+          setIsDiagnosisFeeDialogOpen(false);
+          setIsTemporaryReturnDialogOpen(true);
+          setPendingTemporaryReturnAction(() => {
+            if (pendingCompleteAction) {
+              return pendingCompleteAction;
+            }
+            return () => { };
+          });
+          setPendingCompleteAction(null);
+        }}
+        disabled={isSubmitting}
+      />
+
+      {/* 一時帰宅/入庫選択ダイアログ */}
+      <TemporaryReturnDialog
+        open={isTemporaryReturnDialogOpen}
+        onOpenChange={(open) => {
+          setIsTemporaryReturnDialogOpen(open);
+          if (!open) {
+            setPendingTemporaryReturnAction(null);
+          }
+        }}
+        isTemporaryReturn={isTemporaryReturn}
+        onTemporaryReturnChange={setIsTemporaryReturn}
+        reentryDateTime={reentryDateTime}
+        onReentryDateTimeChange={setReentryDateTime}
+        onConfirm={() => {
+          if (pendingTemporaryReturnAction) {
+            pendingTemporaryReturnAction();
+            setPendingTemporaryReturnAction(null);
+          }
+        }}
+        disabled={isSubmitting}
+      />
+
+      {/* 診断結果プレビューダイアログ（改善提案 #15） */}
+      <DiagnosisPreviewDialog
+        open={isPreviewDialogOpen}
+        onOpenChange={setIsPreviewDialogOpen}
+        job={job}
+        diagnosisItems={
+          isInspection
+            ? inspectionItems.map((item, index) => ({
+              id: item.id,
+              name: item.name,
+              status: item.status,
+              comment: item.comment || null,
+              value: item.measurementValue
+                ? `${item.measurementValue}`
+                : undefined,
+              index, // プレビューからの編集用にindexを追加
+            }))
+            : checkItems.map((item, index) => ({
+              id: item.id,
+              name: item.name,
+              status: item.status,
+              comment: null,
+              value: undefined,
+              index, // プレビューからの編集用にindexを追加
+            }))
+        }
+        photos={Object.values(photos)
+          .filter((p) => p.file)
+          .map((p, index) => ({
+            id: `photo-${p.position}-${index}`,
+            previewUrl: p.previewUrl || "",
+            position: p.position,
+          }))}
+        onEdit={handleEditFromPreview}
+        onSave={handleSaveFromPreview}
+        onPhotosChange={(updatedPhotos) => {
+          // 写真の順番を更新・削除処理
+          const updatedPhotoData: Partial<Record<PhotoPosition, PhotoData>> = {};
+
+          // updatedPhotosに含まれる写真のみを保持
+          updatedPhotos.forEach((updatedPhoto) => {
+            // 既存の写真データから該当するものを探す（previewUrlで一致）
+            const existingPhoto = Object.values(photos).find(
+              (p) => p.previewUrl === updatedPhoto.previewUrl
+            );
+
+            if (existingPhoto) {
+              // 既存の写真データを保持（positionは変更しない）
+              updatedPhotoData[existingPhoto.position] = existingPhoto;
+            }
+          });
+
+          // すべての位置について、更新されたデータまたはデフォルト値を設定
+          const finalPhotoData: Record<PhotoPosition, PhotoData> = {
+            front: updatedPhotoData.front ?? { position: "front", file: null, previewUrl: null, isCompressing: false },
+            rear: updatedPhotoData.rear ?? { position: "rear", file: null, previewUrl: null, isCompressing: false },
+            left: updatedPhotoData.left ?? { position: "left", file: null, previewUrl: null, isCompressing: false },
+            right: updatedPhotoData.right ?? { position: "right", file: null, previewUrl: null, isCompressing: false },
+            engine: updatedPhotoData.engine ?? { position: "engine", file: null, previewUrl: null, isCompressing: false },
+            interior: updatedPhotoData.interior ?? { position: "interior", file: null, previewUrl: null, isCompressing: false },
+            undercarriage: updatedPhotoData.undercarriage ?? { position: "undercarriage", file: null, previewUrl: null, isCompressing: false },
+            dashboard: updatedPhotoData.dashboard ?? { position: "dashboard", file: null, previewUrl: null, isCompressing: false },
+            damage: updatedPhotoData.damage ?? { position: "damage", file: null, previewUrl: null, isCompressing: false },
+          };
+
+          // 状態を更新（削除された写真は自動的に除外される）
+          setPhotos(finalPhotoData);
+        }}
+      />
+
+      {/* 作業メモダイアログ */}
+      <JobMemoDialog
+        open={isJobMemoDialogOpen}
+        onOpenChange={setIsJobMemoDialogOpen}
+        job={job}
+        onSuccess={async () => {
+          // メモ更新後にジョブデータを再取得
+          if (job) {
+            const result = await fetchJobById(job.id);
+            if (result.success && result.data) {
+              // SWRキャッシュを更新（親コンポーネントでmutateする必要がある場合）
+              // ここでは単純にダイアログを閉じるだけ
+            }
+          }
+        }}
+      />
+
+      {/* 競合解決ダイアログ */}
+      {conflictInfo && (
+        <ConflictResolutionDialog
+          open={isConflictDialogOpen}
+          onOpenChange={setIsConflictDialogOpen}
+          onReload={async () => {
+            setIsConflictDialogOpen(false);
+            await mutateJob();
+            toast.info("最新のデータを読み込みました。再度保存してください。");
+          }}
+          onOverwrite={async () => {
+            setIsConflictDialogOpen(false);
+            // バージョン番号を無視して上書き保存
+            try {
+              // 現在の診断データを再構築
+              const currentDiagnosisData = buildDiagnosisData();
+              const photoData = Object.values(photos)
+                .filter((p) => p.file)
+                .map((p) => ({
+                  position: p.position,
+                  url: p.previewUrl || "",
+                }));
+
+              const saveResult = await saveDiagnosis(jobId, undefined, {
+                items: currentDiagnosisData.items || [],
+                photos: photoData,
+                mileage: job.field10 || undefined,
+                version: null, // バージョンチェックをスキップ
+                enhancedOBDDiagnosticResult: currentDiagnosisData.enhancedOBDDiagnosticResult || undefined,
+                qualityInspection: currentDiagnosisData.qualityInspection || undefined,
+                manufacturerInquiry: currentDiagnosisData.manufacturerInquiry || undefined,
+                isComplete: false, // 競合解決時の上書き保存は一時保存として扱う（ステータス変更なし）
+              });
+              if (saveResult.success) {
+                await mutateJob();
+                toast.success("診断データを上書き保存しました");
+              } else {
+                throw new Error(saveResult.error?.message || "診断の保存に失敗しました");
+              }
+            } catch (error) {
+              console.error("上書き保存エラー:", error);
+              toast.error("上書き保存に失敗しました", {
+                description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+              });
+            }
+          }}
+          onCancel={() => {
+            setIsConflictDialogOpen(false);
+            setConflictInfo(null);
+          }}
+          currentVersion={conflictInfo.currentVersion}
+          submittedVersion={conflictInfo.submittedVersion}
+        />
+      )}
+
+      {/* ブログ用写真撮影ダイアログ */}
+      {job && (
+        <BlogPhotoCaptureDialog
+          open={isBlogPhotoCaptureDialogOpen}
+          onOpenChange={setIsBlogPhotoCaptureDialogOpen}
+          jobId={job.id}
+          onComplete={() => {
+            // 撮影完了後の処理（必要に応じてデータを再取得）
+            mutateJob();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+export default function DiagnosisPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 border-4 border-slate-300 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-700">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <DiagnosisPageContent />
+    </Suspense>
   );
 }

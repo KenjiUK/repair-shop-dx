@@ -5,14 +5,15 @@ const WORK_ORDERS_API_BASE_URL = "/api/jobs";
 
 /**
  * SWR設定
+ * グローバル設定（swrGlobalConfig）を継承し、必要に応じて上書き
  */
 const swrConfig = {
-  revalidateOnFocus: true,
-  revalidateOnReconnect: true,
-  dedupingInterval: 5 * 60 * 1000, // 5分
-  focusThrottleInterval: 5 * 60 * 1000, // 5分
+  // グローバル設定を継承（revalidateOnFocus: false, revalidateOnReconnect: trueなど）
+  // 詳細ページなので、キャッシュを活用
+  revalidateOnMount: false, // キャッシュがあれば再検証しない
+  dedupingInterval: 5 * 60 * 1000, // 5分（グローバル設定と同じ）
   errorRetryCount: 3,
-  errorRetryInterval: 1000,
+  errorRetryInterval: 5000, // 5秒（グローバル設定と同じ）
 };
 
 /**
@@ -124,6 +125,14 @@ export async function deleteWorkOrder(
 
   return response.json();
 }
+
+
+
+
+
+
+
+
 
 
 

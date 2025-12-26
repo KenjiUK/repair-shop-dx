@@ -300,7 +300,7 @@ export function SummaryCarousel({ children, className }: SummaryCarouselProps) {
                 "h-2 rounded-full transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
                 index === currentIndex
                   ? "w-8 bg-slate-900"
-                  : "w-2 bg-slate-300 hover:bg-slate-400"
+                  : "w-2 bg-slate-300 hover:bg-slate-500"
               )}
               aria-label={`カード ${index + 1}へ移動`}
             />

@@ -53,11 +53,11 @@ export function CourtesyCarListDialog({
   const getStatusBadgeStyle = (carStatus: string) => {
     switch (carStatus) {
       case "available":
-        return "bg-green-50 text-green-700 border-green-200";
+        return "bg-green-50 text-green-700 border-green-300";
       case "in_use":
-        return "bg-orange-50 text-orange-700 border-orange-200";
+        return "bg-orange-50 text-orange-700 border-orange-300";
       case "inspection":
-        return "bg-red-50 text-red-700 border-red-200";
+        return "bg-red-50 text-red-700 border-red-300";
       default:
         return "bg-slate-100 text-slate-700 border-slate-300";
     }
@@ -133,7 +133,7 @@ export function CourtesyCarListDialog({
           </DialogHeader>
 
           {filteredCars.length === 0 ? (
-            <div className="py-8 text-center text-slate-500">
+            <div className="py-8 text-center text-slate-700">
               <Car className="h-12 w-12 mx-auto mb-3 text-slate-300" />
               <p>{statusLabel}の代車はありません</p>
             </div>
@@ -152,19 +152,19 @@ export function CourtesyCarListDialog({
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Car className="h-4 w-4 text-slate-600" />
+                        <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                          <Car className="h-5 w-5 text-slate-800 shrink-0" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
                           {car.name}
                         </CardTitle>
                         <Badge
                           variant="outline"
                           className={cn(
-                            "text-xs font-medium",
+                            "text-base font-medium",
                             getStatusBadgeStyle(car.status)
                           )}
                         >
                           <span className="flex items-center gap-1">
-                            <StatusIcon className="h-3 w-3" />
+                            <StatusIcon className="h-4 w-4" />
                             {statusLabel}
                           </span>
                         </Badge>
@@ -173,46 +173,46 @@ export function CourtesyCarListDialog({
                     <CardContent className="space-y-2">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-xs text-slate-500 mb-1">代車ID</p>
-                          <p className="text-sm font-medium text-slate-900">
+                          <p className="text-base text-slate-700 mb-1">代車ID</p>
+                          <p className="text-base font-medium text-slate-900">
                             {car.carId}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-slate-500 mb-1">車名</p>
-                          <p className="text-sm font-medium text-slate-900">
+                          <p className="text-base text-slate-700 mb-1">車名</p>
+                          <p className="text-base font-medium text-slate-900">
                             {car.name}
                           </p>
                         </div>
                         {car.licensePlate && (
                           <div className="col-span-2">
-                            <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-                              <Car className="h-3 w-3" />
+                            <p className="text-base text-slate-700 mb-1 flex items-center gap-1">
+                              <Car className="h-4 w-4" />
                               ナンバープレート
                             </p>
-                            <p className="text-sm font-medium text-slate-900">
+                            <p className="text-base font-medium text-slate-900">
                               {car.licensePlate}
                             </p>
                           </div>
                         )}
                         {car.jobId && (
                           <div>
-                            <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-                              <FileText className="h-3 w-3" />
+                            <p className="text-base text-slate-700 mb-1 flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
                               紐付け中の案件ID
                             </p>
-                            <p className="text-sm font-medium text-slate-900">
+                            <p className="text-base font-medium text-slate-900">
                               {car.jobId}
                             </p>
                           </div>
                         )}
                         {car.rentedAt && (
                           <div>
-                            <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
+                            <p className="text-base text-slate-700 mb-1 flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
                               貸出開始日時
                             </p>
-                            <p className="text-sm font-medium text-slate-900">
+                            <p className="text-base font-medium text-slate-900">
                               {new Date(car.rentedAt).toLocaleString("ja-JP", {
                                 year: "numeric",
                                 month: "2-digit",

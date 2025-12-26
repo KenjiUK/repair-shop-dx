@@ -85,6 +85,33 @@ export function useOptimisticUpdate() {
         populateCache: false, // サーバーからの応答で上書きするため
       });
 
+      // リトライ関数を定義（エラー時に使用）
+      const retryUpdate = async (): Promise<T | undefined> => {
+        try {
+          const serverData = await updateFn(newData);
+          await mutate(cacheKey, serverData, {
+            revalidate: false,
+          });
+          if (successMessage) {
+            toast.success(successMessage);
+          }
+          if (onSuccess) {
+            onSuccess(serverData);
+          }
+          return serverData;
+        } catch (retryError) {
+          // 再試行も失敗した場合はエラーメッセージを表示
+          const retryErrorMsg =
+            errorMessage ||
+            (retryError instanceof Error ? retryError.message : "更新に失敗しました");
+          toast.error(retryErrorMsg);
+          if (onError) {
+            onError(retryError instanceof Error ? retryError : new Error(retryErrorMsg));
+          }
+          throw retryError;
+        }
+      };
+
       try {
         // サーバーに更新を送信
         const serverData = await updateFn(newData);
@@ -94,8 +121,9 @@ export function useOptimisticUpdate() {
           revalidate: false, // 既に最新データなので再検証不要
         });
 
-        // 成功メッセージ
-        if (successMessage) {
+        // 成功メッセージ（onSuccess内でトーストを表示する場合は、ここでは表示しない）
+        // 注意: onSuccess内でトーストを表示する場合は、successMessageを指定しないこと
+        if (successMessage && !onSuccess) {
           toast.success(successMessage);
         }
 
@@ -118,11 +146,20 @@ export function useOptimisticUpdate() {
           revalidate: true, // エラー時は再検証して最新データを取得
         });
 
-        // エラーメッセージ
+        // エラーメッセージ（リトライボタン付き）
         const errorMsg =
           errorMessage ||
           (error instanceof Error ? error.message : "更新に失敗しました");
-        toast.error(errorMsg);
+        
+        toast.error(errorMsg, {
+          action: {
+            label: "再試行",
+            onClick: () => {
+              retryUpdate();
+            },
+          },
+          duration: 10000, // リトライボタンを表示するため、表示時間を延長
+        });
 
         // エラーコールバック
         if (onError) {
@@ -137,6 +174,14 @@ export function useOptimisticUpdate() {
 
   return { mutate: optimisticMutate };
 }
+
+
+
+
+
+
+
+
 
 
 

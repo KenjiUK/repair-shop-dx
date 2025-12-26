@@ -114,6 +114,24 @@ export function createWorkCompleteNotification(
 }
 
 /**
+ * 全部品到着通知のメッセージを生成
+ */
+export function createPartsArrivedNotification(
+  data: NotificationTemplateData & {
+    bookingLink?: string; // Zoho Bookings予約リンク
+  }
+): LineNotificationMessage {
+  const bookingLinkText = data.bookingLink
+    ? `\n\n以下のリンクから、ご都合の良い日時で再入庫の予約をお願いいたします：\n${data.bookingLink}`
+    : "";
+
+  return {
+    type: "text",
+    text: `【${data.customerName}様】\n\nお待たせしております。\n発注していた部品が全て到着いたしました。\n\n車両: ${data.vehicleName}${data.licensePlate ? ` (${data.licensePlate})` : ""}\n作業: ${data.serviceKind}${bookingLinkText}\n\nご都合の良い日時で再入庫の予約をお願いいたします。`,
+  };
+}
+
+/**
  * 通知タイプに応じたメッセージを生成
  * 
  * @param type 通知タイプ
@@ -122,7 +140,9 @@ export function createWorkCompleteNotification(
  */
 export function createNotificationMessage(
   type: LineNotificationType,
-  data: NotificationTemplateData
+  data: NotificationTemplateData & {
+    bookingLink?: string; // Zoho Bookings予約リンク（parts_arrived用）
+  }
 ): LineNotificationMessage {
   switch (type) {
     case "check_in":
@@ -135,10 +155,20 @@ export function createNotificationMessage(
       return createEstimateApprovedNotification(data);
     case "work_complete":
       return createWorkCompleteNotification(data);
+    case "parts_arrived":
+      return createPartsArrivedNotification(data);
     default:
       throw new Error(`Unknown notification type: ${type}`);
   }
 }
+
+
+
+
+
+
+
+
 
 
 

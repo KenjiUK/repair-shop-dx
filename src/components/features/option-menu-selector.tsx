@@ -73,8 +73,8 @@ export function OptionMenuSelector({
     <div className={cn("space-y-4", className)}>
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Gift className="h-5 w-5 text-orange-500" />
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Gift className="h-5 w-5 text-orange-600 shrink-0" />
             オプションメニュー
             <Badge variant="default" className="bg-orange-500 text-white">
               {simultaneousService}と同時実施で10%割引
@@ -110,7 +110,7 @@ export function OptionMenuSelector({
                         <h4 className="font-medium text-slate-900 dark:text-slate-100">
                           {menu.name}
                         </h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        <p className="text-base text-slate-800 dark:text-slate-300 mt-1">
                           {menu.description}
                         </p>
                       </div>
@@ -118,10 +118,10 @@ export function OptionMenuSelector({
                         <div className="flex items-center gap-2">
                           {isSelected ? (
                             <>
-                              <span className="text-xs text-slate-400 line-through">
+                              <span className="text-base text-slate-800 line-through">
                                 ¥{menu.originalPrice.toLocaleString()}
                               </span>
-                              <span className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                              <span className="text-lg font-bold text-orange-700 dark:text-orange-400">
                                 ¥{menu.discountedPrice.toLocaleString()}
                               </span>
                             </>
@@ -132,7 +132,7 @@ export function OptionMenuSelector({
                           )}
                         </div>
                         {isSelected && (
-                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                          <p className="text-base text-orange-700 dark:text-orange-500 mt-1">
                             割引: ¥
                             {(menu.originalPrice - menu.discountedPrice).toLocaleString()}
                           </p>
@@ -144,7 +144,7 @@ export function OptionMenuSelector({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs",
+                          "text-base",
                           menu.badge?.color === "green"
                             ? "border-green-500 text-green-700 dark:text-green-400"
                             : "border-blue-500 text-blue-700 dark:text-blue-400"
@@ -152,8 +152,8 @@ export function OptionMenuSelector({
                       >
                         {menu.badge?.text}
                       </Badge>
-                      <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                        <Clock className="h-3 w-3" />
+                      <div className="flex items-center gap-1 text-base text-slate-700 dark:text-slate-300">
+                        <Clock className="h-4 w-4" />
                         {menu.estimatedTime}
                       </div>
                     </div>
@@ -166,20 +166,20 @@ export function OptionMenuSelector({
       </Card>
 
       {selectedMenus.length > 0 && (
-        <Card className="bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900">
+        <Card className="bg-orange-50 dark:bg-orange-950/20 border-orange-300 dark:border-orange-900">
           <CardContent className="pt-6">
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between text-base">
+                <span className="text-slate-800 dark:text-slate-300">
                   選択済みオプション合計
                 </span>
-                <span className="font-bold text-lg text-orange-600 dark:text-orange-400">
+                <span className="font-bold text-lg text-orange-700 dark:text-orange-400">
                   ¥{totalDiscountedPrice.toLocaleString()}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex items-center justify-between text-base text-slate-700 dark:text-slate-300">
                 <span>割引額合計</span>
-                <span className="font-medium text-orange-600 dark:text-orange-400">
+                <span className="font-medium text-orange-700 dark:text-orange-400">
                   -¥{totalDiscount.toLocaleString()}
                 </span>
               </div>

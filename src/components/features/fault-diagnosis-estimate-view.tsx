@@ -51,8 +51,8 @@ export function FaultDiagnosisEstimateView({
       {onCauseExplanationChange && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <AlertCircle className="h-5 w-5 text-amber-700" />
               原因説明
             </CardTitle>
           </CardHeader>
@@ -67,7 +67,7 @@ export function FaultDiagnosisEstimateView({
                 disabled={disabled}
                 className="resize-none"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-base text-slate-700">
                 顧客に分かりやすく、技術的な内容を説明してください
               </p>
             </div>
@@ -79,8 +79,8 @@ export function FaultDiagnosisEstimateView({
       {onRepairProposalChange && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <FileText className="h-5 w-5 shrink-0" />
               修理方法提案
             </CardTitle>
           </CardHeader>
@@ -95,7 +95,7 @@ export function FaultDiagnosisEstimateView({
                 disabled={disabled}
                 className="resize-none"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-base text-slate-700">
                 修理内容、必要な部品、作業時間、費用の目安などを記載してください
               </p>
             </div>
@@ -107,8 +107,8 @@ export function FaultDiagnosisEstimateView({
       {diagnosticToolResult && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <FileText className="h-5 w-5 shrink-0" />
               診断機結果PDF
             </CardTitle>
           </CardHeader>
@@ -116,13 +116,13 @@ export function FaultDiagnosisEstimateView({
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-slate-600" />
+                  <FileText className="h-5 w-5 text-slate-700" />
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-base font-medium text-slate-900">
                       {diagnosticToolResult.fileName || "診断機結果.pdf"}
                     </p>
                     {diagnosticToolResult.uploadedAt && (
-                      <p className="text-xs text-slate-500">
+                      <p className="text-base text-slate-700">
                         アップロード日時: {new Date(diagnosticToolResult.uploadedAt).toLocaleString("ja-JP")}
                       </p>
                     )}
@@ -133,7 +133,6 @@ export function FaultDiagnosisEstimateView({
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
                       onClick={onViewDiagnosticResult}
                       disabled={disabled || !diagnosticToolResult.fileUrl}
                     >
@@ -145,7 +144,6 @@ export function FaultDiagnosisEstimateView({
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
                       onClick={onDownloadDiagnosticResult}
                       disabled={disabled || !diagnosticToolResult.fileUrl}
                     >
@@ -162,6 +160,14 @@ export function FaultDiagnosisEstimateView({
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

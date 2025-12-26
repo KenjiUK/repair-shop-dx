@@ -28,7 +28,7 @@ export function OfflineBanner({ className }: OfflineBannerProps) {
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 bg-orange-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium",
+        "fixed top-0 left-0 right-0 z-50 bg-orange-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-base font-medium", // text-sm → text-base (40歳以上ユーザー向け)
         className
       )}
       role="alert"
@@ -71,7 +71,7 @@ export function OnlineBanner({ className }: OfflineBannerProps) {
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 bg-green-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium animate-in slide-in-from-top",
+        "fixed top-0 left-0 right-0 z-50 bg-green-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-base font-medium animate-in slide-in-from-top", // text-sm → text-base (40歳以上ユーザー向け)
         className
       )}
       role="alert"
@@ -82,6 +82,14 @@ export function OnlineBanner({ className }: OfflineBannerProps) {
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

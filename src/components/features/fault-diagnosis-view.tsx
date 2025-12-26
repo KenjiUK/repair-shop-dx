@@ -37,8 +37,8 @@ export interface FaultDiagnosisViewProps {
   onDiagnosticToolChange?: (result: OBDDiagnosticResult | undefined) => void;
   /** 動画データマップ */
   videoDataMap?: Record<string, VideoData>;
-  /** 動画撮影ハンドラ */
-  onVideoCapture?: (position: string, file: File) => void | Promise<void>;
+  /** 動画撮影ハンドラ（音声認識テキスト付き） */
+  onVideoCapture?: (position: string, file: File, transcription?: string) => void | Promise<void>;
   /** 音声データ */
   audioData?: AudioData;
   /** 音声録音ハンドラ */
@@ -106,20 +106,20 @@ export function FaultDiagnosisView({
     <div className="space-y-4">
       {/* エラーランプ情報（受付時に入力されたもの） */}
       {errorLampInfo && (
-        <Card>
+        <Card className="border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0" />
               エラーランプ情報（受付時）
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-base font-medium text-slate-800">
                   エラーランプ:
                 </span>
-                <span className="text-sm text-slate-600">
+                <span className="text-base text-slate-700">
                   {errorLampInfo.hasErrorLamp ? "点灯" : "点灯なし"}
                 </span>
               </div>
@@ -128,7 +128,7 @@ export function FaultDiagnosisView({
                   {errorLampInfo.lampTypes.map((type) => (
                     <span
                       key={type}
-                      className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded-md"
+                      className="px-2 py-1 text-base font-medium bg-amber-100 text-amber-900 rounded-md"
                     >
                       {type}
                     </span>
@@ -136,7 +136,7 @@ export function FaultDiagnosisView({
                 </div>
               )}
               {errorLampInfo.otherDetails && (
-                <div className="text-sm text-slate-600">
+                <div className="text-base text-slate-700">
                   <span className="font-medium">その他:</span> {errorLampInfo.otherDetails}
                 </div>
               )}
@@ -146,25 +146,25 @@ export function FaultDiagnosisView({
       )}
 
       {/* 症状カテゴリタブ */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">症状の選択</CardTitle>
+          <CardTitle className="text-xl font-bold text-slate-900">症状の選択</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={selectedCategory} onValueChange={(v) => setSelectedCategory(v as SymptomCategory)}>
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5">
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 h-auto p-1 bg-slate-100 overflow-x-auto">
               {getAllSymptomCategories().map((category) => {
                 const count = getCategorySelectedCount(category);
                 return (
                   <TabsTrigger
                     key={category}
                     value={category}
-                    className="relative"
+                    className="relative text-base font-medium"
                     disabled={disabled}
                   >
                     {SYMPTOM_CATEGORY_DISPLAY_NAMES[category]}
                     {count > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
+                      <span className="ml-1 px-1.5 py-0.5 text-base font-medium bg-primary text-primary-foreground rounded-full shrink-0 whitespace-nowrap">
                         {count}
                       </span>
                     )}
@@ -194,7 +194,7 @@ export function FaultDiagnosisView({
                           onCheckedChange={() => handleSymptomToggle(symptom)}
                           disabled={disabled}
                         />
-                        <Label className="text-sm font-normal cursor-pointer flex-1">
+                        <Label className="text-base font-normal cursor-pointer flex-1">
                           {symptom.name}
                         </Label>
                       </div>
@@ -208,10 +208,10 @@ export function FaultDiagnosisView({
       </Card>
 
       {/* 診断機結果 */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <FileText className="h-5 w-5 shrink-0" />
             診断機結果
           </CardTitle>
         </CardHeader>
@@ -243,10 +243,10 @@ export function FaultDiagnosisView({
 
       {/* 動画撮影 */}
       {onVideoCapture && (
-        <Card>
+        <Card className="border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Video className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Video className="h-5 w-5 shrink-0" />
               動画撮影
             </CardTitle>
           </CardHeader>
@@ -254,15 +254,17 @@ export function FaultDiagnosisView({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <VideoCaptureButton
                 position="symptom"
-                label="症状の動画"
+                label="症状の動画（実況解説付き）"
                 videoData={videoDataMap["symptom"]}
+                enableTranscription={true}
                 onCapture={onVideoCapture}
                 disabled={disabled}
               />
               <VideoCaptureButton
                 position="diagnosis"
-                label="診断作業の動画"
+                label="診断作業の動画（実況解説付き）"
                 videoData={videoDataMap["diagnosis"]}
+                enableTranscription={true}
                 onCapture={onVideoCapture}
                 disabled={disabled}
               />
@@ -273,10 +275,10 @@ export function FaultDiagnosisView({
 
       {/* 音声録音 */}
       {onAudioCapture && (
-        <Card>
+        <Card className="border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Mic className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Mic className="h-5 w-5 shrink-0" />
               音声録音
             </CardTitle>
           </CardHeader>
@@ -291,14 +293,14 @@ export function FaultDiagnosisView({
               disabled={disabled}
             />
             {audioData?.audioUrl && onAudioRemove && (
-              <div className="mt-3 flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <span className="text-sm text-slate-700">録音済み</span>
+              <div className="mt-3 flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <span className="text-base font-medium text-slate-800">録音済み</span>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   onClick={onAudioRemove}
                   disabled={disabled}
+                  className="h-12 text-base font-medium"
                 >
                   削除
                 </Button>
@@ -310,9 +312,9 @@ export function FaultDiagnosisView({
 
       {/* 追加メモ */}
       {onNotesChange && (
-        <Card>
+        <Card className="border border-slate-300 rounded-xl shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">追加メモ</CardTitle>
+            <CardTitle className="text-xl font-bold text-slate-900">追加メモ</CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -321,6 +323,7 @@ export function FaultDiagnosisView({
               placeholder="診断時の追加情報や気づいた点を入力してください..."
               rows={4}
               disabled={disabled}
+              className="text-base"
             />
           </CardContent>
         </Card>
@@ -328,6 +331,14 @@ export function FaultDiagnosisView({
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

@@ -6,6 +6,7 @@
 
 import { ApiResponse, DriveFile, DriveFolder } from "@/types";
 import { generateInspectionRecordPDF, InspectionRecordData } from "./inspection-pdf-generator";
+import { generateInspectionTemplatePDF, InspectionTemplateType } from "./inspection-template-pdf-generator";
 
 // InspectionRecordDataを再エクスポート
 export type { InspectionRecordData };
@@ -28,6 +29,8 @@ import {
  * @param customerName 顧客名
  * @param vehicleId 車両ID
  * @param vehicleName 車両名
+ * @param useTemplate テンプレートPDFを使用するか（デフォルト: true）
+ * @param templateType テンプレート種別（useTemplateがtrueの場合に使用）
  * @returns 保存されたPDFファイル情報
  */
 export async function completeInspectionDelivery(
@@ -36,11 +39,15 @@ export async function completeInspectionDelivery(
   customerId: string,
   customerName: string,
   vehicleId: string,
-  vehicleName: string
+  vehicleName: string,
+  useTemplate: boolean = true,
+  templateType: InspectionTemplateType = "12month"
 ): Promise<ApiResponse<DriveFile>> {
   try {
-    // 1. PDFを生成
-    const pdfResult = await generateInspectionRecordPDF(data);
+    // 1. PDFを生成（テンプレートPDFを使用する場合はgenerateInspectionTemplatePDFを使用）
+    const pdfResult = useTemplate
+      ? await generateInspectionTemplatePDF(data, templateType)
+      : await generateInspectionRecordPDF(data);
     if (!pdfResult.success || !pdfResult.data) {
       return {
         success: false,

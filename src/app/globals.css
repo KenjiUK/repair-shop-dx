@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Next.js Portal要素のスタイル調整（開発ツール用） */
+nextjs-portal {
+  position: fixed !important;
+  z-index: 9999;
+}
+
 /* FOUC対策: ページ遷移時のレイアウトシフトを防ぐ */
 html {
   visibility: visible;
@@ -60,6 +66,16 @@ body[data-navigating="true"]::before {
 
 @custom-variant dark (&:is(.dark *));
 
+/* スクロールバーを非表示にする */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -101,6 +117,12 @@ body[data-navigating="true"]::before {
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  /* Z-Index階層管理（DESIGN_SYSTEM.mdに準拠） */
+  /* 40歳以上ユーザー向け最適化のため、レイヤーを明確に定義 */
+  --z-index-header: 40;      /* ヘッダー（AppHeader） */
+  --z-index-sheet: 50;       /* サイドパネル（Sheet） */
+  --z-index-dialog: 60;      /* ダイアログ（Dialog） */
+  --z-index-toast: 100;      /* トースト通知（Toast） */
 }
 
 :root {
@@ -178,6 +200,8 @@ body[data-navigating="true"]::before {
   }
   body {
     @apply bg-background text-foreground;
+    /* 日本語フォントスタック: Geist Sansを優先し、日本語表示時はNoto Sans JP、OS標準フォントにフォールバック */
+    font-family: var(--font-geist-sans), "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", "MS PGothic", sans-serif;
   }
 }
 
@@ -197,5 +221,67 @@ body[data-navigating="true"]::before {
   }
   .snap-start {
     scroll-snap-align: start;
+  }
+}
+
+/* トースト通知のスタイル（2024-2025 UI/UXベストプラクティス） */
+@layer base {
+  /* Sonnerトーストのz-indexをヘッダーより高く設定（ヘッダーはz-[40]） */
+  /* DialogのOverlay（z-50）より高く設定して、Dialogが開いている間もトーストが見えるようにする */
+  [data-sonner-toaster] {
+    z-index: 110 !important; /* Z-Index階層管理に準拠：Toast=110（Dialog=50より高く） */
+    /* ヘッダーの下に配置（ヘッダーの高さを考慮） */
+    top: 80px !important;
+  }
+  
+  /* モバイル対応: 小画面では位置と幅を調整 */
+  @media (max-width: 640px) {
+    [data-sonner-toaster] {
+      top: 70px !important;
+      left: 0.75rem !important;
+      right: 0.75rem !important;
+      width: calc(100% - 1.5rem) !important;
+    }
+    
+    /* モバイルではトーストのサイズを調整 */
+    [data-sonner-toast] {
+      min-width: auto !important;
+      max-width: 100% !important;
+      font-size: 1rem !important; /* デザインシステム準拠: 最小16px (text-base) */
+      padding: 0.75rem !important;
+    }
+  }
+  
+  /* タブレット対応 */
+  @media (min-width: 641px) and (max-width: 1024px) {
+    [data-sonner-toaster] {
+      top: 75px !important;
+    }
+  }
+  
+  /* トーストのアニメーション改善 */
+  [data-sonner-toast] {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    backdrop-filter: blur(8px);
+    background: hsl(var(--popover)) / 0.95 !important;
+  }
+  
+  /* トーストのホバー効果 */
+  [data-sonner-toast]:hover {
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+    transform: translateY(-1px);
+    transition: all 0.2s ease-in-out;
+  }
+  
+  /* トースト間のスペーシング */
+  [data-sonner-toast] + [data-sonner-toast] {
+    margin-top: 0.5rem !important;
+  }
+  
+  /* アクセシビリティ: フォーカス時のスタイル */
+  [data-sonner-toast]:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }

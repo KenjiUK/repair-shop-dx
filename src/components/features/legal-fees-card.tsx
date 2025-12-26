@@ -33,9 +33,9 @@ export function LegalFeesCard({
   return (
     <Card className={cn("bg-slate-50 border-slate-200", className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-base">
+        <CardTitle className="flex items-center justify-between text-lg font-semibold">
           <span className="flex items-center gap-2">
-            <Lock className="h-4 w-4 text-slate-500" />
+            <Lock className="h-4 w-4 text-slate-700 shrink-0" />
             法定費用（自動取得・編集不可）
           </span>
         </CardTitle>
@@ -49,22 +49,22 @@ export function LegalFeesCard({
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-base font-medium text-slate-800">
                     {item.name}
                   </span>
                   {item.description && (
-                    <span className="text-xs text-slate-500">
+                    <span className="text-base text-slate-700">
                       ({item.description})
                     </span>
                   )}
                   {!item.required && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-base">
                       任意
                     </Badge>
                   )}
                 </div>
               </div>
-              <span className="text-sm font-semibold text-slate-900">
+              <span className="text-base font-semibold text-slate-900">
                 ¥{item.amount.toLocaleString()}
               </span>
             </div>
@@ -81,12 +81,20 @@ export function LegalFeesCard({
               ¥{legalFees.total.toLocaleString()}
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">※税込</p>
+          <p className="text-base text-slate-700 mt-1">※税込</p>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

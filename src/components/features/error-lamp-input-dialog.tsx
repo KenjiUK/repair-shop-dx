@@ -88,7 +88,7 @@ export function ErrorLampInputDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <AlertTriangle className="h-5 w-5 text-amber-700" />
             エラーランプ情報
           </DialogTitle>
           <DialogDescription>
@@ -148,7 +148,7 @@ export function ErrorLampInputDialog({
                       onCheckedChange={() => handleTypeToggle(type)}
                       disabled={disabled}
                     />
-                    <Label className="text-sm font-normal cursor-pointer">
+                    <Label className="text-base font-normal cursor-pointer">
                       {ERROR_LAMP_TYPE_DISPLAY_NAMES[type]}
                     </Label>
                   </div>
@@ -196,6 +196,14 @@ export function ErrorLampInputDialog({
     </Dialog>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

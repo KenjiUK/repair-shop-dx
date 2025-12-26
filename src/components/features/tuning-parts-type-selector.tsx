@@ -39,18 +39,18 @@ export function TuningPartsTypeSelector({
   const selectedConfig = selectedType ? getTuningPartsTypeConfig(selectedType) : null;
 
   return (
-    <Card>
+    <Card className="border border-slate-300 rounded-xl shadow-md">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Wrench className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+          <Wrench className="h-5 w-5 shrink-0" />
           種類選択
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>
+          <Label className="text-base font-medium">
             種類を選択
-            {required && <span className="text-red-500 ml-1">*</span>}
+            {required && <span className="text-red-600 ml-1">*</span>}
           </Label>
           <RadioGroup
             value={selectedType || ""}
@@ -68,12 +68,12 @@ export function TuningPartsTypeSelector({
                   <RadioGroupItem value={type} id={type} />
                   <Label
                     htmlFor={type}
-                    className="flex-1 cursor-pointer font-normal"
+                    className="flex-1 cursor-pointer font-normal text-base"
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium">{type}</span>
+                      <span className="font-medium text-base">{type}</span>
                       {config && (
-                        <span className="text-xs text-slate-600">
+                        <span className="text-base text-slate-700">
                           {config.description}
                         </span>
                       )}
@@ -89,11 +89,11 @@ export function TuningPartsTypeSelector({
         {selectedConfig && (
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-900">
+              <span className="text-base font-medium text-slate-900">
                 {selectedConfig.name}
               </span>
             </div>
-            <div className="text-xs text-slate-600">
+            <div className="text-base text-slate-700">
               <p>{selectedConfig.description}</p>
               {selectedConfig.inspectionCategories.length > 0 && (
                 <p className="mt-1">

@@ -33,18 +33,18 @@ export function WorkProgressBar({
     percentage >= 80
       ? "bg-green-500"
       : percentage >= 50
-      ? "bg-yellow-500"
+      ? "bg-amber-500" // yellow → amber (40歳以上ユーザー向け、統一)
       : "bg-red-500";
 
   return (
     <Card className={className}>
       <CardContent className="pt-6">
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-base">
             <span className="font-medium text-slate-700">
               {completed} / {total}項目完了
             </span>
-            <span className="text-slate-600">{percentage}%</span>
+            <span className="text-slate-700">{percentage}%</span>
           </div>
           <Progress
             value={percentage}
@@ -56,6 +56,14 @@ export function WorkProgressBar({
     </Card>
   );
 }
+
+
+
+
+
+
+
+
 
 
 

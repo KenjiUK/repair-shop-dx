@@ -18,27 +18,37 @@
 
 ### 1-2. 詳細仕様書
 
-2. **COMMON_COMPONENTS_LIBRARY.md**
+2. **UX_REVIEW_COMPREHENSIVE.md**
+   - UXレビュー包括的分析
+   - 各ユーザー×入庫区分別のカスタマージャーニー
+   - UI/UX課題、業務的に抜けている部分、システム連携の問題、システムの不整合
+
+3. **UX_REVIEW_ISSUES_LIST.md**
+   - UXレビュー課題リスト
+   - 緊急度別の課題分類（高/中/低）
+   - 各課題の詳細（問題、影響、原因、確認箇所、推奨対応）
+
+4. **COMMON_COMPONENTS_LIBRARY.md**
    - 共通UI/UXコンポーネントライブラリ仕様
    - レイアウト、フォーム、表示、アクションコンポーネント
 
-3. **DATA_MODEL_INTEGRATION.md**
+5. **DATA_MODEL_INTEGRATION.md**
    - 統一データモデルと入庫区分別の拡張モデル
    - Zoho CRM連携モデル、マスタデータ連携モデル
 
-4. **API_DESIGN_UNIFIED.md**
+6. **API_DESIGN_UNIFIED.md**
    - RESTful API設計原則
    - 統一エンドポイント設計、エラーハンドリング
 
-5. **UI_UX_GUIDELINES.md**
+7. **UI_UX_GUIDELINES.md**
    - デザインシステム（カラー、タイポグラフィ、スペーシング）
    - アクセシビリティ、パフォーマンスガイドライン
 
-6. **SERVICE_KIND_INTEGRATION_GUIDE.md**
+8. **SERVICE_KIND_INTEGRATION_GUIDE.md**
    - 各入庫区分の統合仕様と実装ガイド
    - 共通コンポーネントの使用方法、拡張ポイント
 
-7. **IMPLEMENTATION_GUIDE.md**
+9. **IMPLEMENTATION_GUIDE.md**
    - 開発環境のセットアップ
    - コンポーネントの使用方法、テスト方法
 
@@ -78,6 +88,14 @@
 
 ## 3. 実装優先順位
 
+### Phase 0.5: UXレビュー課題の対応（最優先）
+1. 入庫区分と表示内容の不一致の修正
+2. UI的な課題の修正（スマホ表示、文字はみ出し）
+3. UX的な課題の改善（ナビゲーション、情報整理）
+
+**参照:** `docs/UX_REVIEW_COMPREHENSIVE.md` - UXレビュー包括的分析  
+**参照:** `docs/UX_REVIEW_ISSUES_LIST.md` - UXレビュー課題リスト
+
 ### Phase 1: 共通基盤の実装
 1. 共通UI/UXコンポーネントライブラリ
 2. 統一データモデル
@@ -114,6 +132,14 @@
 ## 5. 更新履歴
 
 - 2025-01-XX: 初版作成
+
+
+
+
+
+
+
+
 
 
 

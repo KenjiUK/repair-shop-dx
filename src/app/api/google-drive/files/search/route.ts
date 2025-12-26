@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DriveFile, ApiResponse } from "@/types";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
 /**
  * Google Drive API ファイル検索エンドポイント
@@ -21,20 +22,6 @@ function errorResponse(
   return NextResponse.json(response, { status });
 }
 
-/**
- * Google Drive API アクセストークンを取得
- * TODO: 実際の認証実装時に実装
- */
-async function getAccessToken(): Promise<string> {
-  // TODO: Google OAuth認証を実装
-  // 現時点では環境変数から取得（開発用）
-  const token = process.env.GOOGLE_DRIVE_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("GOOGLE_DRIVE_ACCESS_TOKEN が設定されていません");
-  }
-  return token;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -47,7 +34,7 @@ export async function GET(request: NextRequest) {
       return errorResponse("検索クエリ(q)は必須です", "MISSING_QUERY", 400);
     }
 
-    const accessToken = await getAccessToken();
+    const accessToken = await getGoogleAccessToken();
 
     // クエリを構築
     let driveQuery = query;
@@ -129,6 +116,10 @@ export async function GET(request: NextRequest) {
     return errorResponse(message, "FILE_SEARCH_ERROR", 500);
   }
 }
+
+
+
+
 
 
 

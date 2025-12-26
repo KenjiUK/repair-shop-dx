@@ -6,6 +6,10 @@ import { usePathname } from "next/navigation";
 /**
  * ページ遷移時のFOUC対策プロバイダー
  * ページ遷移時にbodyにdata属性を設定して、古いコンテンツを非表示にする
+ * 
+ * Note: useSearchParams()は使用していない（依存配列にのみ含まれていたが実際には未使用）。
+ * usePathname()のみで十分なため、Suspenseでラップする必要はない。
+ * これにより、Next.js 16の静的生成時のエラーを回避できる。
  */
 export function NavigationProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

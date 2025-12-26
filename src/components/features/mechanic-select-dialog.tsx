@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { User, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MechanicSelectDialogProps {
   open: boolean;
@@ -37,8 +39,24 @@ export function MechanicSelectDialog({
   isProcessing,
   onSelect,
 }: MechanicSelectDialogProps) {
+  const [selectedMechanicId, setSelectedMechanicId] = useState<string | null>(null);
+
+  // ダイアログが閉じられたら選択状態をリセット
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setSelectedMechanicId(null);
+    }
+    onOpenChange(newOpen);
+  };
+
+  const handleSelect = (mechanicId: string, mechanicName: string) => {
+    if (isProcessing) return;
+    setSelectedMechanicId(mechanicId);
+    onSelect(mechanicName);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -59,25 +77,46 @@ export function MechanicSelectDialog({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 py-4">
-            {MECHANICS.map((mechanic) => (
-              <Button
-                key={mechanic.id}
-                variant="outline"
-                size="lg"
-                className="h-16 text-lg font-semibold hover:bg-primary hover:text-primary-foreground transition-colors"
-                onClick={() => onSelect(mechanic.name)}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  mechanic.name
-                )}
-              </Button>
-            ))}
+            {MECHANICS.map((mechanic) => {
+              const isSelected = selectedMechanicId === mechanic.id;
+              const isProcessingThis = isProcessing && isSelected;
+
+              return (
+                <Button
+                  key={mechanic.id}
+                  variant="outline"
+                  className={cn(
+                    "h-16 text-lg font-semibold transition-all",
+                    isProcessingThis
+                      ? "bg-primary/10 border-primary cursor-wait"
+                      : "hover:bg-primary hover:text-primary-foreground",
+                    isProcessing && !isSelected && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={() => handleSelect(mechanic.id, mechanic.name)}
+                  disabled={isProcessing && !isSelected}
+                >
+                  {isProcessingThis ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="text-base">処理中...</span>
+                    </div>
+                  ) : (
+                    mechanic.name
+                  )}
+                </Button>
+              );
+            })}
           </div>
         )}
       </DialogContent>
     </Dialog>
   );
 }
+
+
+
+
+
+
+
+

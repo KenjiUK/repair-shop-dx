@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PhotoCaptureButton, PhotoData } from "./photo-capture-button";
 import { Camera, MessageSquare, Plus, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // 型定義
@@ -87,14 +88,16 @@ export function OtherServiceDiagnosisView({
   return (
     <div className="space-y-4">
       {/* 診断項目（カスタマイズ可能） */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
             <span className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
+              <MessageSquare className="h-5 w-5 shrink-0" />
               診断項目
             </span>
-            <Badge variant="secondary">{diagnosisItems.length}項目</Badge>
+            <Badge variant="secondary" className="text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <span className="tabular-nums">{diagnosisItems.length}</span>項目
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -108,101 +111,100 @@ export function OtherServiceDiagnosisView({
               };
 
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="p-4 border border-slate-200 rounded-lg space-y-3"
+                  className="border border-slate-300 rounded-xl shadow-md"
                 >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-slate-900 text-sm">
-                      項目 #{index + 1}
-                    </h4>
-                    {onRemoveDiagnosisItem && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onRemoveDiagnosisItem(item.id)}
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900">
+                      <span>項目 #{index + 1}</span>
+                      {onRemoveDiagnosisItem && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => onRemoveDiagnosisItem(item.id)}
+                          disabled={disabled}
+                          className="h-12 w-12 p-0 shrink-0"
+                        >
+                          <X className="h-4 w-4 shrink-0" />
+                        </Button>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-base font-medium text-slate-700">項目名</Label>
+                      <Input
+                        value={item.name}
+                        onChange={(e) => {
+                          if (onDiagnosisItemChange) {
+                            onDiagnosisItemChange(item.id, { name: e.target.value });
+                          }
+                        }}
+                        placeholder="診断項目名を入力"
                         disabled={disabled}
-                        className="h-6 w-6 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">項目名</Label>
-                    <Input
-                      value={item.name}
-                      onChange={(e) => {
-                        if (onDiagnosisItemChange) {
-                          onDiagnosisItemChange(item.id, { name: e.target.value });
-                        }
-                      }}
-                      placeholder="診断項目名を入力"
-                      disabled={disabled}
-                      className="text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-slate-600">状態</Label>
-                    <Input
-                      value={item.condition}
-                      onChange={(e) => {
-                        if (onDiagnosisItemChange) {
-                          onDiagnosisItemChange(item.id, {
-                            condition: e.target.value,
-                          });
-                        }
-                      }}
-                      placeholder="状態を入力（例: 良好、要修理、異常ありなど）"
-                      disabled={disabled}
-                      className="text-sm"
-                    />
-                  </div>
-
-                  {/* 写真撮影（任意） */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>写真（任意）</span>
+                        className="h-12 text-base"
+                      />
                     </div>
-                    <PhotoCaptureButton
-                      position={item.id}
-                      label={`${item.name || "項目"}の写真を撮影`}
-                      photoData={photoData}
-                      onCapture={async (position, file) => {
-                        if (onPhotoCapture) {
-                          await onPhotoCapture(item.id, file);
-                        }
-                      }}
-                      disabled={disabled}
-                      size="sm"
-                    />
-                  </div>
 
-                  {/* コメント */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>コメント</span>
+                    <div className="space-y-2">
+                      <Label className="text-base font-medium text-slate-700">状態</Label>
+                      <Input
+                        value={item.condition}
+                        onChange={(e) => {
+                          if (onDiagnosisItemChange) {
+                            onDiagnosisItemChange(item.id, {
+                              condition: e.target.value,
+                            });
+                          }
+                        }}
+                        placeholder="状態を入力（例: 良好、要修理、異常ありなど）"
+                        disabled={disabled}
+                        className="h-12 text-base"
+                      />
                     </div>
-                    <Textarea
-                      value={item.comment || ""}
-                      onChange={(e) => {
-                        if (onDiagnosisItemChange) {
-                          onDiagnosisItemChange(item.id, {
-                            comment: e.target.value,
-                          });
-                        }
-                      }}
-                      placeholder="コメントを入力..."
-                      disabled={disabled}
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
+
+                    {/* 写真撮影（任意） */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <Camera className="h-4 w-4 shrink-0" />
+                        <span>写真（任意）</span>
+                      </div>
+                      <PhotoCaptureButton
+                        position={item.id}
+                        label={`${item.name || "項目"}の写真を撮影`}
+                        photoData={photoData}
+                        onCapture={async (position, file) => {
+                          if (onPhotoCapture) {
+                            await onPhotoCapture(item.id, file);
+                          }
+                        }}
+                        disabled={disabled}
+                      />
+                    </div>
+
+                    {/* コメント */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-medium text-slate-700">
+                        <MessageSquare className="h-4 w-4 shrink-0" />
+                        <span>コメント</span>
+                      </div>
+                      <Textarea
+                        value={item.comment || ""}
+                        onChange={(e) => {
+                          if (onDiagnosisItemChange) {
+                            onDiagnosisItemChange(item.id, {
+                              comment: e.target.value,
+                            });
+                          }
+                        }}
+                        placeholder="コメントを入力..."
+                        disabled={disabled}
+                        rows={2}
+                        className="text-base"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -211,12 +213,11 @@ export function OtherServiceDiagnosisView({
           {onAddDiagnosisItem && (
             <Button
               variant="outline"
-              size="sm"
               onClick={onAddDiagnosisItem}
               disabled={disabled}
-              className="w-full"
+              className="w-full h-12 text-base font-medium"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-2 shrink-0" />
               診断項目を追加
             </Button>
           )}
@@ -224,10 +225,10 @@ export function OtherServiceDiagnosisView({
       </Card>
 
       {/* コメント */}
-      <Card>
+      <Card className="border border-slate-300 rounded-xl shadow-md">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageSquare className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            <MessageSquare className="h-5 w-5 shrink-0" />
             コメント（整備士の所見）
           </CardTitle>
         </CardHeader>
@@ -242,7 +243,7 @@ export function OtherServiceDiagnosisView({
             placeholder="コメントを入力..."
             disabled={disabled}
             rows={4}
-            className="text-sm"
+            className="text-base"
           />
         </CardContent>
       </Card>

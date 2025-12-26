@@ -62,7 +62,6 @@ export function StatusQuickFilter({
             <Button
               key={status.key}
               variant={isSelected ? "default" : "outline"}
-              size="sm"
               onClick={() => onSelect(status.key)}
               className={cn(
                 "flex items-center gap-1.5 shrink-0 snap-start",
@@ -72,12 +71,12 @@ export function StatusQuickFilter({
               )}
             >
               {Icon && <Icon className="h-4 w-4 shrink-0" />}
-              <span className="whitespace-nowrap">{status.label}</span>
+              <span className="break-words sm:whitespace-nowrap">{status.label}</span>
               {count > 0 && (
                 <Badge
                   variant="secondary"
                   className={cn(
-                    "ml-0.5 text-xs shrink-0",
+                    "ml-0.5 text-base shrink-0",
                     isSelected
                       ? "bg-slate-700 text-white"
                       : "bg-slate-100 text-slate-700"

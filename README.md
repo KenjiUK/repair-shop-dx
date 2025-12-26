@@ -97,6 +97,80 @@ src/
 - **音声入力:** Web Speech APIを使用（ブラウザネイティブ）
 - **タイムゾーン:** システムはすべて日本時間（JST: Asia/Tokyo）で動作します
 
+## テスト版専用機能
+
+### フィードバック機能
+
+**⚠️ 重要: 本番環境では無効化されます**
+
+テスト版では、ユーザーが簡単にフィードバックを入力できる機能が提供されます。
+
+- **表示条件:** 環境変数 `NEXT_PUBLIC_ENABLE_FEEDBACK=true` の場合のみ表示
+- **機能:** 画面右下にフローティングボタンが表示され、バグ報告や改善提案を簡単に入力できます
+- **データ保存:** Google Sheetsに自動保存されます（モック環境ではコンソールに出力）
+
+#### 環境変数の設定
+
+`.env.local` ファイルに以下を追加：
+
+```env
+# フィードバック機能を有効化（テスト版のみ）
+NEXT_PUBLIC_ENABLE_FEEDBACK=true
+
+# Google Sheets スプレッドシートID
+NEXT_PUBLIC_GOOGLE_SHEETS_FEEDBACK_ID=your-spreadsheet-id-here
+
+# シート名（デフォルト: "フィードバック"）
+GOOGLE_SHEETS_FEEDBACK_SHEET_NAME=フィードバック
+
+# サービスアカウントキー（本番環境用、モック環境では不要）
+# GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
+```
+
+詳細は以下を参照してください：
+- [`docs/FEEDBACK_SYSTEM_SPEC.md`](./docs/FEEDBACK_SYSTEM_SPEC.md) - 仕様書
+- [`docs/FEEDBACK_SYSTEM_SETUP.md`](./docs/FEEDBACK_SYSTEM_SETUP.md) - セットアップガイド
+
+**本番環境へのデプロイ時は、必ず `NEXT_PUBLIC_ENABLE_FEEDBACK` を `false` に設定するか、未設定にしてください。**
+
+## 認証システム（Google OAuth）
+
+### Vercel 環境変数の設定
+
+Vercel ダッシュボードで以下の環境変数を設定してください：
+
+1. [Vercel ダッシュボード](https://vercel.com/dashboard) にログイン
+2. プロジェクト `repair-shop-dx` を選択
+3. Settings → Environment Variables を開く
+4. 以下の環境変数を追加：
+
+```env
+# Google OAuth Credentials
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# NextAuth.js Secret
+NEXTAUTH_SECRET=your-generated-secret-key
+
+# NextAuth.js URL (本番環境)
+NEXTAUTH_URL=https://repair-shop-dx.vercel.app
+```
+
+**重要：**
+- `NEXTAUTH_SECRET` は機密情報です。再生成する場合は：`openssl rand -base64 32` または `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+- Google Cloud Console で OAuth クライアント ID を作成する際、リダイレクト URI に `https://repair-shop-dx.vercel.app/api/auth/callback/google` を追加してください。
+
+### ローカル開発環境
+
+`.env.local` ファイルに以下を追加：
+
+```env
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+NEXTAUTH_SECRET=your-generated-secret-key
+NEXTAUTH_URL=http://localhost:3000
+```
+
 ## ライセンス
 
 Private

@@ -194,3 +194,11 @@ export function getAllSymptomCategories(): SymptomCategory[] {
 
 
 
+
+
+
+
+
+
+
+

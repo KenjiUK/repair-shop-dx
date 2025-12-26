@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { WorkOrder, ApiResponse, ServiceKind } from "@/types";
+import { WorkOrder, ApiResponse, ServiceKind, ZohoJob } from "@/types";
 import { fetchJobById } from "@/lib/api";
 import { parseWorkOrdersFromZoho, serializeWorkOrdersForZoho, createWorkOrder } from "@/lib/work-order-converter";
 import { updateJob } from "@/lib/zoho-api-client";
@@ -54,7 +54,8 @@ export async function GET(
     // 注意: 現時点ではZohoJobにworkOrdersフィールドがないため、
     // 将来的にZoho CRM APIから取得したfield_work_ordersをパースする必要がある
     // 暫定実装として、空配列を返す
-    const workOrdersJson = (zohoJob as any).field_work_orders || null;
+    const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
+    const workOrdersJson = jobWithWorkOrders.field_work_orders || null;
     const workOrders = parseWorkOrdersFromZoho(workOrdersJson);
 
     const response: ApiResponse<WorkOrder[]> = {
@@ -112,7 +113,8 @@ export async function POST(
     const zohoJob = jobResult.data;
 
     // 既存のワークオーダーを取得
-    const workOrdersJson = (zohoJob as any).field_work_orders || null;
+    const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
+    const workOrdersJson = jobWithWorkOrders.field_work_orders || null;
     const existingWorkOrders = parseWorkOrdersFromZoho(workOrdersJson);
 
     // 新しいワークオーダーを作成

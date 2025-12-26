@@ -18,10 +18,10 @@ export function WorkSummaryTab({ items, totalAmountText }: WorkSummaryTabProps) 
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Check className="h-5 w-5 text-green-600" />
+    <Card className="border border-slate-300 rounded-xl shadow-md">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+          <Check className="h-5 w-5 text-green-700 shrink-0" />
           完了した作業
         </CardTitle>
       </CardHeader>
@@ -30,26 +30,34 @@ export function WorkSummaryTab({ items, totalAmountText }: WorkSummaryTabProps) 
           {items.map((item, index) => (
             <div
               key={index}
-              className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
+              className="flex items-center justify-between py-2 border-b border-slate-200 last:border-0"
             >
               <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                  <Check className="h-4 w-4 text-green-600" />
+                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                  <Check className="h-5 w-5 text-green-700" />
                 </div>
-                <span className="text-slate-800">{item.name}</span>
+                <span className="text-base text-slate-900">{item.name}</span>
               </div>
-              <span className="font-medium">¥{formatPrice(item.price)}</span>
+              <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(item.price)}</span>
             </div>
           ))}
 
-          <Separator className="my-4" />
+          <Separator className="my-4 bg-slate-200" />
 
-          <div className="flex items-center justify-between text-lg font-bold">
-            <span>合計（税込）</span>
-            <span className="text-primary">¥{totalAmountText}</span>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-lg font-bold text-slate-900">合計（税込）</span>
+            <span className="text-2xl font-bold text-primary tabular-nums">¥{totalAmountText}</span>
           </div>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+
+
+
+
+
+
+

@@ -382,7 +382,8 @@ export async function getOrCreateCustomerFolder(
     returnExisting: true,
   });
 
-  const folderName = `${customerId}_${customerName}`;
+  // 業務視点で分かりやすいように、顧客名を先頭に配置
+  const folderName = `${customerName}_${customerId}`;
   return getOrCreateFolder({
     folderName,
     parentFolderId: customersFolder.id,
@@ -410,7 +411,8 @@ export async function getOrCreateVehicleFolder(
     returnExisting: true,
   });
 
-  const folderName = `${vehicleId}_${vehicleName}`;
+  // 業務視点で分かりやすいように、車両名を先頭に配置
+  const folderName = `${vehicleName}_${vehicleId}`;
   return getOrCreateFolder({
     folderName,
     parentFolderId: vehiclesFolder.id,

@@ -81,6 +81,12 @@ export function extractCustomerProgressData(job: ZohoJob): CustomerProgressData 
   // ステータスに基づいて進捗率を計算
   const progress = calculateProgressFromStatus(status);
 
+  // サービス種類に応じた診断ステップの説明を決定
+  const isInspection = serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
+  const diagnosisDescription = isInspection
+    ? "車両の診断を実施中です（分解整備記録簿（電子版）を生成します）"
+    : "車両の診断を実施中です";
+
   // ステップリストを生成
   const steps: ProgressStep[] = [
     {
@@ -94,7 +100,7 @@ export function extractCustomerProgressData(job: ZohoJob): CustomerProgressData 
       id: "diagnosis",
       name: "診断",
       status: ["見積作成待ち", "見積提示済み", "作業待ち", "作業中", "出庫待ち", "出庫済み"].includes(status) ? "completed" : status === "入庫済み" ? "current" : "pending",
-      description: "車両の診断を実施中です",
+      description: diagnosisDescription,
     },
     {
       id: "estimate",
@@ -126,10 +132,11 @@ export function extractCustomerProgressData(job: ZohoJob): CustomerProgressData 
   let currentPhase: string | undefined;
   if (status === "作業待ち" || status === "出庫待ち") {
     // 長期プロジェクトの場合、詳細なフェーズ情報を取得
-    const workData = (job as any).workData;
+    const jobWithWorkData = job as { workData?: { restoreWorkData?: { phases?: Array<{ status?: string; name?: string }> }; bodyPaintOutsourcingInfo?: { progress?: string } } };
+    const workData = jobWithWorkData.workData;
     if (workData?.restoreWorkData) {
       const phases = workData.restoreWorkData.phases || [];
-      const currentPhaseData = phases.find((p: any) => p.status === "作業中");
+      const currentPhaseData = phases.find((p) => p.status === "作業中");
       currentPhase = currentPhaseData?.name || "作業中";
     } else if (workData?.bodyPaintOutsourcingInfo) {
       const progress = workData.bodyPaintOutsourcingInfo.progress || "発注済み";
@@ -195,9 +202,9 @@ export function CustomerProgressView({
       {/* 進捗サマリー */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-base">
+          <CardTitle className="flex items-center justify-between text-lg font-semibold">
             <span className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+              <TrendingUp className="h-5 w-5 shrink-0" />
               作業進捗
             </span>
             <Badge variant={progress === 100 ? "default" : "secondary"} className="text-base px-3 py-1">
@@ -207,8 +214,8 @@ export function CustomerProgressView({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">全体進捗</span>
+            <div className="flex items-center justify-between text-base">
+              <span className="text-slate-800">全体進捗</span>
               <span className="font-medium text-slate-900">{progress}%</span>
             </div>
             <Progress value={progress} className="h-3" />
@@ -216,17 +223,17 @@ export function CustomerProgressView({
 
           {/* 現在のフェーズ */}
           {currentPhase && (
-            <div className="flex items-center gap-2 text-sm text-slate-600">
+            <div className="flex items-center gap-2 text-base text-slate-800">
               <Clock className="h-4 w-4" />
               <span>現在: {currentPhase}</span>
             </div>
           )}
 
           {/* 日付情報 */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-2 gap-3 text-base">
             {startDate && (
               <div>
-                <span className="text-slate-500">開始日</span>
+                <span className="text-slate-700">開始日</span>
                 <p className="text-slate-900 font-medium mt-0.5">
                   {new Date(startDate).toLocaleDateString("ja-JP", {
                     month: "short",
@@ -237,7 +244,7 @@ export function CustomerProgressView({
             )}
             {expectedCompletionDate && (
               <div>
-                <span className="text-slate-500">予定完了日</span>
+                <span className="text-slate-700">予定完了日</span>
                 <p className="text-slate-900 font-medium mt-0.5">
                   {new Date(expectedCompletionDate).toLocaleDateString("ja-JP", {
                     month: "short",
@@ -253,7 +260,7 @@ export function CustomerProgressView({
       {/* ステップリスト */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">作業ステップ</CardTitle>
+          <CardTitle className="text-lg font-semibold">作業ステップ</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -268,8 +275,8 @@ export function CustomerProgressView({
                         step.status === "completed"
                           ? "bg-green-500 border-green-500 text-white"
                           : step.status === "current"
-                          ? "bg-blue-500 border-blue-500 text-white"
-                          : "bg-slate-100 border-slate-300 text-slate-400"
+                            ? "bg-blue-500 border-blue-500 text-white"
+                            : "bg-slate-100 border-slate-300 text-slate-700"
                       )}
                     >
                       {step.status === "completed" ? (
@@ -300,14 +307,14 @@ export function CustomerProgressView({
                           step.status === "completed"
                             ? "text-green-700"
                             : step.status === "current"
-                            ? "text-blue-700"
-                            : "text-slate-400"
+                              ? "text-blue-700"
+                              : "text-slate-700"
                         )}
                       >
                         {step.name}
                       </h4>
                       {step.completedAt && (
-                        <span className="text-xs text-slate-500">
+                        <span className="text-base text-slate-700">
                           {new Date(step.completedAt).toLocaleDateString("ja-JP", {
                             month: "short",
                             day: "numeric",
@@ -316,7 +323,7 @@ export function CustomerProgressView({
                       )}
                     </div>
                     {step.description && (
-                      <p className="text-sm text-slate-600">{step.description}</p>
+                      <p className="text-base text-slate-800">{step.description}</p>
                     )}
                   </div>
                 </div>

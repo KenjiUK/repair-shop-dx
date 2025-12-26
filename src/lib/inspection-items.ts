@@ -516,6 +516,20 @@ export const VEHICLE_INSPECTION_ITEMS: InspectionItem[] = [
     requiresVideo: true,
     maxVideoDuration: 15,
   },
+  {
+    id: "chassis-015",
+    name: "タイヤナット（フロント）",
+    category: "chassis",
+    status: "unchecked",
+    requiresVideo: false,
+  },
+  {
+    id: "chassis-016",
+    name: "タイヤナット（リヤ）",
+    category: "chassis",
+    status: "unchecked",
+    requiresVideo: false,
+  },
 
   // =============================================================================
   // 下廻り点検

@@ -26,9 +26,9 @@ export function SmartTagInventoryCard({ tags }: SmartTagInventoryCardProps) {
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center">
-            <Tag className="h-3 w-3 text-white" />
+        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+          <div className="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
+            <Tag className="h-4 w-4 text-white shrink-0" />
           </div>
           スマートタグ
         </CardTitle>
@@ -38,19 +38,19 @@ export function SmartTagInventoryCard({ tags }: SmartTagInventoryCardProps) {
           {/* 在庫サマリー */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">空き</span>
-              <span className="text-base font-bold text-green-600">
+              <span className="text-base text-slate-800">空き</span>
+              <span className="text-base font-bold text-green-700">
                 {availableCount}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">使用中</span>
-              <span className="text-base font-bold text-orange-600">
+              <span className="text-base text-slate-800">使用中</span>
+              <span className="text-base font-bold text-orange-700">
                 {inUseCount}
               </span>
             </div>
             <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
-              <span className="text-sm text-slate-600">全</span>
+              <span className="text-base text-slate-800">全</span>
               <span className="text-base font-bold text-slate-900">
                 {totalCount}
               </span>
@@ -64,7 +64,7 @@ export function SmartTagInventoryCard({ tags }: SmartTagInventoryCardProps) {
                 <Badge
                   key={tagId}
                   variant="outline"
-                  className="bg-green-50 text-green-700 border-green-200 font-semibold"
+                  className="bg-slate-50 text-slate-700 border-slate-200 font-semibold"
                 >
                   {tagId}
                 </Badge>
@@ -76,3 +76,11 @@ export function SmartTagInventoryCard({ tags }: SmartTagInventoryCardProps) {
     </Card>
   );
 }
+
+
+
+
+
+
+
+

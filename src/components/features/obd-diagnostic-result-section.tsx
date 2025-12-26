@@ -116,16 +116,16 @@ export function OBDDiagnosticResultSection({
   const hasResult = !!result?.fileId || !!result?.fileUrl;
 
   return (
-    <Card className={cn(className)}>
+    <Card className={cn("border border-slate-300 rounded-xl shadow-md", className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-base">
+        <CardTitle className="flex items-center justify-between text-xl font-bold text-slate-900">
           <span className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+            <FileText className="h-5 w-5 shrink-0" />
             OBD診断結果
           </span>
           {hasResult && (
-            <Badge variant="default" className="bg-green-500">
-              <CheckCircle2 className="h-3 w-3 mr-1" />
+            <Badge variant="default" className="bg-green-500 text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
+              <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" />
               アップロード済み
             </Badge>
           )}
@@ -145,13 +145,13 @@ export function OBDDiagnosticResultSection({
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <FileText className="h-8 w-8 text-red-600 dark:text-red-400" />
+                <FileText className="h-8 w-8 text-red-700 dark:text-red-400 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <p className="text-base font-medium text-slate-900 dark:text-slate-100">
                     {result.fileName || "OBD診断結果.pdf"}
                   </p>
                   {result.uploadedAt && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-base text-slate-700 dark:text-slate-300">
                       アップロード日時: {new Date(result.uploadedAt).toLocaleString("ja-JP")}
                     </p>
                   )}
@@ -162,23 +162,21 @@ export function OBDDiagnosticResultSection({
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleDownload}
                 disabled={disabled}
-                className="flex-1"
+                className="flex-1 h-12 text-base font-medium"
               >
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-4 w-4 mr-2 shrink-0" />
                 ダウンロード
               </Button>
               {onRemove && (
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={handleRemove}
                   disabled={disabled}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300"
+                  className="text-red-700 hover:text-red-800 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 h-12 text-base font-medium"
                 >
-                  <X className="h-4 w-4 mr-2" />
+                  <X className="h-4 w-4 mr-2 shrink-0" />
                   削除
                 </Button>
               )}
@@ -187,11 +185,11 @@ export function OBDDiagnosticResultSection({
         ) : (
           <div className="space-y-3">
             <div className="p-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-center">
-              <FileText className="h-12 w-12 text-slate-400 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+              <FileText className="h-12 w-12 text-slate-700 dark:text-slate-300 mx-auto mb-2 shrink-0" />
+              <p className="text-base text-slate-800 dark:text-slate-300 mb-1">
                 OBD診断結果PDFをアップロード
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-500">
+              <p className="text-base text-slate-700 dark:text-slate-300">
                 最大10MB、PDF形式のみ
               </p>
             </div>
@@ -200,16 +198,16 @@ export function OBDDiagnosticResultSection({
               variant="outline"
               onClick={handleFileSelect}
               disabled={disabled || isUploading}
-              className="w-full"
+              className="w-full h-12 text-base font-medium"
             >
               {isUploading ? (
                 <>
-                  <div className="h-4 w-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mr-2" />
+                  <div className="h-4 w-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin mr-2 shrink-0" />
                   アップロード中...
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="h-4 w-4 mr-2 shrink-0" />
                   PDFファイルを選択
                 </>
               )}

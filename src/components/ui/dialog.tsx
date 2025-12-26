@@ -123,7 +123,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-muted-foreground text-base", className)} // text-sm → text-base (40歳以上ユーザー向け、DESIGN_SYSTEM.md準拠)
       {...props}
     />
   )

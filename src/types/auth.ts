@@ -39,6 +39,8 @@ export interface User {
   role: UserRole;
   /** アバターURL（オプション） */
   avatarUrl?: string;
+  /** 顧客ID（顧客ロールの場合のみ） */
+  customerId?: string;
 }
 
 /**
@@ -88,6 +90,14 @@ export interface LogoutRequest {
   /** セッションID */
   sessionId: string;
 }
+
+
+
+
+
+
+
+
 
 
 
