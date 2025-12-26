@@ -631,7 +631,7 @@ function DiagnosisPageContent() {
     error: jobError,
     isLoading: isJobLoading,
     mutate: mutateJob,
-  } = useSWR(jobId ? `job-${jobId}` : null, () => jobFetcherWithTiming(jobId), {
+  } = useSWR(jobId ? `job-${jobId}` : null, jobId ? jobFetcherWithTiming(jobId) : null, {
     // グローバル設定を使用（swrGlobalConfig）
     // 初回アクセス時は必ずデータを取得する
     revalidateOnMount: true,

@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware
+ * Next.js Proxy (formerly Middleware)
  * 
  * /dashboard 以下のルートを保護
  * 未ログインの場合は /login にリダイレクト
@@ -7,7 +7,6 @@
 
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -37,7 +36,7 @@ export default auth((req) => {
 export const config = {
   matcher: [
     /*
-     * 以下のパスのみ middleware を実行
+     * 以下のパスのみ proxy を実行
      * - /dashboard (およびそのサブパス)
      * - /login
      */
@@ -45,7 +44,4 @@ export const config = {
     "/login",
   ],
 };
-
-
-
 

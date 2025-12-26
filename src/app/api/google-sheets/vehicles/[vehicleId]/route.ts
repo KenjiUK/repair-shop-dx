@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MasterVehicle } from "@/types";
 import { getGoogleSheetsClient } from "@/lib/google-auth";
+import { getVehicleById } from "@/lib/mock-db";
 
 // =============================================================================
 // 設定

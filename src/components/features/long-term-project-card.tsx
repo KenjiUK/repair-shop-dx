@@ -204,7 +204,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
   const vehicleId = job.field6?.id;
 
   // ワークオーダーを取得（写真取得用）
-  const { data: workOrders } = useWorkOrders(job.id);
+  const { workOrders } = useWorkOrders(job.id);
 
   // サンプル画像のマッピング（車両名に基づいて画像を選択）
   const getSamplePhotoUrl = (vehicleName: string): string | null => {

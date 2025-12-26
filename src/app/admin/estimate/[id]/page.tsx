@@ -1227,7 +1227,10 @@ function EstimatePageContent() {
     error: jobError,
     isLoading: isJobLoading,
     mutate: mutateJob,
-  } = useSWR(jobId ? `job-${jobId}` : null, () => jobFetcherWithTiming(jobId), {
+  } = useSWR(jobId ? `job-${jobId}` : null, jobId ? async () => {
+    const fetcher = jobFetcherWithTiming(jobId);
+    return await fetcher();
+  } : null, {
     // グローバル設定を使用（swrGlobalConfig）
     // 初回アクセス時は必ずデータを取得する
     revalidateOnMount: true,
