@@ -111,11 +111,12 @@ export function InspectionRedesignTabs({
     <Tabs
       value={currentCategory}
       onValueChange={handleCategoryChange}
-      className={cn("w-full", className)}
+      className={cn("w-full overflow-x-hidden", className)}
+      style={{ touchAction: 'pan-y' }}
     >
       {/* タブセクションを目立たせるための背景ボックス */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-sm mb-4 dark:bg-slate-800 dark:border-slate-700">
-        <TabsList className={cn(tabsListClass)}>
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-sm mb-4 dark:bg-slate-800 dark:border-slate-700 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
+        <TabsList className={cn(tabsListClass, "overflow-x-hidden")}>
           {categories.map((category) => {
             const progress = getCategoryProgressData(category);
             const label = getCategoryLabel(category);

@@ -26,10 +26,12 @@ const LayoutContent = memo(({ children }: { children: React.ReactNode }) => {
           "flex-1 flex flex-col transition-all duration-300 bg-slate-50 dark:bg-slate-900",
           // 診断ページや作業ページではoverflow-autoを無効化（windowのスクロールを使用）
           // その他のページでは縦スクロールのみ許可（横スクロールを防ぐ）
-          isDiagnosisOrWorkPage ? "overflow-visible" : "overflow-y-auto overflow-x-hidden",
+          // 2025年ベストプラクティス: すべてのページで横スクロールを防ぐ
+          isDiagnosisOrWorkPage ? "overflow-visible overflow-x-hidden" : "overflow-y-auto overflow-x-hidden",
           // サイドバーが開いている時は常にマージンを追加（コンテンツが隠れないように）
           isOpen && "ml-64"
         )}
+        style={{ touchAction: 'pan-y' }}
       >
         {children}
       </div>

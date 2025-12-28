@@ -207,6 +207,8 @@ body[data-navigating="true"]::before {
     --header-height: 176px;
     /* スクロールバーの幅を確保してレイアウトシフトを防止 */
     scrollbar-gutter: stable;
+    /* 2025年ベストプラクティス: 横方向のスワイプジェスチャーを防ぐ */
+    touch-action: pan-y;
   }
   body {
     @apply bg-background text-foreground;
@@ -216,6 +218,8 @@ body[data-navigating="true"]::before {
     overflow-x: hidden;
     /* 縦スクロールはデフォルト（windowのスクロールを使用） */
     /* overflow-yは設定しない（window.scrollYと競合するため） */
+    /* 2025年ベストプラクティス: 横方向のスワイプジェスチャーを防ぐ */
+    touch-action: pan-y;
   }
 }
 

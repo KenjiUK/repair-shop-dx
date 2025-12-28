@@ -4200,7 +4200,7 @@ function DiagnosisPageContent() {
   const redCount = checkItems.filter((item) => item.status === "red").length;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
       {/* オフライン/オンラインバナー */}
       <OfflineBanner />
       <OnlineBanner />
@@ -4338,7 +4338,7 @@ function DiagnosisPageContent() {
       )}
 
       {/* メインコンテンツ */}
-        <main className="max-w-4xl mx-auto px-4 py-6 pb-32" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
+        <main className="max-w-4xl mx-auto px-4 py-6 pb-32 overflow-x-hidden" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)', touchAction: 'pan-y' }}>
         
         {/* 一時帰宅/入庫選択セクション（24ヶ月点検以外） */}
         {!is24MonthInspection && (
