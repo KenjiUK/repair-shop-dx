@@ -547,12 +547,13 @@ export async function generateInspectionTemplatePDF(
       // 状態に応じてチェックマークを描画
       // 良好（green/good）、調整（adjust）、清掃（clean）の場合はレテン（✓）を描画
       // 24ヶ月点検リデザイン版のステータス値にも対応
+      const status = item.status as string;
       const shouldDrawCheckmark =
-        item.status === "green" ||
-        item.status === "good" ||      // 24ヶ月リデザイン版: 良好
-        item.status === "adjust" ||
-        item.status === "clean" ||
-        item.status === "ok";          // 従来版: OK
+        status === "green" ||
+        status === "good" ||      // 24ヶ月リデザイン版: 良好
+        status === "adjust" ||
+        status === "clean" ||
+        status === "ok";          // 従来版: OK
 
       if (shouldDrawCheckmark) {
         const checkSize = mmToPt(position.size || 3);
@@ -566,7 +567,7 @@ export async function generateInspectionTemplatePDF(
       }
 
       // 交換（exchange/red）の場合は「×」を描画
-      if (item.status === "exchange" || item.status === "red") {
+      if (status === "exchange" || status === "red") {
         firstPage.drawText("×", {
           x: xPt,
           y: yPt,
@@ -576,7 +577,7 @@ export async function generateInspectionTemplatePDF(
       }
 
       // 修理（repair）の場合は「△」を描画
-      if (item.status === "repair") {
+      if (status === "repair") {
         firstPage.drawText("△", {
           x: xPt,
           y: yPt,
@@ -586,7 +587,7 @@ export async function generateInspectionTemplatePDF(
       }
 
       // 省略（skip）の場合は「P」を描画
-      if (item.status === "skip") {
+      if (status === "skip") {
         firstPage.drawText("P", {
           x: xPt,
           y: yPt,
@@ -596,7 +597,7 @@ export async function generateInspectionTemplatePDF(
       }
 
       // 該当なし（not_applicable）の場合は「／」を描画
-      if (item.status === "not_applicable") {
+      if (status === "not_applicable") {
         firstPage.drawText("/", {
           x: xPt,
           y: yPt,

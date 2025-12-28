@@ -409,7 +409,7 @@ export default function CustomerApprovalPage() {
   }, [workOrdersList, workOrderId]);
   
   // 法定費用を取得（車検の場合）
-  const legalFees: LegalFees | null = estimateData?.legalFees || null;
+  const legalFees: LegalFees | null = (estimateData?.legalFees as LegalFees | undefined) || null;
 
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || "お客様";

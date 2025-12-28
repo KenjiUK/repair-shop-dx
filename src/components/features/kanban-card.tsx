@@ -85,7 +85,7 @@ function getServiceKindIconComponent(serviceKind: string | null | undefined) {
   const IconComponent = iconMap[serviceKind];
   if (!IconComponent) return null;
 
-  return <IconComponent className="h-4 w-4 text-slate-700" strokeWidth={2.5} />;
+  return <IconComponent className="h-4 w-4 text-slate-700" />;
 }
 
 /**

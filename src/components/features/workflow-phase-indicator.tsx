@@ -61,7 +61,7 @@ export function WorkflowPhaseIndicator({
   // 表示するフェーズのリスト（除外フェーズを除く）
   const visiblePhases = ALL_PHASES.filter(phase => !excludePhases.includes(phase));
   const totalVisiblePhases = visiblePhases.length;
-  const currentPhaseIndex = visiblePhases.indexOf(currentPhase);
+  const currentPhaseIndex: number = visiblePhases.indexOf(currentPhase as typeof visiblePhases[number]);
   const displayPhaseNumber = currentPhaseIndex >= 0 ? currentPhaseIndex + 1 : 1;
 
   // フェーズの状態を判定

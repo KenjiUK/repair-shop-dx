@@ -251,6 +251,12 @@ function HomeContent() {
           status: "作業待ち",
           createdAt: new Date().toISOString(),
         }]),
+        field7: null,
+        field10: null,
+        field13: null,
+        field19: null,
+        field12: null,
+        ID_BookingId: null,
       },
       {
         id: "sample-12month-001",
@@ -269,6 +275,12 @@ function HomeContent() {
           status: "完了",
           createdAt: new Date().toISOString(),
         }]),
+        field7: null,
+        field10: null,
+        field13: null,
+        field19: null,
+        field12: null,
+        ID_BookingId: null,
       },
     ];
     

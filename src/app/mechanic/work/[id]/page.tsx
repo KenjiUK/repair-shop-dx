@@ -2414,20 +2414,30 @@ function MechanicWorkPageContent() {
             <InspectionWorkView
               acceptanceData={acceptanceData}
               approvedWorkItems={approvedWorkItems.map(item => ({
-                ...item,
-                // Phase 2からの測定値をBefore値として設定
+                id: item.id,
+                name: item.name,
+                isCompleted: item.status === "completed",
                 beforeValue: acceptanceData?.measurements?.brakePadFrontLeft,
+                afterValue: undefined,
               }))}
               onApprovedWorkItemsChange={(items) => {
-                setApprovedWorkItems(items.map(item => ({
-                  id: item.id,
-                  name: item.name,
-                  status: item.isCompleted ? "completed" : "pending",
-                  isCompleted: item.isCompleted,
-                  beforePhotoUrl: null,
-                  afterPhotoUrl: null,
-                  isCapturing: false,
-                })));
+                setApprovedWorkItems(items.map(item => {
+                  const existingItem = approvedWorkItems.find(i => i.id === item.id);
+                  return {
+                    id: item.id,
+                    name: item.name,
+                    status: item.isCompleted ? "completed" : "pending",
+                    isCompleted: item.isCompleted,
+                    beforePhotos: existingItem?.beforePhotos || [],
+                    afterPhotos: existingItem?.afterPhotos || [],
+                    category: existingItem?.category,
+                    comment: existingItem?.comment,
+                    mechanicName: existingItem?.mechanicName,
+                    beforePhotoUrl: null,
+                    afterPhotoUrl: null,
+                    isCapturing: false,
+                  };
+                }));
               }}
               finalInspectionData={finalInspectionData}
               onFinalInspectionDataChange={setFinalInspectionData}

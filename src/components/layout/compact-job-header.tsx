@@ -177,10 +177,11 @@ export function CompactJobHeader({
   const [isImportant, setIsImportant] = useState(false);
   
   // 代車一覧を取得
-  const { data: allCourtesyCars = [], isLoading: isCourtesyCarsLoading } = useSWR(
+  const { data: allCourtesyCarsResponse, isLoading: isCourtesyCarsLoading } = useSWR(
     "all-courtesy-cars",
     fetchAllCourtesyCars
   );
+  const allCourtesyCars = allCourtesyCarsResponse?.success ? allCourtesyCarsResponse.data || [] : [];
   
   useEffect(() => {
     if (!customerId) return;

@@ -296,7 +296,7 @@ export async function generateInspectionRecordPDF(
     // PDFをBlobに変換
     // =============================================================================
     const pdfBytes = await doc.save();
-    const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+    const pdfBlob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
 
     return {
       success: true,

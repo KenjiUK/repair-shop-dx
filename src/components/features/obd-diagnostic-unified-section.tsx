@@ -106,7 +106,7 @@ async function convertImageToPdf(imageFile: File): Promise<File> {
 
     // PDFをBlobに変換
     const pdfBytes = await pdfDoc.save();
-    const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+    const pdfBlob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
     
     // Fileオブジェクトに変換
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");

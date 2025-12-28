@@ -25,7 +25,8 @@ import { Eye, Edit, CheckCircle2, AlertCircle, Wrench, ClipboardCheck, Gauge, Li
 import { ZohoJob } from "@/types";
 import { PhotoManager, PhotoItem } from "./photo-manager";
 import Image from "next/image";
-import { InspectionMeasurements, InspectionParts, CustomPartItem } from "@/types/inspection-redesign";
+import { InspectionMeasurements, InspectionParts } from "@/types/inspection-redesign";
+import { CustomPartItem } from "@/types/inspection-parts-custom";
 import { QualityCheckData } from "@/types/inspection-quality-check";
 import { EstimateLineItem } from "@/types";
 import { Calculator } from "lucide-react";
@@ -365,64 +366,64 @@ export function DiagnosisPreviewDialog({
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      {inspectionMeasurements.coConcentration && (
+                      {inspectionMeasurements.co && (
                         <div>
                           <span className="text-slate-600">CO濃度:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.coConcentration}%</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.co}%</span>
                         </div>
                       )}
-                      {inspectionMeasurements.hcConcentration && (
+                      {inspectionMeasurements.hc && (
                         <div>
                           <span className="text-slate-600">HC濃度:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.hcConcentration}ppm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.hc}ppm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.brakePadFrontLeft && (
+                      {inspectionMeasurements.brakeFrontLeft && (
                         <div>
                           <span className="text-slate-600">ブレーキパッド前左:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.brakePadFrontLeft}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.brakeFrontLeft}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.brakePadFrontRight && (
+                      {inspectionMeasurements.brakeFrontRight && (
                         <div>
                           <span className="text-slate-600">ブレーキパッド前右:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.brakePadFrontRight}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.brakeFrontRight}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.brakePadRearLeft && (
+                      {inspectionMeasurements.brakeRearLeft && (
                         <div>
                           <span className="text-slate-600">ブレーキパッド後左:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.brakePadRearLeft}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.brakeRearLeft}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.brakePadRearRight && (
+                      {inspectionMeasurements.brakeRearRight && (
                         <div>
                           <span className="text-slate-600">ブレーキパッド後右:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.brakePadRearRight}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.brakeRearRight}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.tireDepthFrontLeft && (
+                      {inspectionMeasurements.tireFrontLeft && (
                         <div>
                           <span className="text-slate-600">タイヤ溝前左:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.tireDepthFrontLeft}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.tireFrontLeft}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.tireDepthFrontRight && (
+                      {inspectionMeasurements.tireFrontRight && (
                         <div>
                           <span className="text-slate-600">タイヤ溝前右:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.tireDepthFrontRight}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.tireFrontRight}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.tireDepthRearLeft && (
+                      {inspectionMeasurements.tireRearLeft && (
                         <div>
                           <span className="text-slate-600">タイヤ溝後左:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.tireDepthRearLeft}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.tireRearLeft}mm</span>
                         </div>
                       )}
-                      {inspectionMeasurements.tireDepthRearRight && (
+                      {inspectionMeasurements.tireRearRight && (
                         <div>
                           <span className="text-slate-600">タイヤ溝後右:</span>
-                          <span className="ml-2 font-medium">{inspectionMeasurements.tireDepthRearRight}mm</span>
+                          <span className="ml-2 font-medium">{inspectionMeasurements.tireRearRight}mm</span>
                         </div>
                       )}
                     </div>
@@ -471,10 +472,10 @@ export function DiagnosisPreviewDialog({
                           <span className="font-medium">{inspectionParts.wiperRubber}個</span>
                         </div>
                       )}
-                      {inspectionParts?.cleanAirFilter && (
+                      {inspectionParts?.airFilter && (
                         <div className="flex justify-between">
                           <span>クリーンエアフィルター</span>
-                          <span className="font-medium">{inspectionParts.cleanAirFilter}個</span>
+                          <span className="font-medium">{inspectionParts.airFilter}個</span>
                         </div>
                       )}
                       {customParts && customParts.map((part, index) => (
@@ -499,55 +500,55 @@ export function DiagnosisPreviewDialog({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm">
-                      {qualityCheckData.tireWheel?.wheelNutTorque && (
+                      {(qualityCheckData as any).tireWheel?.wheelNutTorque && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>ホイールナット締付トルク</span>
                         </div>
                       )}
-                      {qualityCheckData.tireWheel?.torqueWrenchUsed && (
+                      {(qualityCheckData as any).tireWheel?.torqueWrenchUsed && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>トルクレンチ使用確認</span>
                         </div>
                       )}
-                      {qualityCheckData.brake?.brakeEffect && (
+                      {(qualityCheckData as any).brake?.brakeEffect && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>ブレーキ効き（試運転）</span>
                         </div>
                       )}
-                      {qualityCheckData.brake?.noAbnormalNoise && (
+                      {(qualityCheckData as any).brake?.noAbnormalNoise && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>異音なし（試運転）</span>
                         </div>
                       )}
-                      {qualityCheckData.electrical?.allLightsOn && (
+                      {(qualityCheckData as any).electrical?.allLightsOn && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>全灯火点灯</span>
                         </div>
                       )}
-                      {qualityCheckData.electrical?.warningLightsOff && (
+                      {(qualityCheckData as any).electrical?.warningLightsOff && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>警告灯消灯</span>
                         </div>
                       )}
-                      {qualityCheckData.battery?.voltageOk && (
+                      {(qualityCheckData as any).battery?.voltageOk && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>電圧・充電状態</span>
                         </div>
                       )}
-                      {qualityCheckData.suspension?.steeringBehavior && (
+                      {(qualityCheckData as any).suspension?.steeringBehavior && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>ステアリング・挙動</span>
                         </div>
                       )}
-                      {qualityCheckData.suspension?.noSuspensionNoise && (
+                      {(qualityCheckData as any).suspension?.noSuspensionNoise && (
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span>足回り異音なし</span>

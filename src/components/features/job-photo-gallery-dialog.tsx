@@ -155,11 +155,11 @@ export function JobPhotoGalleryDialog({
               <>
                 {/* メイン写真表示エリア */}
                 <div className="relative flex-1 min-h-[400px] bg-slate-100 rounded-lg overflow-hidden border border-slate-300">
-                  {selectedPhoto && (
+                  {selectedPhoto && activeTab === "internal" && (
                     <>
                       <Image
                         src={selectedPhoto.url}
-                        alt={selectedPhoto.label}
+                        alt={"label" in selectedPhoto ? selectedPhoto.label : ""}
                         fill
                         className="object-contain"
                         sizes="(max-width: 768px) 100vw, 800px"
@@ -169,35 +169,37 @@ export function JobPhotoGalleryDialog({
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-base font-semibold">{selectedPhoto.label}</p>
-                            <Badge
-                              variant={
-                                selectedPhoto.type === "diagnosis"
-                                  ? "default"
+                            <p className="text-base font-semibold">{"label" in selectedPhoto ? selectedPhoto.label : ""}</p>
+                            {"type" in selectedPhoto && (
+                              <Badge
+                                variant={
+                                  selectedPhoto.type === "diagnosis"
+                                    ? "default"
+                                    : selectedPhoto.type === "before"
+                                    ? "secondary"
+                                    : selectedPhoto.type === "after"
+                                    ? "default"
+                                    : "outline"
+                                }
+                                className="mt-1 text-base"
+                              >
+                                {selectedPhoto.type === "diagnosis"
+                                  ? "診断写真"
                                   : selectedPhoto.type === "before"
-                                  ? "secondary"
+                                  ? "作業前"
                                   : selectedPhoto.type === "after"
-                                  ? "default"
-                                  : "outline"
-                              }
-                              className="mt-1 text-base"
-                            >
-                              {selectedPhoto.type === "diagnosis"
-                                ? "診断写真"
-                                : selectedPhoto.type === "before"
-                                ? "作業前"
-                                : selectedPhoto.type === "after"
-                                ? "作業後"
-                                : "その他"}
-                            </Badge>
+                                  ? "作業後"
+                                  : "その他"}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-base">
-                            {selectedPhotoIndex + 1} / {internalPhotos.length}
+                            {selectedPhotoIndex + 1} / {currentPhotos.length}
                           </p>
                         </div>
                       </div>
                       {/* ナビゲーションボタン */}
-                      {internalPhotos.length > 1 && (
+                      {currentPhotos.length > 1 && (
                         <>
                           <Button
                             variant="outline"
@@ -212,7 +214,7 @@ export function JobPhotoGalleryDialog({
                             variant="outline"
                             size="icon"
                             onClick={handleNext}
-                            disabled={selectedPhotoIndex === internalPhotos.length - 1}
+                            disabled={activeTab === "internal" ? selectedPhotoIndex === internalPhotos.length - 1 : selectedPhotoIndex === blogPhotos.length - 1}
                             className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/90 hover:bg-white"
                           >
                             <ChevronRight className="h-5 w-5" />

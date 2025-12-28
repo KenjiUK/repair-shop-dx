@@ -63,9 +63,9 @@ export default function PdfTestPage() {
                 vehicleName: "プリウス",
                 licensePlate: "品川 300 あ 1234",
                 items: [
-                    { id: "1", name: "エンジンオイル交換", quantity: 1, unitPrice: 0, partUnitPrice: 0, partQuantity: 0, laborCost: 3000, priority: "required" },
-                    { id: "2", name: "オイルフィルター", quantity: 1, unitPrice: 0, partUnitPrice: 1500, partQuantity: 1, laborCost: 1000, priority: "required" },
-                    { id: "3", name: "ワイパーゴム交換", quantity: 2, unitPrice: 0, partUnitPrice: 800, partQuantity: 2, laborCost: 500, priority: "recommended" },
+                    { id: "1", name: "エンジンオイル交換", partQuantity: 0, partUnitPrice: 0, laborCost: 3000, priority: "required", linkedPhotoId: null, linkedVideoId: null, transcription: null },
+                    { id: "2", name: "オイルフィルター", partQuantity: 1, partUnitPrice: 1500, laborCost: 1000, priority: "required", linkedPhotoId: null, linkedVideoId: null, transcription: null },
+                    { id: "3", name: "ワイパーゴム交換", partQuantity: 2, partUnitPrice: 800, laborCost: 500, priority: "recommended", linkedPhotoId: null, linkedVideoId: null, transcription: null },
                 ],
                 estimateDate: new Date(),
                 validUntil: new Date(new Date().setDate(new Date().getDate() + 14)),

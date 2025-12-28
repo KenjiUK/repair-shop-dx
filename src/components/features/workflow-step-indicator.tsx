@@ -118,7 +118,7 @@ function getSkippedPhases(
 ): number[] {
   if (!job) return [];
   
-  const serviceKind = job.serviceKind || (job.serviceKinds && job.serviceKinds[0]);
+  const serviceKind = job.serviceKind || (job.field_service_kinds && job.field_service_kinds[0]);
   const isInspection = serviceKind === "車検" || serviceKind === "12ヵ月点検";
   
   if (isInspection && !hasAdditionalEstimate) {

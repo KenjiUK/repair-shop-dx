@@ -551,7 +551,7 @@ export function generateRevenueAnalyticsData(
         : 0;
 
       const totalDuration = wo.work?.records?.reduce(
-        (sum, record) => sum + (record.duration || 0),
+        (sum, record) => sum + ((record as any).duration || 0),
         0
       ) || 0;
 
@@ -651,6 +651,7 @@ export function generateCustomerAnalyticsData(
   const periodCustomerIds = new Set(filteredJobs.map((job) => job.field4?.id).filter(Boolean));
 
   periodCustomerIds.forEach((customerId) => {
+    if (!customerId) return;
     const totalJobs = allCustomerJobMap.get(customerId) || 0;
     const periodJobs = customerJobMap.get(customerId) || 0;
 
@@ -762,8 +763,9 @@ export function generateEfficiencyAnalyticsData(
       if (!wo.work?.records) return;
 
       wo.work.records.forEach((record) => {
-        if (record.duration) {
-          totalWorkDuration += record.duration;
+        const duration = (record as any).duration;
+        if (duration) {
+          totalWorkDuration += duration;
           totalWorkRecords++;
         }
       });

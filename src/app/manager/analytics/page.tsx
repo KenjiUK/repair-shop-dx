@@ -572,7 +572,8 @@ export default function BusinessAnalyticsPage() {
                             border: "1px solid #cbd5e1",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number, name: string) => {
+                          formatter={(value: number | undefined, name: string | undefined) => {
+                            if (value === undefined) return "";
                             if (name === "売上") {
                               return formatPrice(value);
                             }
@@ -632,7 +633,7 @@ export default function BusinessAnalyticsPage() {
                             border: "1px solid #cbd5e1",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number) => formatPrice(value)}
+                          formatter={(value: number | undefined) => value !== undefined ? formatPrice(value) : ""}
                         />
                         <Legend wrapperStyle={{ fontSize: "14px" }} />
                         <Bar dataKey="revenue" fill="#3b82f6" name="売上" />
@@ -685,8 +686,8 @@ export default function BusinessAnalyticsPage() {
                             cx="50%"
                             cy="50%"
                             labelLine={false}
-                            label={({ name, percent }) =>
-                              `${name}: ${(percent * 100).toFixed(1)}%`
+                            label={({ name, percent }: { name?: string; percent?: number }) =>
+                              `${name || ""}: ${percent !== undefined ? (percent * 100).toFixed(1) : "0.0"}%`
                             }
                             outerRadius={100}
                             fill="#8884d8"
@@ -701,7 +702,7 @@ export default function BusinessAnalyticsPage() {
                               border: "1px solid #cbd5e1",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: number) => formatPrice(value)}
+                            formatter={(value: number | undefined) => value !== undefined ? formatPrice(value) : ""}
                           />
                           <Legend wrapperStyle={{ fontSize: "14px" }} />
                         </PieChart>
@@ -742,7 +743,7 @@ export default function BusinessAnalyticsPage() {
                               border: "1px solid #cbd5e1",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: number) => formatPrice(value)}
+                            formatter={(value: number | undefined) => value !== undefined ? formatPrice(value) : ""}
                           />
                           <Legend wrapperStyle={{ fontSize: "14px" }} />
                           <Bar dataKey="revenue" fill="#3b82f6" name="売上" />
@@ -960,7 +961,7 @@ export default function BusinessAnalyticsPage() {
                               border: "1px solid #cbd5e1",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: number) => `${value.toFixed(1)}時間`}
+                            formatter={(value: number | undefined) => value !== undefined ? `${value.toFixed(1)}時間` : ""}
                           />
                           <Legend wrapperStyle={{ fontSize: "14px" }} />
                           <Bar dataKey="averageDuration" fill="#ef4444" name="平均滞留時間" />

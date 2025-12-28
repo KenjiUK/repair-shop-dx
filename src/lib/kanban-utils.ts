@@ -212,8 +212,9 @@ export function calculateMechanicWorkload(
     workOrders.forEach((wo) => {
       if (wo.work?.records) {
         wo.work.records.forEach((record) => {
-          if (record.duration) {
-            totalWorkDuration += record.duration;
+          const duration = (record as any).duration;
+          if (duration) {
+            totalWorkDuration += duration;
           }
         });
       }

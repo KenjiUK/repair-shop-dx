@@ -346,7 +346,7 @@ export async function generateWorkOrderPDF(
     }
 
     const pdfBytes = await doc.save();
-    const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+    const pdfBlob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
 
     return { success: true, data: pdfBlob };
   } catch (error) {

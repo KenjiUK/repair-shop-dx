@@ -14,6 +14,7 @@ import { InspectionBottomSheetList } from "@/components/features/inspection-bott
 import { InspectionMeasurementInput } from "@/components/features/inspection-measurement-input";
 import { OBDDiagnosticUnifiedSection, OBDDiagnosticResult } from "@/components/features/obd-diagnostic-unified-section";
 import { InspectionQualityCheckSection } from "@/components/features/inspection-quality-check-section";
+import { VoiceInputButton } from "@/components/features/voice-input-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -296,14 +297,9 @@ export default function InspectionRedesign24MonthTestPage() {
             {(category) => {
               const categoryItems = items.filter((item) => item.category === category);
               const categories = getInspectionCategories(type);
-              const categoryLabel =
-                type === "12month"
-                  ? INSPECTION_CATEGORY_12MONTH_LABELS[
-                      category as InspectionCategory12Month
-                    ]
-                  : INSPECTION_CATEGORY_24MONTH_LABELS[
-                      category as InspectionCategory24Month
-                    ];
+              const categoryLabel = INSPECTION_CATEGORY_24MONTH_LABELS[
+                category as InspectionCategory24Month
+              ];
 
               return (
                 <Card className="border-slate-200 shadow-md hover:shadow-lg transition-shadow">

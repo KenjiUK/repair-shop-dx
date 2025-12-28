@@ -6,7 +6,7 @@
 import { EstimateLineItem, EstimatePriority } from "@/types";
 import { calculateTax } from "./tax-calculation";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { loadCustomFont, drawText as drawTextHelper, splitTextToSize, drawLine } from "./pdf-utils";
+import { loadCustomFont, drawText as drawTextHelper, splitTextToSize, drawLine, mmToPt } from "./pdf-utils";
 
 /**
  * 見積書PDF生成オプション
@@ -256,7 +256,7 @@ export async function generateEstimatePdf(options: EstimatePdfOptions): Promise<
 export async function downloadEstimatePdf(options: EstimatePdfOptions, filename?: string): Promise<void> {
   const doc = await generateEstimatePdf(options);
   const pdfBytes = await doc.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
 
   const defaultFilename = `見積書_${options.customerName}_${formatDate(new Date(), "YYYYMMDD")}.pdf`;
@@ -275,7 +275,7 @@ export async function downloadEstimatePdf(options: EstimatePdfOptions, filename?
 export async function getEstimatePdfBlobUrl(options: EstimatePdfOptions): Promise<string> {
   const doc = await generateEstimatePdf(options);
   const pdfBytes = await doc.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
   return URL.createObjectURL(blob);
 }
 

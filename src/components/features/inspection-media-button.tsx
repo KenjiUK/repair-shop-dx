@@ -51,7 +51,7 @@ interface InspectionMediaButtonProps {
   /** 処理中フラグ */
   isProcessing?: boolean;
   /** 外部からinput要素を制御するためのref（写真用） */
-  photoInputRef?: React.RefObject<HTMLInputElement>;
+  photoInputRef?: React.RefObject<HTMLInputElement | null>;
   /** 動画の最大録画時間（秒） */
   maxVideoDuration?: number;
 }

@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,7 +121,7 @@ import { WorkflowStepIndicator } from "@/components/features/workflow-step-indic
 // 24ヶ月点検（車検）用コンポーネント
 import { InspectionRedesignTabs } from "@/components/features/inspection-redesign-tabs";
 import { InspectionBottomSheetList } from "@/components/features/inspection-bottom-sheet-list";
-import { OBDDiagnosticUnifiedSection, OBDDiagnosticResult } from "@/components/features/obd-diagnostic-unified-section";
+import { OBDDiagnosticUnifiedSection, OBDDiagnosticResult as OBDDiagnosticResultUnified } from "@/components/features/obd-diagnostic-unified-section";
 import { InspectionQualityCheckSection } from "@/components/features/inspection-quality-check-section";
 import { DiagnosisAdditionalEstimateSection } from "@/components/features/diagnosis-additional-estimate-section";
 import { Textarea } from "@/components/ui/textarea";
@@ -1353,11 +1353,11 @@ function DiagnosisPageContent() {
       const initialItems = getInspectionItems("24month");
       
       const restoredItems = initialItems.map((initialItem) => {
-        const savedItem = diagnosis.items.find((item: any) => item.id === initialItem.id);
+        const savedItem = diagnosis.items?.find((item: any) => item.id === initialItem.id);
         if (savedItem) {
           return {
             ...initialItem,
-            status: savedItem.status || initialItem.status,
+            status: (savedItem.status as InspectionItemRedesign['status']) || initialItem.status,
             comment: savedItem.comment || initialItem.comment,
             photoUrls: savedItem.evidencePhotoUrls || initialItem.photoUrls || [],
             videoUrls: savedItem.evidenceVideoUrls || initialItem.videoUrls || [],
@@ -4688,8 +4688,6 @@ function DiagnosisPageContent() {
               pdfResult={obdPdfResult}
               onPdfUpload={handleObdPdfUpload}
               onPdfRemove={handleObdPdfRemove}
-              detailResult={enhancedOBDDiagnosticResult}
-              onDetailChange={setEnhancedOBDDiagnosticResult}
               disabled={isSubmitting}
             />
 
@@ -5363,7 +5361,7 @@ function DiagnosisPageContent() {
         inspectionMeasurements={inspectionMeasurements}
         inspectionParts={inspectionPartsData}
         customParts={customPartsData}
-        qualityCheckData={qualityCheckData}
+        qualityCheckData={qualityCheckData || undefined}
         maintenanceAdvice={maintenanceAdvice}
         additionalEstimateRequired={additionalEstimateRequired}
         additionalEstimateRecommended={additionalEstimateRecommended}

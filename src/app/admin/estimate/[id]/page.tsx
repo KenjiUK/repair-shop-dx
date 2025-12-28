@@ -1567,9 +1567,10 @@ function EstimatePageContent() {
     const diagnosis = inspectionWorkOrder.diagnosis as any;
     
     // 24ヶ月点検リデザイン版かどうかを判定（statusが'good', 'exchange'などの場合）
-    const is24MonthRedesign = diagnosis.items.some((item: DiagnosisItem) => 
-      item.status === 'good' || item.status === 'exchange' || item.status === 'repair' || item.status === 'adjust'
-    );
+    const is24MonthRedesign = diagnosis.items.some((item: any) => {
+      const status = item.status as string;
+      return status === 'good' || status === 'exchange' || status === 'repair' || status === 'adjust';
+    });
 
     // 診断結果から見積項目を追加
     setEstimateItems((prev) => {
@@ -1740,38 +1741,43 @@ function EstimatePageContent() {
     const diagnosis = inspectionWorkOrder.diagnosis as any;
     
     // 24ヶ月点検リデザイン版の場合のみ追加見積ビューを使用
-    const is24MonthRedesign = diagnosis.items.some((item: DiagnosisItem) => 
-      item.status === 'good' || item.status === 'exchange' || item.status === 'repair' || item.status === 'adjust'
-    );
+    const is24MonthRedesign = diagnosis.items.some((item: any) => {
+      const status = item.status as string;
+      return status === 'good' || status === 'exchange' || status === 'repair' || status === 'adjust';
+    });
 
     if (!is24MonthRedesign) return;
 
     // 交換・修理・調整の項目を抽出
-    const flaggedItems = diagnosis.items.filter((item: DiagnosisItem) =>
-      item.status === 'exchange' || item.status === 'repair' || item.status === 'adjust'
-    );
+    const flaggedItems = diagnosis.items.filter((item: any) => {
+      const status = item.status as string;
+      return status === 'exchange' || status === 'repair' || status === 'adjust';
+    });
 
     if (flaggedItems.length === 0) return;
 
-    const additionalItems = flaggedItems.map((item: DiagnosisItem) => ({
-      id: `additional-${item.id}`,
-      name: item.name,
-      status: item.status as "exchange" | "repair" | "adjust",
-      // サンプルデータ: 写真が無い場合でもサンプル写真を表示（見た目確認用）
-      photoUrls: item.evidencePhotoUrls && item.evidencePhotoUrls.length > 0 
-        ? item.evidencePhotoUrls 
-        : [
-            "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
-            "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&h=300&fit=crop",
-            "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop",
-          ],
-      videoUrls: (item as any).evidenceVideoUrls || [],
-      videoData: (item as any).videoData || [],
-      comment: item.comment || undefined,
-      selected: item.status === 'exchange' || item.status === 'repair', // 交換・修理は自動選択
-      partsCost: 0,
-      laborCost: 0,
-    }));
+    const additionalItems = flaggedItems.map((item: any) => {
+      const status = item.status as string;
+      return {
+        id: `additional-${item.id}`,
+        name: item.name,
+        status: status as "exchange" | "repair" | "adjust",
+        // サンプルデータ: 写真が無い場合でもサンプル写真を表示（見た目確認用）
+        photoUrls: item.evidencePhotoUrls && item.evidencePhotoUrls.length > 0 
+          ? item.evidencePhotoUrls 
+          : [
+              "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+              "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&h=300&fit=crop",
+              "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop",
+            ],
+        videoUrls: item.evidenceVideoUrls || [],
+        videoData: item.videoData || [],
+        comment: item.comment || undefined,
+        selected: status === 'exchange' || status === 'repair', // 交換・修理は自動選択
+        partsCost: 0,
+        laborCost: 0,
+      };
+    });
 
     setAdditionalEstimateItems(additionalItems);
     setHasGeneratedAdditionalItems(true);
@@ -3184,8 +3190,8 @@ function EstimatePageContent() {
           throw new Error(updateResult.error?.message || "見積の保存に失敗しました");
         }
 
-        if (!updateResult.success) {
-          throw new Error(updateResult.error?.message || "見積の保存に失敗しました");
+        if (!updateResult || !updateResult.success) {
+          throw new Error(updateResult?.error?.message || "見積の保存に失敗しました");
         }
 
         // ワークオーダーリストを再取得
