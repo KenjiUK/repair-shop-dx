@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateInspectionRecordPDF, InspectionRecordData } from '@/lib/inspection-pdf-generator';
 import { getEstimatePdfBlobUrl, EstimatePdfOptions } from '@/lib/pdf-generator';
-import { generateWorkOrderPDF, WorkOrderPDFData } from '@/lib/work-order-pdf-generator';
+import { generateWorkOrderPDF } from '@/lib/work-order-pdf-generator';
+import { WorkOrderPDFData } from '@/types';
 import { generateInspectionTemplatePDF, InspectionTemplateType } from '@/lib/inspection-template-pdf-generator';
 
 export default function PdfTestPage() {
