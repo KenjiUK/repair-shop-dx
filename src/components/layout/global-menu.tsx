@@ -18,7 +18,8 @@ import {
   Bell,
   Home,
   Search,
-  Image
+  Image,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,18 @@ export function GlobalMenu() {
   ];
 
   const adminItems = [
+    {
+      label: "作業指示・進捗管理",
+      href: "/manager/kanban",
+      icon: FolderKanban,
+      description: "カンバンボード形式での作業進捗管理",
+    },
+    {
+      label: "レポート・分析",
+      href: "/manager/analytics",
+      icon: BarChart3,
+      description: "売上分析・顧客分析・業務効率分析",
+    },
     {
       label: "ブログ写真管理",
       href: "/admin/blog-photos",

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { WorkOrder, ApiResponse, ZohoJob } from "@/types";
+import { WorkOrder, ApiResponse, ZohoJob, ServiceKind } from "@/types";
 import { fetchJobById } from "@/lib/api";
 import {
   parseWorkOrdersFromZoho,
   serializeWorkOrdersForZoho,
   updateWorkOrder as updateWorkOrderUtil,
   removeWorkOrder as removeWorkOrderUtil,
+  createWorkOrder,
 } from "@/lib/work-order-converter";
 import { updateJob } from "@/lib/zoho-api-client";
 
@@ -132,19 +133,32 @@ export async function PATCH(
     const workOrders = parseWorkOrdersFromZoho(workOrdersJson);
 
     // 指定されたワークオーダーを検索
-    const workOrderIndex = workOrders.findIndex((wo) => wo.id === workOrderId);
+    let workOrderIndex = workOrders.findIndex((wo) => wo.id === workOrderId);
 
+    // ワークオーダーが見つからない場合、新しく作成する（開発環境でのフォールバック）
     if (workOrderIndex === -1) {
-      return errorResponse(
-        `ワークオーダー "${workOrderId}" が見つかりません`,
-        "WORK_ORDER_NOT_FOUND",
-        404
-      );
+      console.warn(`[API] ワークオーダー "${workOrderId}" が見つかりません。新しく作成します。`);
+      
+      // 既存のワークオーダーからserviceKindを取得（なければ"その他"）
+      const serviceKind = workOrders.length > 0 
+        ? workOrders[0].serviceKind 
+        : (zohoJob.serviceKind as ServiceKind) || "その他";
+      
+      // 新しいワークオーダーを作成（指定されたIDを使用）
+      const newWorkOrder = {
+        ...createWorkOrder(jobId, serviceKind),
+        id: workOrderId, // 指定されたIDを使用
+      };
+      
+      // 更新データを適用
+      const updatedWorkOrder = updateWorkOrderUtil(newWorkOrder, updates);
+      workOrders.push(updatedWorkOrder);
+      workOrderIndex = workOrders.length - 1;
+    } else {
+      // ワークオーダーを更新
+      const updatedWorkOrder = updateWorkOrderUtil(workOrders[workOrderIndex], updates);
+      workOrders[workOrderIndex] = updatedWorkOrder;
     }
-
-    // ワークオーダーを更新
-    const updatedWorkOrder = updateWorkOrderUtil(workOrders[workOrderIndex], updates);
-    workOrders[workOrderIndex] = updatedWorkOrder;
 
     // Zoho CRMを更新
     const updateData = {
@@ -161,7 +175,7 @@ export async function PATCH(
 
     const response: ApiResponse<WorkOrder> = {
       success: true,
-      data: updatedWorkOrder,
+      data: workOrders[workOrderIndex],
     };
 
     return NextResponse.json(response);

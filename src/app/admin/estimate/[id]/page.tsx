@@ -2,7 +2,7 @@
 
 // Note: クライアントコンポーネントはデフォルトで動的レンダリングされるため、force-dynamicは不要
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, Suspense, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,7 +38,8 @@ import { toast } from "sonner";
 import { EstimatePriority, ZohoJob, ServiceKind, EstimateItem, DriveFile, DiagnosisItem, PartsInfo, PartItem, WorkOrder } from "@/types";
 import { LegalFeesCard } from "@/components/features/legal-fees-card";
 import { getLegalFees } from "@/lib/legal-fees";
-import { addDiagnosisItemsToEstimate, addTireDiagnosisItemsToEstimate, addMaintenanceDiagnosisItemsToEstimate, addTuningPartsDiagnosisItemsToEstimate, addCoatingDiagnosisItemsToEstimate } from "@/lib/diagnosis-to-estimate";
+import { addDiagnosisItemsToEstimate, addTireDiagnosisItemsToEstimate, addMaintenanceDiagnosisItemsToEstimate, addTuningPartsDiagnosisItemsToEstimate, addCoatingDiagnosisItemsToEstimate, convertInspectionRedesignToEstimateItems } from "@/lib/diagnosis-to-estimate";
+import { InspectionItemRedesign } from "@/types/inspection-redesign";
 import { VEHICLE_INSPECTION_ITEMS, InspectionItem } from "@/lib/inspection-items";
 import { TireInspectionItem, getInitialTireInspectionItems } from "@/lib/tire-inspection-items";
 import { MaintenanceInspectionItemState, getInitialMaintenanceInspectionItems } from "@/components/features/maintenance-inspection-view";
@@ -54,7 +55,7 @@ import { downloadEstimatePdf } from "@/lib/pdf-generator";
 import { OBDDiagnosticResult } from "@/components/features/obd-diagnostic-result-section";
 import { PartsListInput, PartsListItem, PartsArrivalStatus } from "@/components/features/parts-list-input";
 import { AudioInputButton, AudioData } from "@/components/features/audio-input-button";
-import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
+import { useWorkOrders, updateWorkOrder, createWorkOrder } from "@/hooks/use-work-orders";
 import { WorkOrderSelector } from "@/components/features/work-order-selector";
 import { InvoiceUpload } from "@/components/features/invoice-upload";
 import { BodyPaintEstimateView, BodyPaintEstimateData } from "@/components/features/body-paint-estimate-view";
@@ -63,6 +64,7 @@ import { RestoreEstimateView, RestoreEstimateData } from "@/components/features/
 import { OtherServiceEstimateView, OtherServiceEstimateData } from "@/components/features/other-service-estimate-view";
 import { EstimateChangeHistorySection } from "@/components/features/estimate-change-history-section";
 import { PhotoManager, PhotoItem } from "@/components/features/photo-manager";
+import type { AdditionalEstimateItem } from "@/components/features/additional-estimate-view";
 import dynamic from "next/dynamic";
 
 // ダイアログコンポーネントを動的インポート（コード分割）
@@ -128,6 +130,7 @@ import {
   Car,
   Tag,
   Camera,
+  Video,
   Plus,
   Trash2,
   Eye,
@@ -154,12 +157,11 @@ import { AppHeader } from "@/components/layout/app-header";
 import { CompactJobHeader } from "@/components/layout/compact-job-header";
 import { User } from "lucide-react";
 import { usePageTiming } from "@/hooks/use-page-timing";
-import { setNavigationHistory, getBackHref, getPageTypeFromPath } from "@/lib/navigation-history";
+import { setNavigationHistory, getBackHref, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
 import { usePathname } from "next/navigation";
 import { withFetcherTiming } from "@/lib/api-timing";
 import Image from "next/image";
-import { LABOR_COST_MASTER, getLaborCostByCategory, searchLaborCostByName, LaborCostMasterItem } from "@/lib/labor-cost-master";
-import { LaborCostSelect } from "@/components/features/labor-cost-select";
+import { searchLaborCostByName, LaborCostMasterItem } from "@/lib/labor-cost-master";
 import { PhotoPositionKey } from "@/lib/photo-position";
 import { cleanNumericInput, parseNumericValue, validateNumericInput } from "@/lib/number-input";
 
@@ -407,6 +409,16 @@ function EstimateLineRow({
   disabled?: boolean;
   onPhotoClick?: (photoUrl: string, itemName: string) => void;
 }) {
+  // サジェスト表示の状態
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [inputValue, setInputValue] = useState(item.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // inputValueをitem.nameと同期
+  useEffect(() => {
+    setInputValue(item.name);
+  }, [item.name]);
+
   // 部品代の計算（数量 × 単価）
   const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
 
@@ -439,32 +451,36 @@ function EstimateLineRow({
     } else if (field === 'partUnitPrice') {
       onUpdate(item.id, { partUnitPrice: Math.floor(numValue) }); // 単価は整数のみ
     } else {
-      onUpdate(item.id, { laborCost: Math.floor(numValue) }); // 技術量は整数のみ
+      onUpdate(item.id, { laborCost: Math.floor(numValue) }); // 技術料は整数のみ
     }
   };
 
-  // バリデーション: 部品代と技術量の両方が0の場合の警告表示フラグ
+  // バリデーション: 部品代と技術料の両方が0の場合の警告表示フラグ
   const laborCost = item.laborCost || 0;
   const totalAmount = partTotal + laborCost;
   const isZeroAmount = totalAmount === 0 && item.name.trim() !== "";
 
-  // 技術量選択時のハンドラ
-  const handleLaborCostSelect = (masterItem: LaborCostMasterItem | null) => {
-    if (masterItem) {
-      onUpdate(item.id, {
-        laborCost: masterItem.laborCost,
-        // 作業内容名が空の場合は、選択した工賃マスタの名前を設定
-        name: item.name || masterItem.name,
-      });
-    } else {
-      onUpdate(item.id, { laborCost: 0 });
-    }
+  // サジェストのフィルタリング
+  const filteredSuggestions = useMemo(() => {
+    if (!inputValue || inputValue.length < 1) return [];
+    return searchLaborCostByName(inputValue).slice(0, 8); // 最大8件
+  }, [inputValue]);
+
+  // サジェスト選択時のハンドラ
+  const handleSuggestionSelect = (masterItem: LaborCostMasterItem) => {
+    onUpdate(item.id, {
+      name: masterItem.name,
+      laborCost: masterItem.laborCost,
+    });
+    setShowSuggestions(false);
   };
 
-  // 現在選択されている技術量に相当するマスタアイテムを検索
-  const selectedLaborCostItem = LABOR_COST_MASTER.find(
-    (master) => master.laborCost === item.laborCost && master.name === item.name
-  ) || null;
+  // 入力変更時のハンドラ
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+    onUpdate(item.id, { name: value });
+    setShowSuggestions(value.length > 0);
+  };
 
   // 紐付けられている写真を検索
   const linkedPhoto = item.linkedPhotoId
@@ -480,20 +496,48 @@ function EstimateLineRow({
 
   return (
     <>
-      {/* モバイル時: カード型レイアウト（sm以下） */}
+      {/* モバイル時: シンプルなカード型レイアウト（sm以下） */}
       <div
         className="block sm:hidden border border-slate-200 rounded-lg p-4 mb-3 bg-white"
         role="row"
         aria-label={`見積項目: ${item.name || "未入力"}`}
       >
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-base font-semibold text-slate-900">作業内容・使用部品名等</h4>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="relative flex-1">
+            <Input
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={() => inputValue.length > 0 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              placeholder="作業内容を入力"
+              className="h-12 text-base"
+              disabled={disabled}
+              aria-label="作業内容"
+            />
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                {filteredSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-slate-100 text-base flex justify-between items-center"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSuggestionSelect(suggestion)}
+                  >
+                    <span className="truncate">{suggestion.name}</span>
+                    <span className="text-slate-500 text-sm ml-2 shrink-0">¥{formatPrice(suggestion.laborCost)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => onDelete(item.id)}
             disabled={!canDelete || disabled}
-            className="h-12 w-12 text-slate-700 hover:text-red-600"
+            className="h-12 w-12 text-slate-500 hover:text-red-600 hover:bg-red-50 shrink-0"
             aria-label={`${item.name || "項目"}を削除`}
           >
             <Trash2 className="h-5 w-5" />
@@ -501,11 +545,102 @@ function EstimateLineRow({
         </div>
 
         <div className="space-y-3">
-          {/* 作業内容・使用部品名等（大きく表示） */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-base text-slate-700 font-medium">作業内容・使用部品名等</Label>
-              {/* 写真アイコン */}
+          {/* 数量・単価・部品代 */}
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-sm text-slate-600 mb-1 block">数量</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={item.partQuantity || ""}
+                onChange={(e) => validateAndUpdate('partQuantity', e.target.value)}
+                placeholder="0"
+                className="h-12 text-right text-base"
+                disabled={disabled}
+                aria-label="数量"
+              />
+            </div>
+            <div className="relative">
+              <Label className="text-sm text-slate-600 mb-1 block">単価</Label>
+              <span className="absolute left-2 top-[calc(50%+10px)] -translate-y-1/2 text-slate-500 text-sm">¥</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={item.partUnitPrice ? formatPrice(item.partUnitPrice) : ""}
+                onChange={(e) => validateAndUpdate('partUnitPrice', e.target.value)}
+                placeholder="0"
+                className="h-12 text-right text-base pl-5"
+                disabled={disabled}
+                aria-label="単価"
+              />
+            </div>
+            <div>
+              <Label className="text-sm text-slate-600 mb-1 block">部品代</Label>
+              <div className="h-12 flex items-center justify-end px-3 border border-slate-200 rounded-md bg-slate-50">
+                <span className="text-base text-slate-700 tabular-nums">
+                  ¥{formatPrice(partTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 技術料 */}
+          <div className="relative">
+            <Label className="text-sm text-slate-600 mb-1 block">技術料</Label>
+            <span className="absolute left-3 top-[calc(50%+10px)] -translate-y-1/2 text-slate-500">¥</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={item.laborCost ? formatPrice(item.laborCost) : ""}
+              onChange={(e) => validateAndUpdate('laborCost', e.target.value)}
+              placeholder="0"
+              className="h-12 text-right text-base pl-6"
+              disabled={disabled}
+              aria-label="技術料"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* タブレット・PC時: グリッドレイアウト */}
+      <div
+        className="hidden sm:block"
+        role="row"
+        aria-label={`見積項目: ${item.name || "未入力"}`}
+      >
+        {/* タブレット時: シンプルなグリッド（mdのみ） */}
+        <div className="hidden md:block lg:hidden">
+          <div className="grid grid-cols-[1fr_100px_100px_100px_100px_48px] gap-4 items-center py-3 border-b border-slate-200">
+            {/* 作業内容 */}
+            <div className="flex items-center gap-2" role="gridcell">
+              <div className="relative flex-1">
+                <Input
+                  value={inputValue}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onFocus={() => inputValue.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder="作業内容を入力"
+                  className="h-12 text-base"
+                  disabled={disabled}
+                  aria-label="作業内容"
+                />
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-auto">
+                    {filteredSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-slate-100 text-base flex justify-between items-center"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleSuggestionSelect(suggestion)}
+                      >
+                        <span className="truncate">{suggestion.name}</span>
+                        <span className="text-slate-500 text-sm ml-2 shrink-0">¥{formatPrice(suggestion.laborCost)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {linkedPhoto && (
                 <button
                   onClick={handlePhotoClick}
@@ -517,154 +652,8 @@ function EstimateLineRow({
                 </button>
               )}
             </div>
-            <Textarea
-              value={item.name}
-              onChange={(e) => onUpdate(item.id, { name: e.target.value })}
-              placeholder="作業内容・使用部品名等を入力してください"
-              className="min-h-[80px] text-base resize-y"
-              disabled={disabled}
-              aria-label="作業内容・使用部品名等"
-            />
-            {/* 品目選択ボタン（作業内容の下に配置） */}
-            <div className="flex items-center gap-2">
-              <LaborCostSelect
-                value={selectedLaborCostItem?.id || null}
-                onSelect={(masterItem) => {
-                  if (masterItem) {
-                    handleLaborCostSelect(masterItem);
-                  } else {
-                    handleLaborCostSelect(null);
-                  }
-                }}
-                disabled={disabled}
-                className="flex-1"
-              />
-              <span className="text-sm text-slate-500 shrink-0">品目を選んで自動入力</span>
-            </div>
-          </div>
 
-          {/* 数量と単価 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-base text-slate-700 mb-1 block">数量</Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={item.partQuantity || ""}
-                onChange={(e) => validateAndUpdate('partQuantity', e.target.value)}
-                placeholder="数量"
-                className="h-12 text-right text-base"
-                disabled={disabled}
-                aria-label="数量（部品・用品）"
-              />
-            </div>
-            <div>
-              <Label className="text-base text-slate-700 mb-1 block">単価</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                value={item.partUnitPrice || ""}
-                onChange={(e) => validateAndUpdate('partUnitPrice', e.target.value)}
-                placeholder="単価"
-                className="h-12 text-right text-base"
-                disabled={disabled}
-                aria-label="単価（部品・用品）"
-              />
-            </div>
-          </div>
-
-          {/* 部品代（自動計算） */}
-          <div>
-            <Label className="text-base text-slate-700 mb-1 block">部品代</Label>
-            <div className="h-12 flex items-center justify-end px-3 bg-slate-50 rounded-md">
-              <span className="text-base font-medium text-slate-900 tabular-nums">
-                ¥{formatPrice(partTotal)}
-              </span>
-            </div>
-          </div>
-
-          {/* 0円警告 */}
-          {isZeroAmount && (
-            <div className="text-amber-600 text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>金額が0円です</span>
-            </div>
-          )}
-
-          {/* 技術量（工賃マスタから選択可能） */}
-          <div>
-            <Label className="text-base text-slate-700 mb-1 block">技術量</Label>
-            {/* カスタム入力用の数値入力（工賃マスタにない場合のみ表示） */}
-            {selectedLaborCostItem && !LABOR_COST_MASTER.find((m) => m.laborCost === item.laborCost) ? (
-              <Input
-                type="text"
-                inputMode="numeric"
-                value={item.laborCost || ""}
-                onChange={(e) => validateAndUpdate('laborCost', e.target.value)}
-                placeholder="技術量（カスタム）"
-                className="h-12 text-right text-base"
-                disabled={disabled}
-                aria-label="技術量（カスタム入力）"
-              />
-            ) : (
-              <div className="h-12 flex items-center justify-end px-3 bg-slate-50 rounded-md">
-                <span className="text-base font-medium text-slate-900 tabular-nums">
-                  ¥{formatPrice(item.laborCost || 0)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* タブレット・PC時: グリッドレイアウト */}
-      <div
-        className="hidden sm:block"
-        role="row"
-        aria-label={`見積項目: ${item.name || "未入力"}`}
-      >
-        {/* タブレット時: 横スクロール可能なグリッド（mdのみ） */}
-        <div className="hidden md:block lg:hidden overflow-x-auto -mx-4 px-4">
-          <div className="inline-grid grid-cols-[minmax(250px,1fr)_80px_100px_100px_120px_60px] gap-2 items-start py-2 border-b border-slate-100 min-w-full">
-            {/* 作業内容・使用部品名等（大きく表示） */}
-            <div className="min-w-0 space-y-2" role="gridcell">
-              <div className="flex items-center gap-2">
-                <Textarea
-                  value={item.name}
-                  onChange={(e) => onUpdate(item.id, { name: e.target.value })}
-                  placeholder="作業内容・使用部品名等を入力してください"
-                  className="min-h-[80px] text-base resize-y flex-1"
-                  disabled={disabled}
-                  aria-label="作業内容・使用部品名等"
-                />
-                {/* 写真アイコン */}
-                {linkedPhoto && (
-                  <button
-                    onClick={handlePhotoClick}
-                    className="shrink-0 h-10 w-10 flex items-center justify-center text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
-                    aria-label={`${item.name || "見積項目"}の写真を確認`}
-                    title="写真を確認"
-                  >
-                    <ImageIcon className="h-5 w-5 shrink-0" strokeWidth={2.5} />
-                  </button>
-                )}
-              </div>
-              {/* 品目選択ボタン（作業内容の下に配置） */}
-              <LaborCostSelect
-                value={selectedLaborCostItem?.id || null}
-                onSelect={(masterItem) => {
-                  if (masterItem) {
-                    handleLaborCostSelect(masterItem);
-                  } else {
-                    handleLaborCostSelect(null);
-                  }
-                }}
-                disabled={disabled}
-                className="w-full"
-              />
-            </div>
-
-            {/* 数量（部品・用品） */}
+            {/* 数量 */}
             <div role="gridcell">
               <Input
                 type="text"
@@ -675,62 +664,48 @@ function EstimateLineRow({
                   const parsed = parseNumericValue(cleaned);
                   onUpdate(item.id, { partQuantity: parsed ?? 0 });
                 }}
-                placeholder="数量"
+                placeholder="0"
                 className="h-12 text-right text-base"
                 disabled={disabled}
-                aria-label="数量（部品・用品）"
+                aria-label="数量"
               />
             </div>
 
-            {/* 単価（部品・用品） */}
-            <div role="gridcell">
+            {/* 単価 */}
+            <div role="gridcell" className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">¥</span>
               <Input
                 type="text"
                 inputMode="numeric"
-                value={item.partUnitPrice || ""}
+                value={item.partUnitPrice ? formatPrice(item.partUnitPrice) : ""}
                 onChange={(e) => validateAndUpdate('partUnitPrice', e.target.value)}
-                placeholder="単価"
-                className="h-12 text-right text-base"
+                placeholder="0"
+                className="h-12 text-right text-base pl-6"
                 disabled={disabled}
-                aria-label="単価（部品・用品）"
+                aria-label="単価"
               />
             </div>
 
             {/* 部品代（自動計算） */}
-            <div className="h-12 flex items-center justify-end px-3 bg-slate-50 rounded-md" role="gridcell" aria-label={`部品代: ¥${formatPrice(partTotal)}`}>
-              <span className="text-base font-medium text-slate-900 tabular-nums">
+            <div className="h-12 flex items-center justify-end px-3 border border-slate-200 rounded-md bg-slate-50" role="gridcell">
+              <span className="text-base text-slate-700 tabular-nums">
                 ¥{formatPrice(partTotal)}
               </span>
             </div>
 
-            {/* 技術量（表示のみ、選択は作業内容の下に移動） */}
-            <div className="relative" role="gridcell">
-              {/* 0円警告 */}
-              {isZeroAmount && (
-                <div className="absolute -top-6 left-0 text-amber-600 text-base flex items-center gap-2 whitespace-nowrap">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>金額が0円です</span>
-                </div>
-              )}
-              {/* カスタム入力用の数値入力（工賃マスタにない場合のみ表示） */}
-              {selectedLaborCostItem && !LABOR_COST_MASTER.find((m) => m.laborCost === item.laborCost) ? (
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={item.laborCost || ""}
-                  onChange={(e) => validateAndUpdate('laborCost', e.target.value)}
-                  placeholder="技術量（カスタム）"
-                  className="h-12 text-right text-base"
-                  disabled={disabled}
-                  aria-label="技術量（カスタム入力）"
-                />
-              ) : (
-                <div className="h-12 flex items-center justify-end px-3 bg-slate-50 rounded-md">
-                  <span className="text-base font-medium text-slate-900 tabular-nums">
-                    ¥{formatPrice(item.laborCost || 0)}
-                  </span>
-                </div>
-              )}
+            {/* 技術料（直接入力可能） */}
+            <div role="gridcell" className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">¥</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={item.laborCost ? formatPrice(item.laborCost) : ""}
+                onChange={(e) => validateAndUpdate('laborCost', e.target.value)}
+                placeholder="0"
+                className="h-12 text-right text-base pl-6"
+                disabled={disabled}
+                aria-label="技術料"
+              />
             </div>
 
             {/* 削除ボタン */}
@@ -740,7 +715,7 @@ function EstimateLineRow({
                 size="icon"
                 onClick={() => onDelete(item.id)}
                 disabled={!canDelete || disabled}
-                className="h-12 w-12 text-slate-700 hover:text-red-600"
+                className="h-12 w-12 text-slate-500 hover:text-red-600 hover:bg-red-50"
                 aria-label={`${item.name || "項目"}を削除`}
               >
                 <Trash2 className="h-5 w-5" />
@@ -749,50 +724,51 @@ function EstimateLineRow({
           </div>
         </div>
 
-        {/* PC時: 改善されたグリッドレイアウト（lg以上） */}
-        <div className="hidden lg:grid lg:grid-cols-[minmax(300px,3fr)_80px_100px_100px_120px_auto] gap-3 items-start py-3 border-b border-slate-100">
-          {/* 作業内容・使用部品名等（大きく表示） */}
-          <div className="min-w-0 space-y-2" role="gridcell">
-            <div className="flex items-start gap-2">
-              <Textarea
-                value={item.name}
-                onChange={(e) => onUpdate(item.id, { name: e.target.value })}
-                placeholder="作業内容・使用部品名等を入力してください"
-                className="min-h-[80px] text-base resize-y flex-1"
+        {/* PC時: シンプルなグリッドレイアウト（lg以上） */}
+        <div className="hidden lg:grid lg:grid-cols-[1fr_100px_100px_100px_100px_48px] gap-4 items-center py-3 border-b border-slate-200">
+          {/* 作業内容・使用部品名等 */}
+          <div className="flex items-center gap-2" role="gridcell">
+            <div className="relative flex-1">
+              <Input
+                value={inputValue}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onFocus={() => inputValue.length > 0 && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                placeholder="作業内容を入力"
+                className="h-12 text-base"
                 disabled={disabled}
                 aria-label="作業内容・使用部品名等"
               />
-              {/* 写真アイコン */}
-              {linkedPhoto && (
-                <button
-                  onClick={handlePhotoClick}
-                  className="shrink-0 h-10 w-10 flex items-center justify-center text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors mt-1"
-                  aria-label={`${item.name || "見積項目"}の写真を確認`}
-                  title="写真を確認"
-                >
-                  <ImageIcon className="h-5 w-5 shrink-0" strokeWidth={2.5} />
-                </button>
+              {showSuggestions && filteredSuggestions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-auto">
+                  {filteredSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-slate-100 text-base flex justify-between items-center"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                    >
+                      <span className="truncate">{suggestion.name}</span>
+                      <span className="text-slate-500 text-sm ml-2 shrink-0">¥{formatPrice(suggestion.laborCost)}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            {/* 品目選択ボタン（作業内容の下に配置、業務フローに沿った配置） */}
-            <div className="flex items-center gap-2">
-              <LaborCostSelect
-                value={selectedLaborCostItem?.id || null}
-                onSelect={(masterItem) => {
-                  if (masterItem) {
-                    handleLaborCostSelect(masterItem);
-                  } else {
-                    handleLaborCostSelect(null);
-                  }
-                }}
-                disabled={disabled}
-                className="flex-1"
-              />
-              <span className="text-sm text-slate-500 shrink-0 whitespace-nowrap">品目を選んで自動入力</span>
-            </div>
+            {linkedPhoto && (
+              <button
+                onClick={handlePhotoClick}
+                className="shrink-0 h-10 w-10 flex items-center justify-center text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                aria-label={`${item.name || "見積項目"}の写真を確認`}
+                title="写真を確認"
+              >
+                <ImageIcon className="h-5 w-5 shrink-0" strokeWidth={2.5} />
+              </button>
+            )}
           </div>
 
-          {/* 数量（部品・用品） */}
+          {/* 数量 */}
           <div role="gridcell">
             <Input
               type="text"
@@ -803,59 +779,52 @@ function EstimateLineRow({
                 const parsed = parseNumericValue(cleaned);
                 onUpdate(item.id, { partQuantity: parsed ?? 0 });
               }}
-              placeholder="数量"
+              placeholder="0"
               className="h-12 text-right text-base"
               disabled={disabled}
-              aria-label="数量（部品・用品）"
+              aria-label="数量"
             />
           </div>
 
-          {/* 単価（部品・用品） */}
-          <div role="gridcell">
+          {/* 単価 */}
+          <div role="gridcell" className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">¥</span>
             <Input
               type="text"
               inputMode="numeric"
-              value={item.partUnitPrice || ""}
+              value={item.partUnitPrice ? formatPrice(item.partUnitPrice) : ""}
               onChange={(e) => {
                 const cleaned = cleanNumericInput(e.target.value);
                 const parsed = parseNumericValue(cleaned);
                 onUpdate(item.id, { partUnitPrice: parsed ? Math.floor(parsed) : 0 });
               }}
-              placeholder="単価"
-              className="h-12 text-right text-base"
+              placeholder="0"
+              className="h-12 text-right text-base pl-6"
               disabled={disabled}
-              aria-label="単価（部品・用品）"
+              aria-label="単価"
             />
           </div>
 
           {/* 部品代（自動計算） */}
-          <div className="h-12 flex items-center justify-end px-3 bg-slate-50 rounded-md" role="gridcell" aria-label={`部品代: ¥${formatPrice(partTotal)}`}>
-            <span className="text-base font-medium text-slate-900 tabular-nums">
+          <div className="h-12 flex items-center justify-end px-3 border border-slate-200 rounded-md bg-slate-50" role="gridcell">
+            <span className="text-base text-slate-700 tabular-nums">
               ¥{formatPrice(partTotal)}
             </span>
           </div>
 
-          {/* 技術量（表示のみ、選択は作業内容の下に移動） */}
-          <div className="relative" role="gridcell">
-            {/* カスタム入力用の数値入力（工賃マスタにない場合のみ表示） */}
-            {selectedLaborCostItem && !LABOR_COST_MASTER.find((m) => m.laborCost === item.laborCost) ? (
-              <Input
-                type="text"
-                inputMode="numeric"
-                value={item.laborCost || ""}
-                onChange={(e) => validateAndUpdate('laborCost', e.target.value)}
-                placeholder="技術量（カスタム）"
-                className="h-12 text-right text-base"
-                disabled={disabled}
-                aria-label="技術量（カスタム入力）"
-              />
-            ) : (
-              <div className="h-12 flex items-center justify-end px-3 bg-slate-50 rounded-md">
-                <span className="text-base font-medium text-slate-900 tabular-nums">
-                  ¥{formatPrice(item.laborCost || 0)}
-                </span>
-              </div>
-            )}
+          {/* 技術料（直接入力可能） */}
+          <div role="gridcell" className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">¥</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={item.laborCost ? formatPrice(item.laborCost) : ""}
+              onChange={(e) => validateAndUpdate('laborCost', e.target.value)}
+              placeholder="0"
+              className="h-12 text-right text-base pl-6"
+              disabled={disabled}
+              aria-label="技術料"
+            />
           </div>
 
           {/* 削除ボタン */}
@@ -865,7 +834,7 @@ function EstimateLineRow({
               size="icon"
               onClick={() => onDelete(item.id)}
               disabled={!canDelete || disabled}
-              className="h-12 w-12 text-slate-700 hover:text-red-600"
+              className="h-12 w-12 text-slate-500 hover:text-red-600 hover:bg-red-50"
               aria-label={`${item.name || "項目"}を削除`}
             >
               <Trash2 className="h-5 w-5" />
@@ -924,52 +893,49 @@ function EstimateSection({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={badgeVariant}
-            className={cn(
-              "text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap text-white",
-              priority === "required" && "bg-red-600 hover:bg-red-700 border-red-600",
-              priority === "recommended" && "bg-primary hover:bg-primary/90 border-primary", // bg-blue-600 → bg-primary (40歳以上ユーザー向け、統一)
-              priority === "optional" && "bg-slate-500 hover:bg-slate-600 border-slate-500"
-            )}
-          >
-            {title}
-          </Badge>
-          <span className="text-base text-slate-700">
-            {sectionItems.length}件
-          </span>
-        </div>
-        <span className="text-base font-medium">
-          部品代: ¥{formatPrice(partTotal)} / 技術量: ¥{formatPrice(laborTotal)} / 合計: ¥{formatPrice(sectionTotal)}{isTaxIncluded ? "（税込）" : "（税抜）"}
+      <div className="flex items-center gap-2">
+        <Badge
+          variant={badgeVariant}
+          className={cn(
+            "text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap text-white",
+            priority === "required" && "bg-red-600 hover:bg-red-700 border-red-600",
+            priority === "recommended" && "bg-emerald-600 hover:bg-emerald-700 border-emerald-600",
+            priority === "optional" && "bg-slate-500 hover:bg-slate-600 border-slate-500"
+          )}
+        >
+          {title}
+        </Badge>
+        <span className="text-base text-slate-700">
+          {sectionItems.length}件
         </span>
       </div>
 
-      <div className="pl-3 border-l border-slate-100">
-        {/* テーブルヘッダー（タブレット・PC時のみ表示） */}
-        <div className="hidden sm:block">
-          {/* タブレット時: 横スクロール可能なグリッド（mdのみ） */}
-          <div className="hidden md:block lg:hidden overflow-x-auto -mx-4 px-4">
-            <div className="inline-grid grid-cols-[minmax(250px,1fr)_80px_100px_100px_120px_60px] gap-2 items-center py-2 border-b-2 border-slate-300 font-medium text-base text-slate-700 min-w-full">
-              <div>作業内容・使用部品名等</div>
+      <div className="mt-3">
+        {/* テーブルヘッダー（項目がある場合のみタブレット・PC時に表示） */}
+        {sectionItems.length > 0 && (
+          <div className="hidden sm:block">
+            {/* タブレット時: 横スクロール可能なグリッド（mdのみ） */}
+            <div className="hidden md:block lg:hidden overflow-x-auto -mx-4 px-4">
+              <div className="inline-grid grid-cols-[1fr_100px_100px_100px_100px_48px] gap-4 items-center py-2 border-b-2 border-slate-300 font-medium text-base text-slate-600 min-w-full">
+                <div>作業内容</div>
+                <div className="text-right">数量</div>
+                <div className="text-right">単価</div>
+                <div className="text-right">部品代</div>
+                <div className="text-right">技術料</div>
+                <div></div>
+              </div>
+            </div>
+            {/* PC時: シンプルなグリッドヘッダー（lg以上） */}
+            <div className="hidden lg:grid lg:grid-cols-[1fr_100px_100px_100px_100px_48px] gap-4 items-center py-2 border-b-2 border-slate-300 font-medium text-base text-slate-600">
+              <div>作業内容</div>
               <div className="text-right">数量</div>
               <div className="text-right">単価</div>
               <div className="text-right">部品代</div>
-              <div className="text-right">技術量</div>
+              <div className="text-right">技術料</div>
               <div></div>
             </div>
           </div>
-          {/* PC時: 改善されたグリッドヘッダー（lg以上） */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(300px,3fr)_80px_100px_100px_120px_auto] gap-3 items-center py-2 border-b-2 border-slate-300 font-medium text-base text-slate-700">
-            <div>作業内容・使用部品名等</div>
-            <div className="text-right">数量</div>
-            <div className="text-right">単価</div>
-            <div className="text-right">部品代</div>
-            <div className="text-right">技術量</div>
-            <div></div>
-          </div>
-        </div>
+        )}
 
         {/* 見積項目行 */}
         {sectionItems.map((item) => (
@@ -986,118 +952,94 @@ function EstimateSection({
           />
         ))}
 
+        {/* 項目を追加ボタン（2つ目以降は合計テーブルの上に表示） */}
+        {sectionItems.length > 0 && (
+          <Button
+            variant="ghost"
+            onClick={onAdd}
+            disabled={disabled}
+            className="w-full justify-start text-slate-700 hover:text-slate-900 h-12 text-base font-medium mt-2"
+            aria-label={`${title}セクションに項目を追加`}
+          >
+            <Plus className="h-5 w-5 mr-1 shrink-0" aria-hidden="true" />
+            項目を追加
+          </Button>
+        )}
+
         {/* 合計行 */}
         {sectionItems.length > 0 && (
           <>
             {/* モバイル時: カード型レイアウト */}
             <div className="block sm:hidden border border-slate-300 rounded-lg p-4 mt-3 bg-slate-50">
-              <div className="text-base font-bold text-slate-900 mb-2">合計</div>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-base text-slate-700">部品代</span>
-                  <span className="text-base font-bold text-slate-900 tabular-nums">¥{formatPrice(partTotal)}</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(partTotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-base text-slate-700">技術量</span>
-                  <span className="text-base font-bold text-slate-900 tabular-nums">¥{formatPrice(laborTotal)}</span>
+                  <span className="text-base text-slate-700">技術料</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(laborTotal)}</span>
                 </div>
-                {isTaxIncluded && (
-                  <div className="flex justify-between">
-                    <span className="text-base text-slate-700">小計（税抜）</span>
-                    <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(sectionSubtotal)}</span>
-                  </div>
-                )}
+                <div className="flex justify-between border-t border-slate-200 pt-2">
+                  <span className="text-base text-slate-700">小計{isTaxIncluded ? "（税抜）" : ""}</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(sectionSubtotal)}</span>
+                </div>
                 {isTaxIncluded && (
                   <div className="flex justify-between">
                     <span className="text-base text-slate-700">消費税（{taxCalculation.taxRate}%）</span>
                     <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(taxCalculation.tax)}</span>
                   </div>
                 )}
-                <div className="flex justify-between pt-2 border-t border-slate-300">
+                <div className="flex justify-between pt-2 border-t-2 border-slate-300">
                   <span className="text-base font-bold text-slate-900">合計{isTaxIncluded ? "（税込）" : "（税抜）"}</span>
-                  <span className="text-base font-bold text-slate-900 tabular-nums">¥{formatPrice(sectionTotal)}</span>
+                  <span className="text-lg font-bold text-slate-900 tabular-nums">¥{formatPrice(sectionTotal)}</span>
                 </div>
               </div>
             </div>
 
-            {/* タブレット・PC時: グリッドレイアウト */}
-            <div className="hidden sm:block">
-              {/* タブレット時: 横スクロール可能なグリッド（mdのみ） */}
-              <div className="hidden md:block lg:hidden overflow-x-auto -mx-4 px-4">
-                <div className="space-y-2">
-                  <div className="inline-grid grid-cols-[200px_80px_100px_100px_120px_60px] gap-2 items-center py-2 font-medium text-base text-slate-700 min-w-full">
-                    <div className="text-slate-700">小計（税抜）</div>
-                    <div></div>
-                    <div></div>
-                    <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(partTotal)}</div>
-                    <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(laborTotal)}</div>
-                    <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(sectionSubtotal)}</div>
-                  </div>
-                  {isTaxIncluded && (
-                    <div className="inline-grid grid-cols-[200px_80px_100px_100px_120px_60px] gap-2 items-center py-2 font-medium text-base text-slate-700 min-w-full">
-                      <div className="text-slate-700">消費税（{taxCalculation.taxRate}%）</div>
-                      <div></div>
-                      <div></div>
-                      <div></div>
-                      <div></div>
-                      <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(taxCalculation.tax)}</div>
-                    </div>
-                  )}
-                  <div className="inline-grid grid-cols-[200px_80px_100px_100px_120px_60px] gap-2 items-center py-3 border-t-2 border-slate-300 font-bold text-base bg-slate-50 rounded-md min-w-full">
-                    <div className="text-slate-900">合計{isTaxIncluded ? "（税込）" : "（税抜）"}</div>
-                    <div></div>
-                    <div></div>
-                    <div className="text-right text-slate-900 tabular-nums">¥{formatPrice(partTotal)}</div>
-                    <div className="text-right text-slate-900 tabular-nums">¥{formatPrice(laborTotal)}</div>
-                    <div className="text-right text-slate-900 tabular-nums">¥{formatPrice(sectionTotal)}</div>
-                  </div>
+            {/* タブレット・PC時: シンプルなレイアウト */}
+            <div className="hidden sm:block mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-base text-slate-700">部品代</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(partTotal)}</span>
                 </div>
-              </div>
-              {/* PC時: 現状の6列グリッドを維持（lg以上） */}
-              <div className="hidden lg:block">
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[2fr_80px_100px_100px_120px_auto] gap-2 items-center py-2 font-medium text-base text-slate-700">
-                    <div className="text-slate-700">小計（税抜）</div>
-                    <div></div>
-                    <div></div>
-                    <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(partTotal)}</div>
-                    <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(laborTotal)}</div>
-                    <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(sectionSubtotal)}</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base text-slate-700">技術料</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(laborTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200 pt-2">
+                  <span className="text-base text-slate-700">小計{isTaxIncluded ? "（税抜）" : ""}</span>
+                  <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(sectionSubtotal)}</span>
+                </div>
+                {isTaxIncluded && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-base text-slate-700">消費税（{taxCalculation.taxRate}%）</span>
+                    <span className="text-base font-medium text-slate-900 tabular-nums">¥{formatPrice(taxCalculation.tax)}</span>
                   </div>
-                  {isTaxIncluded && (
-                    <div className="grid grid-cols-[2fr_80px_100px_100px_120px_auto] gap-2 items-center py-2 font-medium text-base text-slate-700">
-                      <div className="text-slate-700">消費税（{taxCalculation.taxRate}%）</div>
-                      <div></div>
-                      <div></div>
-                      <div></div>
-                      <div></div>
-                      <div className="text-right text-slate-700 tabular-nums">¥{formatPrice(taxCalculation.tax)}</div>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-[2fr_80px_100px_100px_120px_auto] gap-2 items-center py-3 border-t-2 border-slate-300 font-bold text-base bg-slate-50 rounded-md">
-                    <div className="text-slate-900">合計{isTaxIncluded ? "（税込）" : "（税抜）"}</div>
-                    <div></div>
-                    <div></div>
-                    <div className="text-right text-slate-900 tabular-nums">¥{formatPrice(partTotal)}</div>
-                    <div className="text-right text-slate-900 tabular-nums">¥{formatPrice(laborTotal)}</div>
-                    <div className="text-right text-slate-900 tabular-nums">¥{formatPrice(sectionTotal)}</div>
-                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t-2 border-slate-300">
+                  <span className="text-lg font-bold text-slate-900">合計{isTaxIncluded ? "（税込）" : "（税抜）"}</span>
+                  <span className="text-xl font-bold text-slate-900 tabular-nums">¥{formatPrice(sectionTotal)}</span>
                 </div>
               </div>
             </div>
           </>
         )}
 
-        <Button
-          variant="ghost"
-          onClick={onAdd}
-          disabled={disabled}
-          className="w-full justify-start text-slate-700 hover:text-slate-900"
-          aria-label={`${title}セクションに項目を追加`}
-        >
-          <Plus className="h-5 w-5 mr-1 shrink-0" aria-hidden="true" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
-          項目を追加
-        </Button>
+        {/* 項目がない場合の追加ボタン */}
+        {sectionItems.length === 0 && (
+          <Button
+            variant="ghost"
+            onClick={onAdd}
+            disabled={disabled}
+            className="w-full justify-start text-slate-700 hover:text-slate-900 h-12 text-base font-medium"
+            aria-label={`${title}セクションに項目を追加`}
+          >
+            <Plus className="h-5 w-5 mr-1 shrink-0" aria-hidden="true" />
+            項目を追加
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -1134,8 +1076,8 @@ function HeaderSkeleton() {
  */
 function ContentSkeleton() {
   return (
-    <main className="max-w-7xl mx-auto px-4 py-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <main className="max-w-4xl mx-auto px-4 py-6" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
+      <div className="space-y-4">
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
@@ -1182,12 +1124,12 @@ function ContentSkeleton() {
  */
 function ErrorDisplay({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="flex-1 bg-slate-50 flex items-center justify-center p-4 overflow-auto">
+    <div className="flex-1 bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4 overflow-auto">
       <Card className="w-full max-w-md" role="alert">
         <CardContent className="py-8 text-center">
           <AlertOctagon className="h-12 w-12 mx-auto text-red-600 mb-4 shrink-0" aria-hidden="true" />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">エラー</h2>
-          <p className="text-slate-700 mb-4">{message}</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">エラー</h2>
+          <p className="text-slate-700 dark:text-white mb-4">{message}</p>
           <div className="flex gap-2 justify-center">
             <Button variant="outline" asChild>
               <Link href="/" aria-label="トップページへ戻る">トップへ戻る</Link>
@@ -1267,11 +1209,42 @@ function EstimatePageContent() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // リファラー（遷移元）を取得
+    const currentPath = window.location.pathname + window.location.search;
+    const currentPathname = window.location.pathname;
+
+    // 前回保存されたパスを取得（sessionStorageから）
+    let previousPath: string | null = null;
+    try {
+      previousPath = sessionStorage.getItem("repair-shop-current-path");
+    } catch (error) {
+      console.error("[Estimate] Failed to get previous path from sessionStorage:", error);
+    }
+
+    // リファラー（遷移元）を取得（フォールバック用）
     const referrer = document.referrer;
 
-    // 同じオリジン（同じドメイン）からの遷移かどうかを確認
-    if (referrer) {
+    // 前回保存されたパスがある場合、それを優先して使用
+    if (previousPath && previousPath !== currentPath) {
+      try {
+        const previousUrl = new URL(previousPath, window.location.origin);
+        const previousPathname = previousUrl.pathname;
+        const referrerType = getPageTypeFromPath(previousPathname);
+        
+        // 履歴を記録（前の画面のパスとタイプを記録）
+        setNavigationHistory(previousPath, referrerType);
+        
+        if (process.env.NODE_ENV === "development") {
+          console.log("[Estimate] Navigation history saved from sessionStorage:", { previousPath, referrerType });
+        }
+      } catch (error) {
+        console.error("[Estimate] Failed to parse previous path:", error);
+        // エラーが発生した場合は、document.referrerを使用
+        previousPath = null;
+      }
+    }
+
+    // 前回保存されたパスがない場合、document.referrerを使用（フォールバック）
+    if (!previousPath && referrer) {
       try {
         const referrerUrl = new URL(referrer);
         const currentOrigin = window.location.origin;
@@ -1282,26 +1255,25 @@ function EstimatePageContent() {
           const referrerType = getPageTypeFromPath(referrerUrl.pathname);
 
           // 現在のページと同じページへの遷移は記録しない（リロードなど）
-          const currentPath = window.location.pathname + window.location.search;
           if (referrerPath !== currentPath) {
             // 履歴を記録（前の画面のパスとタイプを記録）
             setNavigationHistory(referrerPath, referrerType);
+            
+            if (process.env.NODE_ENV === "development") {
+              console.log("[Estimate] Navigation history saved from referrer:", { referrerPath, referrerType });
+            }
           } else {
             // 同じページへの遷移（リロードなど）は履歴を保持
             // 既存の履歴があればそのまま使用
           }
-        } else {
-          // 外部サイトからの遷移は履歴をクリア
-          // トップページから来たとみなすため、履歴は記録しない（getBackHrefが"/"を返す）
         }
       } catch (error) {
-        console.error("[Estimate] Failed to record navigation history:", error);
-        // エラーが発生した場合も履歴をクリア
+        console.error("[Estimate] Failed to record navigation history from referrer:", error);
       }
-    } else {
-      // リファラーがない場合（直接アクセス、QRコードなど）は履歴を記録しない
-      // トップページから来たとみなすため、履歴は記録しない（getBackHrefが"/"を返す）
     }
+
+    // 現在のパスを保存（次回のページ読み込み時に使用）
+    saveCurrentPath(currentPathname, window.location.search);
   }, []);
 
   // 作業追加ダイアログの状態管理
@@ -1553,6 +1525,10 @@ function EstimatePageContent() {
   const [legalFees, setLegalFees] = useState<import("@/lib/legal-fees").LegalFees | null>(null);
   const [isLoadingLegalFees, setIsLoadingLegalFees] = useState(false);
 
+  // 追加見積の状態管理（車検の場合のみ）
+  const [additionalEstimateItems, setAdditionalEstimateItems] = useState<AdditionalEstimateItem[]>([]);
+  const [manualAdditionalItems, setManualAdditionalItems] = useState<AdditionalEstimateItem[]>([]);
+
   // 法定費用を取得（車検の場合のみ）
   useEffect(() => {
     if (!job || !isInspection) return;
@@ -1588,42 +1564,84 @@ function EstimatePageContent() {
 
     if (!inspectionWorkOrder?.diagnosis?.items) return;
 
-    // 診断結果を検査項目形式に変換
-    const inspectionItems: InspectionItem[] = inspectionWorkOrder.diagnosis.items.map((item: DiagnosisItem) => {
-      const templateItem = VEHICLE_INSPECTION_ITEMS.find((t) => t.id === item.id);
-      return {
-        ...(templateItem || { id: item.id, name: item.name, category: "other" as const, status: "unchecked" }),
-        status: item.status as InspectionItem["status"],
-        comment: item.comment || undefined,
-        photoUrls: item.evidencePhotoUrls,
-        videoUrl: item.evidenceVideoUrl || undefined,
-      };
-    });
+    const diagnosis = inspectionWorkOrder.diagnosis as any;
+    
+    // 24ヶ月点検リデザイン版かどうかを判定（statusが'good', 'exchange'などの場合）
+    const is24MonthRedesign = diagnosis.items.some((item: DiagnosisItem) => 
+      item.status === 'good' || item.status === 'exchange' || item.status === 'repair' || item.status === 'adjust'
+    );
 
     // 診断結果から見積項目を追加
     setEstimateItems((prev) => {
-      const estimateItems = addDiagnosisItemsToEstimate(
-        prev.map((item) => {
-          const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
-          const laborTotal = item.laborCost || 0;
-          const totalPrice = partTotal + laborTotal;
-
+      let resultEstimateItems: EstimateItem[];
+      
+      if (is24MonthRedesign) {
+        // 24ヶ月点検リデザイン版の処理
+        const redesignItems: InspectionItemRedesign[] = diagnosis.items.map((item: DiagnosisItem) => ({
+          id: item.id,
+          label: item.name,
+          category: item.category || 'other',
+          status: item.status as InspectionItemRedesign['status'],
+          comment: item.comment || undefined,
+          photoUrls: item.evidencePhotoUrls || [],
+          videoUrls: (item as any).evidenceVideoUrls || [],
+          videoData: (item as any).videoData || [],
+        }));
+        
+        // 問題があった項目（exchange, repair, adjust）のみを見積項目に変換
+        const flaggedItems = convertInspectionRedesignToEstimateItems(redesignItems);
+        
+        // 既存の見積項目と重複チェックして追加
+        const existingItems: EstimateItem[] = prev.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: (item.partQuantity || 0) * (item.partUnitPrice || 0) + (item.laborCost || 0),
+          priority: item.priority,
+          selected: true,
+          linkedPhotoUrls: [],
+          linkedVideoUrl: null,
+          note: null,
+        }));
+        
+        const existingNames = new Set(existingItems.map(item => item.name));
+        const newItems = flaggedItems.filter(item => !existingNames.has(item.name));
+        resultEstimateItems = [...existingItems, ...newItems];
+      } else {
+        // 従来の処理
+        const inspectionItems: InspectionItem[] = diagnosis.items.map((item: DiagnosisItem) => {
+          const templateItem = VEHICLE_INSPECTION_ITEMS.find((t) => t.id === item.id);
           return {
-            id: item.id,
-            name: item.name,
-            price: totalPrice,
-            priority: item.priority,
-            selected: true,
-            linkedPhotoUrls: [],
-            linkedVideoUrl: null,
-            note: null,
+            ...(templateItem || { id: item.id, name: item.name, category: "other" as const, status: "unchecked" }),
+            status: item.status as InspectionItem["status"],
+            comment: item.comment || undefined,
+            photoUrls: item.evidencePhotoUrls,
+            videoUrl: item.evidenceVideoUrl || undefined,
           };
-        }),
-        inspectionItems
-      );
+        });
+        
+        resultEstimateItems = addDiagnosisItemsToEstimate(
+          prev.map((item) => {
+            const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
+            const laborTotal = item.laborCost || 0;
+            const totalPrice = partTotal + laborTotal;
+
+            return {
+              id: item.id,
+              name: item.name,
+              price: totalPrice,
+              priority: item.priority,
+              selected: true,
+              linkedPhotoUrls: [],
+              linkedVideoUrl: null,
+              note: null,
+            };
+          }),
+          inspectionItems
+        );
+      }
 
       // EstimateItem[]をEstimateLineItem[]に変換
-      const newLineItems: EstimateLineItem[] = estimateItems.map((item) => {
+      const newLineItems: EstimateLineItem[] = resultEstimateItems.map((item) => {
         // 動画URLから動画IDを逆引き
         const linkedVideoId = item.linkedVideoUrl
           ? videos.find((v) => v.url === item.linkedVideoUrl)?.id || null
@@ -1653,14 +1671,190 @@ function EstimatePageContent() {
       if (newLineItems.length > prev.length) {
         setHasAutoAddedItems(true);
         // トーストIDを設定して重複を防ぐ
-        toast.success("診断結果から見積項目を自動追加しました", {
-          id: "auto-add-inspection-items",
-        });
+        const addedCount = newLineItems.length - prev.length;
+        toast.success(
+          is24MonthRedesign 
+            ? `受入点検で発見された ${addedCount} 件の追加作業を見積に追加しました`
+            : "診断結果から見積項目を自動追加しました",
+          {
+            id: "auto-add-inspection-items",
+          }
+        );
+        
+        // ワークオーダーに一時保存（詳細ボタンで確認できるようにするため）
+        if (inspectionWorkOrder && newLineItems.length > prev.length) {
+          // 非同期で保存（エラーは無視）
+          (async () => {
+            try {
+              // photosとvideosを取得（useStateの現在の値を参照）
+              const currentPhotos = photos;
+              const currentVideos = videos;
+              
+              const estimateData: EstimateItem[] = newLineItems.map((item) => {
+                const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
+                const laborTotal = item.laborCost || 0;
+                const totalPrice = partTotal + laborTotal;
+                
+                return {
+                  id: item.id,
+                  name: item.name,
+                  price: totalPrice,
+                  priority: item.priority,
+                  selected: item.priority === "required" || item.priority === "recommended",
+                  linkedPhotoUrls: item.linkedPhotoId
+                    ? [currentPhotos.find((p: { id: string; url: string }) => p.id === item.linkedPhotoId)?.url || ""]
+                    : [],
+                  linkedVideoUrl: item.linkedVideoId
+                    ? currentVideos.find((v: { id: string; url: string }) => v.id === item.linkedVideoId)?.url || null
+                    : null,
+                  transcription: item.transcription || null,
+                  note: null,
+                };
+              });
+              
+              await createEstimate(jobId, inspectionWorkOrder.id, estimateData);
+              await mutateWorkOrders();
+            } catch (error) {
+              console.warn("[見積] 自動追加項目の一時保存に失敗しました（無視）:", error);
+            }
+          })();
+        }
+        
         return newLineItems;
       }
       return prev;
     });
-  }, [isInspection, workOrders]); // hasAutoAddedItemsを依存配列から削除（無限ループを防ぐ）
+  }, [isInspection, workOrders, jobId, mutateWorkOrders]); // photosとvideosはuseStateなので依存配列に追加しない（無限ループを防ぐ）
+
+  // 追加見積項目を生成（車検の場合のみ）
+  const [hasGeneratedAdditionalItems, setHasGeneratedAdditionalItems] = useState(false);
+  useEffect(() => {
+    if (!isInspection || !workOrders || workOrders.length === 0 || hasGeneratedAdditionalItems) return;
+
+    const inspectionWorkOrder = workOrders.find(
+      (wo) => wo.serviceKind === "車検" || wo.serviceKind === "12ヵ月点検"
+    );
+
+    if (!inspectionWorkOrder?.diagnosis?.items) return;
+
+    const diagnosis = inspectionWorkOrder.diagnosis as any;
+    
+    // 24ヶ月点検リデザイン版の場合のみ追加見積ビューを使用
+    const is24MonthRedesign = diagnosis.items.some((item: DiagnosisItem) => 
+      item.status === 'good' || item.status === 'exchange' || item.status === 'repair' || item.status === 'adjust'
+    );
+
+    if (!is24MonthRedesign) return;
+
+    // 交換・修理・調整の項目を抽出
+    const flaggedItems = diagnosis.items.filter((item: DiagnosisItem) =>
+      item.status === 'exchange' || item.status === 'repair' || item.status === 'adjust'
+    );
+
+    if (flaggedItems.length === 0) return;
+
+    const additionalItems = flaggedItems.map((item: DiagnosisItem) => ({
+      id: `additional-${item.id}`,
+      name: item.name,
+      status: item.status as "exchange" | "repair" | "adjust",
+      // サンプルデータ: 写真が無い場合でもサンプル写真を表示（見た目確認用）
+      photoUrls: item.evidencePhotoUrls && item.evidencePhotoUrls.length > 0 
+        ? item.evidencePhotoUrls 
+        : [
+            "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+            "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&h=300&fit=crop",
+            "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop",
+          ],
+      videoUrls: (item as any).evidenceVideoUrls || [],
+      videoData: (item as any).videoData || [],
+      comment: item.comment || undefined,
+      selected: item.status === 'exchange' || item.status === 'repair', // 交換・修理は自動選択
+      partsCost: 0,
+      laborCost: 0,
+    }));
+
+    setAdditionalEstimateItems(additionalItems);
+    setHasGeneratedAdditionalItems(true);
+
+    // 車検の場合は追加見積項目を直接見積項目に変換
+    if (isInspection && additionalItems.length > 0) {
+      const newEstimateItems: EstimateLineItem[] = additionalItems.map((item: AdditionalEstimateItem) => ({
+        id: item.id,
+        name: item.name,
+        partQuantity: 1,
+        partUnitPrice: 0,
+        laborCost: 0,
+        priority: item.status === 'adjust' ? 'recommended' as EstimatePriority : 'required' as EstimatePriority,
+        linkedPhotoId: null,
+        linkedVideoId: null,
+        transcription: null,
+      }));
+      setEstimateItems(prev => {
+        const existingNames = new Set(prev.map(i => i.name));
+        const uniqueItems = newEstimateItems.filter(i => !existingNames.has(i.name));
+        if (uniqueItems.length > 0) {
+          return [...prev, ...uniqueItems];
+        }
+        return prev;
+      });
+    }
+
+    // 診断データから追加見積項目（必須整備・推奨整備・任意整備）を読み込む
+    if (isInspection && selectedWorkOrder?.diagnosis) {
+      const diagnosis = selectedWorkOrder.diagnosis as any;
+      
+      // 必須整備項目を読み込む
+      if (diagnosis.additionalEstimateRequired && Array.isArray(diagnosis.additionalEstimateRequired)) {
+        const requiredItems: EstimateLineItem[] = diagnosis.additionalEstimateRequired.map((item: EstimateLineItem) => ({
+          ...item,
+          priority: 'required' as EstimatePriority,
+        }));
+        
+        setEstimateItems(prev => {
+          const existingIds = new Set(prev.map(i => i.id));
+          const uniqueItems = requiredItems.filter(i => !existingIds.has(i.id));
+          if (uniqueItems.length > 0) {
+            return [...prev, ...uniqueItems];
+          }
+          return prev;
+        });
+      }
+
+      // 推奨整備項目を読み込む
+      if (diagnosis.additionalEstimateRecommended && Array.isArray(diagnosis.additionalEstimateRecommended)) {
+        const recommendedItems: EstimateLineItem[] = diagnosis.additionalEstimateRecommended.map((item: EstimateLineItem) => ({
+          ...item,
+          priority: 'recommended' as EstimatePriority,
+        }));
+        
+        setEstimateItems(prev => {
+          const existingIds = new Set(prev.map(i => i.id));
+          const uniqueItems = recommendedItems.filter(i => !existingIds.has(i.id));
+          if (uniqueItems.length > 0) {
+            return [...prev, ...uniqueItems];
+          }
+          return prev;
+        });
+      }
+
+      // 任意整備項目を読み込む
+      if (diagnosis.additionalEstimateOptional && Array.isArray(diagnosis.additionalEstimateOptional)) {
+        const optionalItems: EstimateLineItem[] = diagnosis.additionalEstimateOptional.map((item: EstimateLineItem) => ({
+          ...item,
+          priority: 'optional' as EstimatePriority,
+        }));
+        
+        setEstimateItems(prev => {
+          const existingIds = new Set(prev.map(i => i.id));
+          const uniqueItems = optionalItems.filter(i => !existingIds.has(i.id));
+          if (uniqueItems.length > 0) {
+            return [...prev, ...uniqueItems];
+          }
+          return prev;
+        });
+      }
+    }
+  }, [isInspection, workOrders, hasGeneratedAdditionalItems, selectedWorkOrder?.id, selectedWorkOrder?.diagnosis]);
 
   // 診断結果から見積項目を自動追加（タイヤ交換・ローテーションの場合のみ、初回のみ）
   const [hasAutoAddedTireItems, setHasAutoAddedTireItems] = useState(false);
@@ -2115,29 +2309,80 @@ function EstimatePageContent() {
 
   // 診断写真の状態管理（削除・順番入れ替え機能のため）
   const initialPhotos = useMemo(() => {
-    if (selectedWorkOrder?.diagnosis?.photos && selectedWorkOrder.diagnosis.photos.length > 0) {
-      return selectedWorkOrder.diagnosis.photos.map((photo: { position: string; url: string }, index: number) => ({
+    // 実際のデータがある場合はそれを使用
+    const actualPhotos = selectedWorkOrder?.diagnosis?.photos;
+    if (actualPhotos && Array.isArray(actualPhotos) && actualPhotos.length > 0) {
+      return actualPhotos.map((photo: { position: string; url: string }, index: number) => ({
         id: `photo-${index}`,
         position: photo.position as PhotoPositionKey | string, // PhotoPositionKey型または文字列（後方互換性のため）
         label: photo.position,
         url: photo.url,
       }));
     }
+    // 車検の場合、サンプルデータを追加（見た目確認用）
+    // 実際のデータが空配列または存在しない場合にサンプルを表示
+    if (isInspection) {
+      return [
+        {
+          id: "sample-photo-1",
+          position: "フロント" as PhotoPositionKey,
+          label: "フロント",
+          url: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+        },
+        {
+          id: "sample-photo-2",
+          position: "リア" as PhotoPositionKey,
+          label: "リア",
+          url: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&h=300&fit=crop",
+        },
+        {
+          id: "sample-photo-3",
+          position: "サイド" as PhotoPositionKey,
+          label: "サイド",
+          url: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop",
+        },
+        {
+          id: "sample-photo-4",
+          position: "エンジンルーム" as PhotoPositionKey,
+          label: "エンジンルーム",
+          url: "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400&h=300&fit=crop",
+        },
+        {
+          id: "sample-photo-5",
+          position: "タイヤ" as PhotoPositionKey,
+          label: "タイヤ",
+          url: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=400&h=300&fit=crop",
+        },
+        {
+          id: "sample-photo-6",
+          position: "室内" as PhotoPositionKey,
+          label: "室内",
+          url: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&h=300&fit=crop",
+        },
+      ];
+    }
     return defaultPhotos;
-  }, [selectedWorkOrder]);
+  }, [selectedWorkOrder, isInspection]);
 
   const [photos, setPhotos] = useState<DiagnosisPhoto[]>(initialPhotos);
 
   // selectedWorkOrderが変更されたときにphotosを更新
   useEffect(() => {
+    // デバッグ: initialPhotosの内容を確認
+    if (isInspection && initialPhotos.length > 0) {
+      console.log("[Estimate] initialPhotos:", initialPhotos);
+    }
     setPhotos(initialPhotos);
-  }, [initialPhotos]);
+  }, [initialPhotos, isInspection]);
 
-  // 診断動画の状態管理
+  // 診断動画の状態管理（evidenceVideoUrls配列に対応）
   const initialVideos = useMemo(() => {
-    if (selectedWorkOrder?.diagnosis?.items && selectedWorkOrder.diagnosis.items.length > 0) {
+    // 実際のデータがある場合はそれを使用
+    const diagnosisItems = selectedWorkOrder?.diagnosis?.items;
+    if (diagnosisItems && Array.isArray(diagnosisItems) && diagnosisItems.length > 0) {
       const videos: DiagnosisVideo[] = [];
-      selectedWorkOrder.diagnosis.items.forEach((item: DiagnosisItem, index: number) => {
+      diagnosisItems.forEach((item: DiagnosisItem, index: number) => {
+        // 後方互換性: evidenceVideoUrl（単一）もサポート
         if (item.evidenceVideoUrl) {
           videos.push({
             id: `video-${item.id}-${index}`,
@@ -2146,11 +2391,41 @@ function EstimatePageContent() {
             url: item.evidenceVideoUrl,
           });
         }
+        // 新規: evidenceVideoUrls（配列）をサポート
+        const videoUrls = (item as any).evidenceVideoUrls || [];
+        videoUrls.forEach((videoUrl: string, videoIndex: number) => {
+          videos.push({
+            id: `video-${item.id}-${index}-${videoIndex}`,
+            position: item.name,
+            label: `${item.name} - 動画 ${videoIndex + 1}`,
+            url: videoUrl,
+          });
+        });
       });
-      return videos;
+      if (videos.length > 0) {
+        return videos;
+      }
+    }
+    // 車検の場合、サンプルデータを追加（見た目確認用）
+    // 実際のデータが空配列または存在しない場合にサンプルを表示
+    if (isInspection) {
+      return [
+        {
+          id: "sample-video-1",
+          position: "ブレーキパッド",
+          label: "ブレーキパッド - メカニック解説",
+          url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        },
+        {
+          id: "sample-video-2",
+          position: "エンジン異音",
+          label: "エンジン異音 - メカニック解説",
+          url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+        },
+      ];
     }
     return [];
-  }, [selectedWorkOrder]);
+  }, [selectedWorkOrder, isInspection]);
 
   const [videos, setVideos] = useState<DiagnosisVideo[]>(initialVideos);
 
@@ -2158,6 +2433,34 @@ function EstimatePageContent() {
   useEffect(() => {
     setVideos(initialVideos);
   }, [initialVideos]);
+
+  // 見積項目に紐付けられた写真を収集
+  const linkedPhotos = useMemo(() => {
+    const result: Array<{ itemName: string; photo: DiagnosisPhoto }> = [];
+    estimateItems.forEach((item) => {
+      if (item.linkedPhotoId) {
+        const photo = photos.find((p) => p.id === item.linkedPhotoId);
+        if (photo) {
+          result.push({ itemName: item.name, photo });
+        }
+      }
+    });
+    return result;
+  }, [estimateItems, photos]);
+
+  // 見積項目に紐付けられた動画を収集
+  const linkedVideos = useMemo(() => {
+    const result: Array<{ itemName: string; video: DiagnosisVideo }> = [];
+    estimateItems.forEach((item) => {
+      if (item.linkedVideoId) {
+        const video = videos.find((v) => v.id === item.linkedVideoId);
+        if (video) {
+          result.push({ itemName: item.name, video });
+        }
+      }
+    });
+    return result;
+  }, [estimateItems, videos]);
 
   const flaggedItems = useMemo(() => {
     if (selectedWorkOrder?.diagnosis?.items && selectedWorkOrder.diagnosis.items.length > 0) {
@@ -2580,6 +2883,24 @@ function EstimatePageContent() {
     setIsSubmitting(true);
 
     try {
+      // ワークオーダーが存在しない場合は作成する（すべての分岐で使用）
+      let targetWorkOrder = selectedWorkOrder;
+      if (!targetWorkOrder) {
+        // ワークオーダーが存在しない場合、作成する
+        const serviceKindToUse = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
+        const createResult = await createWorkOrder(jobId, serviceKindToUse);
+        if (!createResult.success || !createResult.data) {
+          throw new Error(createResult.error?.message || "ワークオーダーの作成に失敗しました");
+        }
+        targetWorkOrder = createResult.data;
+        // ワークオーダーリストを再取得（データが反映されるまで少し待機）
+        await mutateWorkOrders();
+        // データが反映されるまで少し待機（モックデータの場合、即座に反映されない可能性があるため）
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        // 再度ワークオーダーリストを取得して、作成したワークオーダーを確認
+        await mutateWorkOrders();
+      }
+      
       // 見積データを整形
       let estimateData: EstimateItem[] = estimateItems.map((item) => {
         const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
@@ -2760,13 +3081,18 @@ function EstimatePageContent() {
       }
 
       // 見積を保存（workOrderIdを含める）
-      if (selectedWorkOrder?.id) {
+      if (targetWorkOrder?.id) {
         // 複数作業管理対応：見積データを選択中のワークオーダーに保存
         // 小計、消費税、合計を計算
         const subtotal = estimateData.reduce((sum, item) => sum + item.price, 0);
-        const taxCalculation = calculateTax(subtotal);
+        
+        // 車検の場合、法定費用を含める
+        const legalFeesTotal = (isInspection && legalFees) ? legalFees.total : 0;
+        const subtotalWithLegalFees = subtotal + legalFeesTotal;
+        
+        const taxCalculation = calculateTax(subtotal); // 追加見積項目のみに課税
         const tax = taxCalculation.tax;
-        const total = taxCalculation.total;
+        const total = taxCalculation.total + legalFeesTotal; // 法定費用は税込なのでそのまま加算
 
         // サービス種類固有の情報を準備
         const estimateDataWithExtras: any = {
@@ -2774,6 +3100,7 @@ function EstimatePageContent() {
           subtotal,
           tax,
           total,
+          legalFees: isInspection && legalFees ? legalFees : undefined, // 法定費用を保存
           createdAt: new Date().toISOString(),
           // 故障診断固有情報
           faultDiagnosisInfo: isFaultDiagnosis ? {
@@ -2822,19 +3149,40 @@ function EstimatePageContent() {
           } : undefined,
         };
 
-        const updateResult = await updateWorkOrder(jobId, selectedWorkOrder.id, {
-          estimate: estimateDataWithExtras,
-          baseSystemItemId: baseSystemItemId.trim() || undefined, // 基幹システム明細IDを保存
-          status: "顧客承認待ち",
-          // 診断料金情報も保存
-          diagnosisFee: diagnosisFee !== null ? diagnosisFee : undefined,
-          diagnosisDuration: diagnosisDuration !== null ? diagnosisDuration : undefined,
-          isDiagnosisFeePreDetermined: isDiagnosisFeePreDetermined || undefined,
-          // メカニック承認情報も保存
-          mechanicApproved: mechanicApproved || undefined,
-          mechanicApprover: mechanicApprover.trim() || undefined,
-          mechanicApprovedAt: mechanicApproved && mechanicApprover.trim() ? new Date().toISOString() : undefined,
-        });
+        // ワークオーダー更新をリトライ（作成直後は反映されていない可能性があるため）
+        let updateResult;
+        let retryCount = 0;
+        const maxRetries = 3;
+        while (retryCount < maxRetries) {
+          updateResult = await updateWorkOrder(jobId, targetWorkOrder.id, {
+            estimate: estimateDataWithExtras,
+            baseSystemItemId: baseSystemItemId.trim() || undefined, // 基幹システム明細IDを保存
+            status: "顧客承認待ち",
+            // 診断料金情報も保存
+            diagnosisFee: diagnosisFee !== null ? diagnosisFee : undefined,
+            diagnosisDuration: diagnosisDuration !== null ? diagnosisDuration : undefined,
+            isDiagnosisFeePreDetermined: isDiagnosisFeePreDetermined || undefined,
+            // メカニック承認情報も保存
+            mechanicApproved: mechanicApproved || undefined,
+            mechanicApprover: mechanicApprover.trim() || undefined,
+            mechanicApprovedAt: mechanicApproved && mechanicApprover.trim() ? new Date().toISOString() : undefined,
+          });
+
+          if (updateResult.success) {
+            break;
+          }
+
+          // ワークオーダーが見つからない場合は、少し待ってから再試行
+          if (updateResult.error?.code === "WORK_ORDER_NOT_FOUND" && retryCount < maxRetries - 1) {
+            retryCount++;
+            await new Promise((resolve) => setTimeout(resolve, 200 * retryCount)); // 200ms, 400ms, 600ms
+            // ワークオーダーリストを再取得
+            await mutateWorkOrders();
+            continue;
+          }
+
+          throw new Error(updateResult.error?.message || "見積の保存に失敗しました");
+        }
 
         if (!updateResult.success) {
           throw new Error(updateResult.error?.message || "見積の保存に失敗しました");
@@ -2981,11 +3329,11 @@ function EstimatePageContent() {
         }
 
         // ワークオーダーのestimateフィールドを更新
-        if (selectedWorkOrder?.id) {
+        if (targetWorkOrder?.id) {
           try {
-            await updateWorkOrder(jobId, selectedWorkOrder.id, {
+            await updateWorkOrder(jobId, targetWorkOrder.id, {
               estimate: {
-                ...selectedWorkOrder.estimate,
+                ...targetWorkOrder.estimate,
                 items: estimateDataWithExtras.items,
                 total: estimateDataWithExtras.items.reduce((sum: number, item: { price: number }) => sum + item.price, 0),
                 createdAt: new Date().toISOString(),
@@ -3100,7 +3448,7 @@ function EstimatePageContent() {
             fetchCustomerById(customerId),
             generateMagicLink({
               jobId,
-              workOrderId: selectedWorkOrder?.id,
+              workOrderId: targetWorkOrder?.id,
               expiresIn: 7 * 24 * 60 * 60, // 7日間
             }),
           ]);
@@ -3115,7 +3463,7 @@ function EstimatePageContent() {
             const customerName = job.field4?.name || "お客様";
             const vehicleName = job.field6?.name || "車両";
             const licensePlate = extractLicensePlate(job.field6?.name);
-            const serviceKind = selectedWorkOrder?.serviceKind || serviceKinds[0] || "作業";
+            const serviceKind = targetWorkOrder?.serviceKind || serviceKinds[0] || "作業";
 
             const magicLinkUrl = magicLinkResult.success && magicLinkResult.url ? magicLinkResult.url : null;
 
@@ -3420,7 +3768,7 @@ function EstimatePageContent() {
   // ローディング状態
   if (isJobLoading) {
     return (
-      <div className="flex-1 bg-slate-50 overflow-auto">
+      <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-auto">
         <HeaderSkeleton />
         <ContentSkeleton />
       </div>
@@ -3475,7 +3823,8 @@ function EstimatePageContent() {
 
   const selectedPhoto = photos.find((p: DiagnosisPhoto) => p.id === selectedPhotoId);
 
-  const estimateTitle = "見積作成";
+  // 車検の場合は「追加見積」、それ以外は「見積作成」
+  const estimateTitle = isInspection ? "追加見積" : "見積作成";
 
   // 現在の作業名を取得（選択中のワークオーダーから、またはserviceKindsから）
   const currentWorkOrderName = selectedWorkOrder?.serviceKind || (serviceKinds.length > 0 ? serviceKinds[0] : "見積");
@@ -3500,11 +3849,15 @@ function EstimatePageContent() {
   };
 
   return (
-    <div className="flex-1 bg-slate-50 overflow-auto">
+    <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-auto">
       {/* ヘッダー */}
       <AppHeader
-        maxWidthClassName="max-w-7xl"
+        maxWidthClassName={isInspection ? "max-w-4xl" : "max-w-7xl"}
         backHref={getBackHref(jobId)}
+        collapsibleOnMobile={true}
+        collapsedCustomerName={customerName}
+        collapsedVehicleName={vehicleName}
+        collapsedLicensePlate={licensePlate}
         statusBadge={
           job ? (
             <Badge
@@ -3539,27 +3892,10 @@ function EstimatePageContent() {
           courtesyCars={courtesyCars}
         />
 
-        {/* 顧客向け承認画面プレビュー */}
-        {selectedWorkOrder?.estimate && (
-          <div className="mt-2 flex justify-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                const approvalUrl = `/customer/approval/${jobId}`;
-                window.open(approvalUrl, "_blank");
-              }}
-              className="gap-2"
-            >
-              <Eye className="h-5 w-5 shrink-0" />
-              顧客向け承認画面をプレビュー
-              <ExternalLink className="h-4 w-4 shrink-0" />
-            </Button>
-          </div>
-        )}
       </AppHeader>
 
       {/* メインコンテンツ - 2カラムレイアウト */}
-      <main className="max-w-7xl mx-auto px-4 py-6 pb-32">
+      <main className={cn("mx-auto px-4 py-6 pb-32", isInspection ? "max-w-4xl" : "max-w-7xl")} style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
         {/* 見積却下理由の表示（field7に「【見積却下】」が含まれている場合のみ） */}
         {(() => {
           if (!job?.field7) return null;
@@ -3578,99 +3914,142 @@ function EstimatePageContent() {
           );
         })()}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* ========== 左カラム: 診断結果ビュー ========== */}
+        {/* 車検の場合は1カラム、それ以外は2カラム */}
+        <div className={cn("gap-4", isInspection ? "flex flex-col" : "grid grid-cols-1 lg:grid-cols-2")}>
+          {/* ========== 左カラム: 診断結果ビュー（車検以外）または受入検査写真（車検の場合） ========== */}
           <div className="space-y-4">
-            {/* 撮影写真セクション（折りたたみ可能） */}
+            {/* 診断メディアセクション（写真・動画） */}
             <CollapsibleSection
-              title="撮影写真"
-              icon={Camera}
-              defaultOpen={true}
-              badge={photos.length > 0 ? `${photos.length}枚` : undefined}
-            >
-              {photos.length > 0 ? (
-                <PhotoManager
-                  photos={photos.map((photo) => ({
-                    id: photo.id,
-                    previewUrl: photo.url,
-                    position: photo.position,
-                  }))}
-                  onPhotosChange={async (updatedPhotos) => {
-                    // PhotoItem[]をDiagnosisPhoto[]に変換
-                    const updatedDiagnosisPhotos: DiagnosisPhoto[] = updatedPhotos.map((p, index) => {
-                      // 既存のDiagnosisPhotoを探す
-                      const existing = photos.find(
-                        (dp) => dp.id === p.id || dp.url === p.previewUrl
-                      );
-                      return existing || {
-                        id: p.id,
-                        position: p.position || p.id,
-                        label: p.position || p.id,
-                        url: p.previewUrl,
-                      };
-                    });
-                    setPhotos(updatedDiagnosisPhotos);
-
-                    // ワークオーダーの診断写真を即座に更新
-                    if (selectedWorkOrder?.id) {
-                      try {
-                        await updateWorkOrder(jobId, selectedWorkOrder.id, {
-                          diagnosis: {
-                            ...selectedWorkOrder.diagnosis,
-                            photos: updatedPhotos.map((p) => ({
-                              position: p.position || p.id,
-                              url: p.previewUrl || "",
-                            })),
-                          },
-                        });
-                        // ワークオーダーリストを再取得
-                        await mutateWorkOrders();
-                      } catch (error) {
-                        console.error("診断写真の更新エラー:", error);
-                        toast.error("診断写真の更新に失敗しました");
+                title={isInspection ? "受入検査写真" : "診断メディア"}
+                icon={Camera}
+                defaultOpen={true}
+                badge={`${photos.length}枚 ${videos.length > 0 ? `/ ${videos.length}本` : ''}`}
+              >
+                {/* 写真 */}
+                {photos.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-slate-900 mb-2">写真 ({photos.length}枚)</h3>
+                    {(() => {
+                      // デバッグ: photosの内容を確認
+                      const validPhotos = photos
+                        .filter((photo) => photo.url && photo.url.trim() !== ""); // URLが空でないもののみフィルタリング
+                      
+                      if (isInspection && validPhotos.length === 0 && photos.length > 0) {
+                        console.warn("[Estimate] photosにURLが空の項目があります:", photos);
                       }
-                    }
-                  }}
-                  disabled={isSubmitting}
-                  className="grid grid-cols-3 gap-2"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-300 rounded text-slate-700 text-base">
-                  写真がありません
-                </div>
-              )}
+                      
+                      const photoItems = validPhotos.map((photo) => ({
+                        id: photo.id,
+                        previewUrl: photo.url,
+                        position: photo.position,
+                      }));
+                      
+                      if (isInspection && photoItems.length > 0) {
+                        console.log("[Estimate] PhotoManagerに渡すphotos:", photoItems);
+                      }
+                      
+                      return (
+                        <PhotoManager
+                          photos={photoItems}
+                          onPhotosChange={async (updatedPhotos) => {
+                        // PhotoItem[]をDiagnosisPhoto[]に変換
+                        const updatedDiagnosisPhotos: DiagnosisPhoto[] = updatedPhotos.map((p, index) => {
+                          // 既存のDiagnosisPhotoを探す
+                          const existing = photos.find(
+                            (dp) => dp.id === p.id || dp.url === p.previewUrl
+                          );
+                          return existing || {
+                            id: p.id,
+                            position: p.position || p.id,
+                            label: p.position || p.id,
+                            url: p.previewUrl,
+                          };
+                        });
+                        setPhotos(updatedDiagnosisPhotos);
 
-              {selectedPhoto && (
-                <div className="mt-4 p-2 bg-slate-50 rounded-lg">
-                  <div className="relative w-full aspect-video rounded-md overflow-hidden">
-                    <Image
-                      src={selectedPhoto.url}
-                      alt={selectedPhoto.label}
-                      fill
-                      className="object-contain"
-                      sizes="(max-width: 768px) 100vw, 768px"
-                    />
+                        // ワークオーダーの診断写真を即座に更新
+                        if (selectedWorkOrder?.id) {
+                          try {
+                            await updateWorkOrder(jobId, selectedWorkOrder.id, {
+                              diagnosis: {
+                                ...selectedWorkOrder.diagnosis,
+                                photos: updatedPhotos.map((p) => ({
+                                  position: p.position || p.id,
+                                  url: p.previewUrl || "",
+                                })),
+                              },
+                            });
+                            // ワークオーダーリストを再取得
+                            await mutateWorkOrders();
+                          } catch (error) {
+                            console.error("診断写真の更新エラー:", error);
+                            toast.error("診断写真の更新に失敗しました");
+                          }
+                        }
+                          }}
+                          disabled={isSubmitting}
+                          className="grid grid-cols-3 gap-2"
+                        />
+                      );
+                    })()}
+
+                    {selectedPhoto && (
+                      <div className="mt-4 p-2 bg-slate-50 rounded-lg">
+                        <div className="relative w-full aspect-video rounded-md overflow-hidden">
+                          <Image
+                            src={selectedPhoto.url}
+                            alt={selectedPhoto.label}
+                            fill
+                            className="object-contain"
+                            sizes="(max-width: 768px) 100vw, 768px"
+                          />
+                        </div>
+                        <p className="text-base text-center mt-2 text-slate-800 truncate" title={selectedPhoto.label}>
+                          {selectedPhoto.label}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-base text-center mt-2 text-slate-800 truncate" title={selectedPhoto.label}>
-                    {selectedPhoto.label}
-                  </p>
-                </div>
-              )}
-            </CollapsibleSection>
+                )}
 
-            {/* 法定費用カード（車検の場合のみ） */}
-            {isInspection && (
-              <LegalFeesCard
-                legalFees={legalFees || {
-                  inspection: 0,
-                  weightTax: 0,
-                  liabilityInsurance: 0,
-                  stampDuty: 0,
-                  total: 0,
-                }}
-                disabled={isLoadingLegalFees}
-              />
-            )}
+                {/* 動画 */}
+                {videos.length > 0 && (
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900 mb-2">動画 ({videos.length}本)</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {videos.map((video) => (
+                        <div
+                          key={video.id}
+                          className="relative aspect-video rounded-md overflow-hidden bg-slate-900 border border-slate-300 group hover:border-slate-400 transition-colors cursor-pointer"
+                          onClick={() => window.open(video.url, "_blank")}
+                        >
+                          <video
+                            src={video.url}
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/90 group-hover:bg-white transition-colors">
+                              <Video className="h-6 w-6 text-slate-900" />
+                            </div>
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent">
+                            <p className="text-sm text-white truncate" title={video.label}>
+                              {video.label}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {photos.length === 0 && videos.length === 0 && (
+                  <div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-300 rounded text-slate-700 text-base">
+                    診断メディアがありません
+                  </div>
+                )}
+              </CollapsibleSection>
 
             {/* オプションメニューセレクター（12ヵ月点検の場合のみ） */}
             {is12MonthInspection && (
@@ -3843,74 +4222,22 @@ function EstimatePageContent() {
               </div>
             )}
 
-            {/* 診断情報セクション（折りたたみ可能） */}
-            <CollapsibleSection
-              title="診断結果"
-              icon={Car}
-              defaultOpen={true}
-              badge={jobId ? `Job ID: ${jobId}` : undefined}
-            >
-              <div className="text-base text-slate-800">
-                <p className="truncate">{vehicleName} / {licensePlate}</p>
-                {job.field10 && (
-                  <p className="mt-1">走行距離: {job.field10.toLocaleString()} km</p>
-                )}
-              </div>
-            </CollapsibleSection>
-
-            {/* 見積変更履歴セクション */}
-            <EstimateChangeHistorySection
-              jobId={jobId}
-              customerName={customerName}
-              currentEstimateItems={estimateItems.map((item) => {
-                const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
-                const laborTotal = item.laborCost || 0;
-                const totalPrice = partTotal + laborTotal;
-                return {
-                  id: item.id,
-                  name: item.name,
-                  price: totalPrice,
-                  priority: item.priority,
-                  selected: false,
-                  linkedPhotoUrls: [],
-                  linkedVideoUrl: null,
-                  note: null,
-                };
-              })}
-              disabled={isSubmitting}
-              onEstimateChange={async (newEstimateItems) => {
-                // 見積項目を更新（EstimateItem[] → EstimateLineItem[]に変換）
-                const updatedLineItems: EstimateLineItem[] = newEstimateItems.map((item) => ({
-                  id: item.id,
-                  name: item.name,
-                  partQuantity: 0,
-                  partUnitPrice: 0,
-                  laborCost: item.price || 0, // EstimateItemのpriceをlaborCostとして設定
-                  priority: item.priority,
-                  linkedPhotoId: null,
-                  linkedVideoId: item.linkedVideoUrl || null,
-                  transcription: null,
-                }));
-                setEstimateItems(updatedLineItems);
-
-                // ワークオーダーのestimate.itemsも更新
-                if (selectedWorkOrder?.id) {
-                  try {
-                    await updateWorkOrder(jobId, selectedWorkOrder.id, {
-                      estimate: {
-                        ...selectedWorkOrder.estimate,
-                        items: newEstimateItems,
-                      },
-                    });
-                    // ワークオーダーリストを再取得
-                    await mutateWorkOrders();
-                  } catch (error) {
-                    console.error("ワークオーダー更新エラー:", error);
-                    toast.error("ワークオーダーの更新に失敗しました");
-                  }
-                }
-              }}
-            />
+            {/* 診断情報セクション（車検以外の場合のみ） */}
+            {!isInspection && (
+              <CollapsibleSection
+                title="診断結果"
+                icon={Car}
+                defaultOpen={true}
+                badge={jobId ? `Job ID: ${jobId}` : undefined}
+              >
+                <div className="text-base text-slate-800">
+                  <p className="truncate">{vehicleName} / {licensePlate}</p>
+                  {job.field10 && (
+                    <p className="mt-1">走行距離: {job.field10.toLocaleString()} km</p>
+                  )}
+                </div>
+              </CollapsibleSection>
+            )}
 
             {/* 指摘項目セクション（折りたたみ可能） */}
             <CollapsibleSection
@@ -3967,47 +4294,97 @@ function EstimatePageContent() {
             </CollapsibleSection>
           </div>
 
-          {/* ========== 右カラム: 見積エディタ ========== */}
+          {/* ========== 見積エディタ（車検は単独、それ以外は右カラム） ========== */}
           <div className="space-y-4">
+            {/* 診断写真・動画セクション（見積項目に紐付けられたメディア） */}
+            {(linkedPhotos.length > 0 || linkedVideos.length > 0) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <Camera className="h-5 w-5 shrink-0" />
+                    診断写真・動画
+                    <Badge variant="secondary" className="text-base font-medium px-2.5 py-0.5 rounded-full">
+                      {linkedPhotos.length + linkedVideos.length}件
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* 写真 */}
+                    {linkedPhotos.map(({ itemName, photo }, index) => (
+                      <div
+                        key={`photo-${photo.id}-${index}`}
+                        className="border border-slate-200 rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow"
+                      >
+                        <div className="relative aspect-video bg-slate-100">
+                          <Image
+                            src={photo.url}
+                            alt={itemName}
+                            fill
+                            className="object-cover"
+                            onClick={() => {
+                              if (photo.url) {
+                                window.open(photo.url, "_blank");
+                              }
+                            }}
+                            style={{ cursor: "pointer" }}
+                          />
+                        </div>
+                        <div className="p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Camera className="h-4 w-4 text-slate-600" />
+                            <p className="text-sm font-medium text-slate-900 line-clamp-2">
+                              {itemName}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {/* 動画 */}
+                    {linkedVideos.map(({ itemName, video }, index) => (
+                      <div
+                        key={`video-${video.id}-${index}`}
+                        className="border border-slate-200 rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow"
+                      >
+                        <div className="relative aspect-video bg-slate-900">
+                          <video
+                            src={video.url}
+                            controls
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                          />
+                        </div>
+                        <div className="p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Video className="h-4 w-4 text-slate-600" />
+                            <p className="text-sm font-medium text-slate-900 line-clamp-2">
+                              {itemName}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 見積内容カード */}
             <Card>
               <CardHeader className="pb-3 overflow-hidden">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-                  <div className="flex flex-col gap-2">
-                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                      <Calculator className="h-5 w-5 shrink-0" />
-                      見積内容
-                      {isEngineOilChange && (
-                        <Badge variant="outline" className="text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                          基本不要（イレギュラー時のみ追加）
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <span className="text-base text-slate-600">表示:</span>
-                      <Button
-                        type="button"
-                        variant={isTaxIncluded ? "default" : "outline"}
-                        onClick={() => setIsTaxIncluded(true)}
-                        className="h-12 text-base"
-                        disabled={isSubmitting}
-                        aria-label="税込表示"
-                      >
-                        税込
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={!isTaxIncluded ? "default" : "outline"}
-                        onClick={() => setIsTaxIncluded(false)}
-                        className="h-12 text-base"
-                        disabled={isSubmitting}
-                        aria-label="税抜表示"
-                      >
-                        税抜
-                      </Button>
-                    </div>
-                  </div>
-                  {job?.field4?.id && (
-                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <Calculator className="h-5 w-5 shrink-0" />
+                    見積内容
+                    {isEngineOilChange && (
+                      <Badge variant="outline" className="text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                        基本不要（イレギュラー時のみ追加）
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    {job?.field4?.id && (
+                      <>
                       <Button
                         type="button"
                         variant="outline"
@@ -4041,8 +4418,29 @@ function EstimatePageContent() {
                         <span className="hidden sm:inline">テンプレート</span>
                         <span className="sm:hidden">テンプレ</span>
                       </Button>
-                    </div>
-                  )}
+                      <div className="hidden sm:block h-5 w-px bg-slate-300" />
+                      </>
+                    )}
+                    {/* 税込/税抜トグル（一番右側に配置） */}
+                    <button
+                      type="button"
+                      onClick={() => setIsTaxIncluded(!isTaxIncluded)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+                      aria-label={isTaxIncluded ? "税抜表示に切り替え" : "税込表示に切り替え"}
+                    >
+                      <div className={cn(
+                        "relative w-10 h-5 rounded-full transition-colors",
+                        isTaxIncluded ? "bg-blue-600" : "bg-slate-300"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                          isTaxIncluded ? "translate-x-5" : "translate-x-0.5"
+                        )} />
+                      </div>
+                      <span className="text-sm font-medium">{isTaxIncluded ? "税込" : "税抜"}</span>
+                    </button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -4102,7 +4500,8 @@ function EstimatePageContent() {
                     </div>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[400px] pr-4">
+                  /* 車検の場合はスクロールなしで全表示、それ以外はScrollArea */
+                  isInspection ? (
                     <div className="space-y-6">
                       <EstimateSection
                         title="必須整備"
@@ -4115,6 +4514,7 @@ function EstimatePageContent() {
                         onAdd={() => handleAddItem("required")}
                         badgeVariant="default"
                         disabled={isSubmitting}
+                        isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
                       />
 
@@ -4131,6 +4531,7 @@ function EstimatePageContent() {
                         onAdd={() => handleAddItem("recommended")}
                         badgeVariant="secondary"
                         disabled={isSubmitting}
+                        isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
                       />
 
@@ -4147,222 +4548,336 @@ function EstimatePageContent() {
                         onAdd={() => handleAddItem("optional")}
                         badgeVariant="outline"
                         disabled={isSubmitting}
+                        isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
                       />
                     </div>
-                  </ScrollArea>
+                  ) : (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-6">
+                        <EstimateSection
+                          title="必須整備"
+                          priority="required"
+                          items={estimateItems}
+                          photos={photos}
+                          videos={videos}
+                          onUpdate={handleUpdateItem}
+                          onDelete={handleDeleteItem}
+                          onAdd={() => handleAddItem("required")}
+                          badgeVariant="default"
+                          disabled={isSubmitting}
+                          isTaxIncluded={isTaxIncluded}
+                          onPhotoClick={handleEstimateLinePhotoClick}
+                        />
+
+                        <Separator />
+
+                        <EstimateSection
+                          title="推奨整備"
+                          priority="recommended"
+                          items={estimateItems}
+                          photos={photos}
+                          videos={videos}
+                          onUpdate={handleUpdateItem}
+                          onDelete={handleDeleteItem}
+                          onAdd={() => handleAddItem("recommended")}
+                          badgeVariant="secondary"
+                          disabled={isSubmitting}
+                          isTaxIncluded={isTaxIncluded}
+                          onPhotoClick={handleEstimateLinePhotoClick}
+                        />
+
+                        <Separator />
+
+                        <EstimateSection
+                          title="任意整備"
+                          priority="optional"
+                          items={estimateItems}
+                          photos={photos}
+                          videos={videos}
+                          onUpdate={handleUpdateItem}
+                          onDelete={handleDeleteItem}
+                          onAdd={() => handleAddItem("optional")}
+                          badgeVariant="outline"
+                          disabled={isSubmitting}
+                          isTaxIncluded={isTaxIncluded}
+                          onPhotoClick={handleEstimateLinePhotoClick}
+                        />
+                      </div>
+                    </ScrollArea>
+                  )
                 )}
               </CardContent>
             </Card>
 
-            {/* 診断料金セクション */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  <Calculator className="h-5 w-5 shrink-0" />
-                  診断料金
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 診断時間（概算） */}
-                {diagnosisDuration !== null && (
-                  <div className="space-y-1">
-                    <Label className="text-base text-slate-700">診断時間（概算）</Label>
-                    <div className="flex items-center gap-2">
+            {/* 見積変更履歴セクション */}
+            <EstimateChangeHistorySection
+              jobId={jobId}
+              customerName={customerName}
+              currentEstimateItems={estimateItems.map((item) => {
+                const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
+                const laborTotal = item.laborCost || 0;
+                const totalPrice = partTotal + laborTotal;
+                return {
+                  id: item.id,
+                  name: item.name,
+                  price: totalPrice,
+                  priority: item.priority,
+                  selected: false,
+                  linkedPhotoUrls: [],
+                  linkedVideoUrl: null,
+                  note: null,
+                };
+              })}
+              disabled={isSubmitting}
+              onEstimateChange={async (newEstimateItems) => {
+                // 見積項目を更新（EstimateItem[] → EstimateLineItem[]に変換）
+                const updatedLineItems: EstimateLineItem[] = newEstimateItems.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  partQuantity: 0,
+                  partUnitPrice: 0,
+                  laborCost: item.price || 0, // EstimateItemのpriceをlaborCostとして設定
+                  priority: item.priority,
+                  linkedPhotoId: null,
+                  linkedVideoId: item.linkedVideoUrl || null,
+                  transcription: null,
+                }));
+                setEstimateItems(updatedLineItems);
+
+                // ワークオーダーのestimate.itemsも更新
+                if (selectedWorkOrder?.id) {
+                  try {
+                    await updateWorkOrder(jobId, selectedWorkOrder.id, {
+                      estimate: {
+                        ...selectedWorkOrder.estimate,
+                        items: newEstimateItems,
+                      },
+                    });
+                    // ワークオーダーリストを再取得
+                    await mutateWorkOrders();
+                  } catch (error) {
+                    console.error("ワークオーダー更新エラー:", error);
+                    toast.error("ワークオーダーの更新に失敗しました");
+                  }
+                }
+              }}
+            />
+
+            {/* 診断料金セクション（車検以外の場合のみ） */}
+            {!isInspection && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <Calculator className="h-5 w-5 shrink-0" />
+                    診断料金
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 診断時間（概算） */}
+                  {diagnosisDuration !== null && (
+                    <div className="space-y-1">
+                      <Label className="text-base text-slate-700">診断時間（概算）</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={diagnosisDuration || ""}
+                          onChange={(e) => {
+                            const cleaned = cleanNumericInput(e.target.value);
+                            const parsed = parseNumericValue(cleaned);
+                            setDiagnosisDuration(parsed ? Math.floor(parsed) : null);
+                          }}
+                          placeholder="分"
+                          className="w-24 h-12"
+                          disabled={isSubmitting}
+                        />
+                        <span className="text-base text-slate-800">分</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 診断料金選択 */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-medium">診断料金</Label>
+                    <Select
+                      value={diagnosisFee?.toString() || "0"}
+                      onValueChange={(value) => {
+                        const fee = value === "custom" ? null : parseInt(value);
+                        setDiagnosisFee(fee);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="診断料金を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">無料</SelectItem>
+                        <SelectItem value="3000">¥3,000</SelectItem>
+                        <SelectItem value="5000">¥5,000</SelectItem>
+                        <SelectItem value="10000">¥10,000</SelectItem>
+                        <SelectItem value="custom">その他（手動入力）</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* その他の場合の手動入力 */}
+                    {diagnosisFee === null && (
                       <Input
                         type="text"
                         inputMode="numeric"
-                        value={diagnosisDuration || ""}
+                        value=""
                         onChange={(e) => {
                           const cleaned = cleanNumericInput(e.target.value);
                           const parsed = parseNumericValue(cleaned);
-                          setDiagnosisDuration(parsed ? Math.floor(parsed) : null);
+                          setDiagnosisFee(parsed ? Math.floor(parsed) : null);
                         }}
-                        placeholder="分"
-                        className="w-24 h-12"
+                        placeholder="金額を入力（円）"
+                        className="h-12"
                         disabled={isSubmitting}
                       />
-                      <span className="text-base text-slate-800">分</span>
+                    )}
+
+                    {/* 事前に決まっている場合の表示 */}
+                    {isDiagnosisFeePreDetermined && (
+                      <div className="flex items-center gap-2 text-base text-amber-700">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>事前に決まっている診断料金（顧客承認済み）</span>
+                      </div>
+                    )}
+
+                    {/* 作業実施時の割引表示 */}
+                    {estimateItems.length > 0 && diagnosisFee && diagnosisFee > 0 && (
+                      <div className="flex items-center gap-2 text-base text-blue-700 bg-blue-50 p-2 rounded-md">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>作業実施のため割引対象（合計金額から自動で差し引きます）</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 合計金額（車検以外の場合のみ） */}
+            {!isInspection && (
+              <Card>
+                <CardContent className="py-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-700">必須整備</span>
+                      <span>¥{formatPrice(requiredTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-700">推奨整備</span>
+                      <span>¥{formatPrice(recommendedTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-700">任意整備</span>
+                      <span>¥{formatPrice(optionalTotal)}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between text-base">
+                      <span className="text-slate-700">小計</span>
+                      <span>¥{formatPrice(calculateSubtotal())}</span>
+                    </div>
+                    {estimateItems.length > 0 && diagnosisFee && diagnosisFee > 0 && (
+                      <div className="flex justify-between text-base text-blue-700">
+                        <span>診断料割引</span>
+                        <span>-¥{formatPrice(diagnosisFee)}</span>
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>合計（税込）</span>
+                      <span className="text-primary">¥{formatPrice(calculateTotal())}</span>
                     </div>
                   </div>
-                )}
+                </CardContent>
+              </Card>
+            )}
 
-                {/* 診断料金選択 */}
-                <div className="space-y-2">
-                  <Label className="text-base font-medium">診断料金</Label>
-                  <Select
-                    value={diagnosisFee?.toString() || "0"}
-                    onValueChange={(value) => {
-                      const fee = value === "custom" ? null : parseInt(value);
-                      setDiagnosisFee(fee);
-                    }}
+            {/* 基幹システム連携セクション（車検以外の場合のみ） */}
+            {!isInspection && (
+              <Card className="mb-4 border-amber-300 bg-amber-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold text-amber-900">
+                    <Calculator className="h-5 w-5 shrink-0" />
+                    基幹システム連携
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="text-base text-amber-900">
+                    <p className="mb-2 font-medium">手順：</p>
+                    <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>基幹システムで見積を計算・作成</li>
+                      <li>計算結果をWebアプリに転記（下記ボタンから）</li>
+                      <li>転記後、必要に応じて項目を追加・修正</li>
+                      <li>基幹システム明細IDを入力（オプション）</li>
+                      <li>LINEで顧客へ送信</li>
+                    </ol>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full h-12 text-base border-amber-400 bg-white hover:bg-amber-100 text-amber-900"
+                    onClick={() => setIsBaseSystemCopyDialogOpen(true)}
                     disabled={isSubmitting}
                   >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="診断料金を選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">無料</SelectItem>
-                      <SelectItem value="3000">¥3,000</SelectItem>
-                      <SelectItem value="5000">¥5,000</SelectItem>
-                      <SelectItem value="10000">¥10,000</SelectItem>
-                      <SelectItem value="custom">その他（手動入力）</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Calculator className="h-4 w-4 mr-2 shrink-0" />
+                    基幹システムで見積作成
+                  </Button>
+                  <p className="text-base text-amber-900 mt-2">
+                    ※ 基幹システムで計算後、結果をこの画面に転記してください
+                  </p>
 
-                  {/* その他の場合の手動入力 */}
-                  {diagnosisFee === null && (
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value=""
-                      onChange={(e) => {
-                        const cleaned = cleanNumericInput(e.target.value);
-                        const parsed = parseNumericValue(cleaned);
-                        setDiagnosisFee(parsed ? Math.floor(parsed) : null);
-                      }}
-                      placeholder="金額を入力（円）"
-                      className="h-12"
-                      disabled={isSubmitting}
-                    />
-                  )}
-
-                  {/* 事前に決まっている場合の表示 */}
-                  {isDiagnosisFeePreDetermined && (
-                    <div className="flex items-center gap-2 text-base text-amber-700">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>事前に決まっている診断料金（顧客承認済み）</span>
-                    </div>
-                  )}
-
-                  {/* 作業実施時の割引表示 */}
-                  {estimateItems.length > 0 && diagnosisFee && diagnosisFee > 0 && (
-                    <div className="flex items-center gap-2 text-base text-blue-700 bg-blue-50 p-2 rounded-md">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>作業実施のため割引対象（合計金額から自動で差し引きます）</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 合計金額 */}
-            <Card>
-              <CardContent className="py-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-base">
-                    <span className="text-slate-700">必須整備</span>
-                    <span>¥{formatPrice(requiredTotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-base">
-                    <span className="text-slate-700">推奨整備</span>
-                    <span>¥{formatPrice(recommendedTotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-base">
-                    <span className="text-slate-700">任意整備</span>
-                    <span>¥{formatPrice(optionalTotal)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between text-base">
-                    <span className="text-slate-700">小計</span>
-                    <span>¥{formatPrice(calculateSubtotal())}</span>
-                  </div>
-                  {estimateItems.length > 0 && diagnosisFee && diagnosisFee > 0 && (
-                    <div className="flex justify-between text-base text-blue-700">
-                      <span>診断料割引</span>
-                      <span>-¥{formatPrice(diagnosisFee)}</span>
-                    </div>
-                  )}
-                  <Separator />
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>合計（税込）</span>
-                    <span className="text-primary">¥{formatPrice(calculateTotal())}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 基幹システム連携セクション */}
-            <Card className="mb-4 border-amber-300 bg-amber-50/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-amber-900">
-                  <Calculator className="h-5 w-5 shrink-0" />
-                  基幹システム連携
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-base text-amber-900">
-                  <p className="mb-2 font-medium">手順：</p>
-                  <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>基幹システムで見積を計算・作成</li>
-                    <li>計算結果をWebアプリに転記（下記ボタンから）</li>
-                    <li>転記後、必要に応じて項目を追加・修正</li>
-                    <li>基幹システム明細IDを入力（オプション）</li>
-                    <li>LINEで顧客へ送信</li>
-                  </ol>
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full h-12 text-base border-amber-400 bg-white hover:bg-amber-100 text-amber-900"
-                  onClick={() => setIsBaseSystemCopyDialogOpen(true)}
-                  disabled={isSubmitting}
-                >
-                  <Calculator className="h-4 w-4 mr-2 shrink-0" />
-                  基幹システムで見積作成
-                </Button>
-                <p className="text-base text-amber-900 mt-2">
-                  ※ 基幹システムで計算後、結果をこの画面に転記してください
-                </p>
-
-                {/* 基幹システム明細ID入力（各ワークオーダーごと） */}
-                {selectedWorkOrder && (
-                  <div className="pt-3 border-t border-amber-400">
-                    <Label htmlFor="base-system-item-id" className="text-base text-amber-900">
-                      基幹システム明細ID（この作業用）
-                    </Label>
-                    <div className="flex gap-2 mt-1">
-                      <Input
-                        id="base-system-item-id"
-                        value={baseSystemItemId}
-                        onChange={(e) => setBaseSystemItemId(e.target.value)}
-                        placeholder="例: ITEM-2024-001"
-                        className="flex-1 bg-white"
-                        disabled={isSubmitting}
-                      />
-                      <Button
-                        onClick={async () => {
-                          if (!selectedWorkOrder?.id) return;
-                          try {
-                            const result = await updateWorkOrder(jobId, selectedWorkOrder.id, {
-                              baseSystemItemId: baseSystemItemId.trim() || undefined,
-                            });
-                            if (result.success) {
-                              await mutateWorkOrders();
-                              toast.success("基幹システム明細IDを保存しました");
-                            } else {
-                              toast.error("保存に失敗しました", {
-                                description: result.error?.message,
+                  {/* 基幹システム明細ID入力（各ワークオーダーごと） */}
+                  {selectedWorkOrder && (
+                    <div className="pt-3 border-t border-amber-400">
+                      <Label htmlFor="base-system-item-id" className="text-base text-amber-900">
+                        基幹システム明細ID（この作業用）
+                      </Label>
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          id="base-system-item-id"
+                          value={baseSystemItemId}
+                          onChange={(e) => setBaseSystemItemId(e.target.value)}
+                          placeholder="例: ITEM-2024-001"
+                          className="flex-1 bg-white"
+                          disabled={isSubmitting}
+                        />
+                        <Button
+                          onClick={async () => {
+                            if (!selectedWorkOrder?.id) return;
+                            try {
+                              const result = await updateWorkOrder(jobId, selectedWorkOrder.id, {
+                                baseSystemItemId: baseSystemItemId.trim() || undefined,
                               });
+                              if (result.success) {
+                                await mutateWorkOrders();
+                                toast.success("基幹システム明細IDを保存しました");
+                              } else {
+                                toast.error("保存に失敗しました", {
+                                  description: result.error?.message,
+                                });
+                              }
+                            } catch (error) {
+                              console.error("基幹システム明細ID保存エラー:", error);
+                              toast.error("保存に失敗しました");
                             }
-                          } catch (error) {
-                            console.error("基幹システム明細ID保存エラー:", error);
-                            toast.error("保存に失敗しました");
-                          }
-                        }}
-                        variant="outline"
-                        disabled={!selectedWorkOrder?.id || isSubmitting}
-                        className="shrink-0 bg-white"
-                      >
-                        保存
-                      </Button>
+                          }}
+                          variant="outline"
+                          disabled={!selectedWorkOrder?.id || isSubmitting}
+                          className="shrink-0 bg-white"
+                        >
+                          保存
+                        </Button>
+                      </div>
+                      <p className="text-base text-amber-700 mt-1">
+                        基幹システムで作成した見積明細のIDを入力してください（請求書統合用）
+                      </p>
                     </div>
-                    <p className="text-base text-amber-700 mt-1">
-                      基幹システムで作成した見積明細のIDを入力してください（請求書統合用）
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* 請求書PDF管理（Phase 3: 請求書統合フロー） */}
             {job?.field19 && (() => {
@@ -4393,53 +4908,21 @@ function EstimatePageContent() {
             })()}
 
             {/* アクションボタン */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex gap-2 flex-1">
-                <Button
-                  variant="outline"
-                  className="flex-1 h-12 text-base"
-                  onClick={handlePreview}
-                  disabled={isSubmitting}
-                >
-                  <Eye className="h-5 w-5 mr-2 shrink-0" />
-                  プレビュー
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-12 text-base"
-                  onClick={async () => {
-                    if (estimateItems.length === 0) {
-                      toast.error("見積項目を追加してください", {
-                        description: "少なくとも1つの見積項目を追加してください",
-                      });
-                      return;
-                    }
-                    try {
-                      await downloadEstimatePdf({
-                        customerName,
-                        vehicleName,
-                        licensePlate,
-                        items: estimateItems,
-                        isTaxIncluded,
-                        estimateDate: new Date(),
-                      });
-                      toast.success("見積書PDFをダウンロードしました");
-                    } catch (error) {
-                      console.error("PDF生成エラー:", error);
-                      toast.error("PDF生成に失敗しました", {
-                        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
-                      });
-                    }
-                  }}
-                  disabled={isSubmitting || estimateItems.length === 0}
-                  aria-label="見積書PDFをダウンロード"
-                >
-                  <FileText className="h-5 w-5 mr-2 shrink-0" strokeWidth={2.5} />
-                  PDF生成
-                </Button>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* プレビューボタン */}
               <Button
-                className="flex-1 h-12 text-base bg-green-600 hover:bg-green-700"
+                variant="outline"
+                className="flex-1 h-12 text-base font-medium"
+                onClick={handlePreview}
+                disabled={isSubmitting}
+              >
+                <Eye className="h-5 w-5 mr-2 shrink-0" />
+                プレビュー
+              </Button>
+              
+              {/* 顧客に送信ボタン */}
+              <Button
+                className="flex-1 h-12 text-base font-medium bg-slate-900 text-white hover:bg-slate-800"
                 onClick={handleSendLine}
                 disabled={isSubmitting}
               >
@@ -4450,8 +4933,8 @@ function EstimatePageContent() {
                   </>
                 ) : (
                   <>
-                    <MessageCircle className="h-4 w-4 mr-2 shrink-0" />
-                    LINEで送信
+                    <MessageCircle className="h-5 w-5 mr-2 shrink-0" />
+                    顧客に送信
                   </>
                 )}
               </Button>
@@ -4726,7 +5209,7 @@ function EstimatePageContent() {
       <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-slate-900">{photoDialogTitle}</DialogTitle>
+            <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-white">{photoDialogTitle}</DialogTitle>
           </DialogHeader>
           <div className="relative w-full aspect-video rounded-md overflow-hidden bg-slate-900">
             {photoDialogUrl && (
@@ -4744,20 +5227,20 @@ function EstimatePageContent() {
       </Dialog>
 
       {/* スティッキーフッター（セクション別合計 + 全体合計） */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-lg z-40">
+        <div className={cn("mx-auto px-4 py-4", isInspection ? "max-w-4xl" : "max-w-7xl")}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* 必須整備合計 */}
             <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
-              <span className="text-base text-slate-700">必須整備</span>
-              <span className="text-xl font-bold text-red-600 tabular-nums">
+              <span className="text-base text-slate-700 dark:text-white">必須整備</span>
+              <span className="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">
                 ¥{formatPrice(isTaxIncluded ? calculateTax(requiredTotal).total : requiredTotal)}
               </span>
             </div>
 
             {/* 推奨整備合計 */}
             <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
-              <span className="text-base text-slate-700">推奨整備</span>
+              <span className="text-base text-slate-700 dark:text-white">推奨整備</span>
               <span className="text-xl font-bold text-primary tabular-nums">
                 ¥{formatPrice(isTaxIncluded ? calculateTax(recommendedTotal).total : recommendedTotal)}
               </span>
@@ -4765,16 +5248,16 @@ function EstimatePageContent() {
 
             {/* 任意整備合計 */}
             <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
-              <span className="text-base text-slate-700">任意整備</span>
-              <span className="text-xl font-bold text-slate-700 tabular-nums">
+              <span className="text-base text-slate-700 dark:text-white">任意整備</span>
+              <span className="text-xl font-bold text-slate-700 dark:text-white tabular-nums">
                 ¥{formatPrice(isTaxIncluded ? calculateTax(optionalTotal).total : optionalTotal)}
               </span>
             </div>
 
             {/* 全体合計 */}
-            <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200 md:border-0">
-              <span className="text-base font-medium text-slate-900">合計{isTaxIncluded ? "（税込）" : "（税抜）"}</span>
-              <span className="text-2xl font-bold text-slate-900 tabular-nums">
+            <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200 dark:border-slate-700 md:border-0">
+              <span className="text-base font-medium text-slate-900 dark:text-white">合計{isTaxIncluded ? "（税込）" : "（税抜）"}</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
                 ¥{formatPrice(grandTotal)}
               </span>
             </div>
@@ -4791,6 +5274,8 @@ function EstimatePageContent() {
         photos={photos}
         videos={videos}
         onSave={handleSaveFromPreview}
+        legalFees={isInspection ? legalFees : undefined}
+        isTaxIncluded={isTaxIncluded}
       />
     </div>
   );
@@ -4799,7 +5284,7 @@ function EstimatePageContent() {
 export default function EstimatePage() {
   return (
     <Suspense fallback={
-      <div className="flex-1 bg-slate-50 flex items-center justify-center overflow-auto">
+      <div className="flex-1 bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-auto">
         <div className="text-center">
           <div className="h-8 w-8 border-4 border-slate-300 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
           <p className="text-slate-700">読み込み中...</p>

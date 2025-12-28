@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,15 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import { EstimatePriority, EstimateItem } from "@/types";
+import { EstimatePriority, EstimateItem, ApiResponse, WorkOrder } from "@/types";
 import { toast } from "sonner";
 import { fetchJobById, approveEstimate, rejectEstimate } from "@/lib/api";
-import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
+import { updateWorkOrder } from "@/hooks/use-work-orders";
+import { getCustomerIdFromMagicLink } from "@/lib/line-api";
 import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppHeader } from "@/components/layout/app-header";
+import { LegalFees, convertLegalFeesToItems } from "@/lib/legal-fees";
 import {
   Car,
   Check,
@@ -36,6 +38,7 @@ import {
   Play,
   X,
 } from "lucide-react";
+import { getBackHref } from "@/lib/navigation-history";
 
 // =============================================================================
 // Types
@@ -294,7 +297,18 @@ function ThankYouScreen({ customerName }: { customerName: string }) {
 export default function CustomerApprovalPage() {
   // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
   const params = useParams();
+  const searchParams = useSearchParams();
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
+  
+  // URLパラメータからworkOrderIdを取得（追加見積の場合）
+  const workOrderId = useMemo(() => {
+    return searchParams?.get("workOrderId") || null;
+  }, [searchParams]);
+
+  // URLパラメータからtokenを取得（マジックリンク認証用）
+  const token = useMemo(() => {
+    return searchParams?.get("token") || null;
+  }, [searchParams]);
 
   // Jobデータを取得
   const { data: jobResult, isLoading: isJobLoading } = useSWR(
@@ -307,12 +321,95 @@ export default function CustomerApprovalPage() {
 
   const job = jobResult?.data;
 
-  // ワークオーダーを取得（最初のワークオーダーから見積データを取得）
-  const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
-  const selectedWorkOrder = workOrders && workOrders.length > 0 ? workOrders[0] : null;
+  // マジックリンクトークンの検証（tokenが指定されている場合）
+  const [isTokenValidating, setIsTokenValidating] = useState(false);
+  const [tokenValidationError, setTokenValidationError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (token && jobId) {
+      setIsTokenValidating(true);
+      getCustomerIdFromMagicLink(token)
+        .then((customerId) => {
+          if (!customerId) {
+            setTokenValidationError("マジックリンクの有効期限が切れているか、無効なリンクです");
+          } else {
+            // トークンが有効な場合、エラーをクリア
+            setTokenValidationError(null);
+          }
+        })
+        .catch((error) => {
+          console.error("[Approval] マジックリンクトークン検証エラー:", error);
+          setTokenValidationError("マジックリンクの検証に失敗しました");
+        })
+        .finally(() => {
+          setIsTokenValidating(false);
+        });
+    }
+  }, [token, jobId]);
+
+  // ワークオーダーを取得（顧客承認ページでは常に最新データを取得）
+  const { data: workOrdersResponse, error: workOrdersError, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useSWR<ApiResponse<WorkOrder[]>>(
+    jobId ? `/api/jobs/${jobId}/work-orders` : null,
+    async (url: string) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch work orders: ${response.statusText}`);
+      }
+      return response.json();
+    },
+    {
+      revalidateOnMount: true, // 常に最新データを取得
+      revalidateOnFocus: true, // フォーカス時も再検証
+      dedupingInterval: 0, // キャッシュを無効化
+    }
+  );
+  
+  const workOrdersList = workOrdersResponse?.success ? workOrdersResponse.data : [];
+  
+  // デバッグ: ワークオーダー取得エラーをログ出力
+  useEffect(() => {
+    if (workOrdersError) {
+      console.error("[Approval] ワークオーダー取得エラー:", workOrdersError);
+    }
+    if (workOrdersList && workOrdersList.length === 0 && !isLoadingWorkOrders) {
+      console.warn("[Approval] ワークオーダーが0件です。jobId:", jobId);
+    }
+  }, [workOrdersError, workOrdersList, isLoadingWorkOrders, jobId]);
+  
+  // workOrderIdが指定されている場合はそのワークオーダーを選択、そうでない場合は最初のワークオーダーを選択
+  const selectedWorkOrder = useMemo(() => {
+    if (!workOrdersList || workOrdersList.length === 0) return null;
+    if (workOrderId) {
+      return workOrdersList.find((wo) => wo.id === workOrderId) || workOrdersList[0];
+    }
+    return workOrdersList[0];
+  }, [workOrdersList, workOrderId]);
 
   // 見積データを取得
-  const estimateData = selectedWorkOrder?.estimate;
+  // workOrderIdが指定されている場合はそのワークオーダーから、そうでない場合は見積がある最初のワークオーダーから取得
+  const estimateData = useMemo(() => {
+    if (!workOrdersList || workOrdersList.length === 0) return null;
+    
+    // workOrderIdが指定されている場合はそのワークオーダーから取得
+    if (workOrderId) {
+      const wo = workOrdersList.find((wo) => wo.id === workOrderId);
+      if (wo?.estimate && wo.estimate.items && wo.estimate.items.length > 0) {
+        return wo.estimate;
+      }
+    }
+    
+    // 見積がある最初のワークオーダーから取得
+    const woWithEstimate = workOrdersList.find((wo) => wo.estimate && wo.estimate.items && wo.estimate.items.length > 0);
+    if (woWithEstimate?.estimate) {
+      return woWithEstimate.estimate;
+    }
+    
+    // 見積データが見つからない場合は、最初のワークオーダーの見積データを返す（後方互換性のため）
+    return workOrdersList[0]?.estimate || null;
+  }, [workOrdersList, workOrderId]);
+  
+  // 法定費用を取得（車検の場合）
+  const legalFees: LegalFees | null = estimateData?.legalFees || null;
 
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || "お客様";
@@ -320,8 +417,15 @@ export default function CustomerApprovalPage() {
   const vehicleName = job?.field6?.name || "車両";
   const licensePlate = job?.field6?.name ? job.field6.name.split(" / ")[1] || "" : "";
 
-  // 顧客ダッシュボードへのリンク
+  // 顧客ダッシュボードへのリンク（フォールバック用）
   const dashboardHref = customerId ? `/customer/dashboard?customerId=${customerId}` : "/";
+  
+  // 戻る先のURL（ナビゲーション履歴を優先、なければダッシュボード）
+  const backHref = useMemo(() => {
+    const historyBackHref = getBackHref(jobId);
+    // 履歴がない、またはトップページに戻る場合は、ダッシュボードに戻る
+    return historyBackHref === "/" ? dashboardHref : historyBackHref;
+  }, [jobId, dashboardHref]);
 
   // 状態管理
   const [items, setItems] = useState<EstimateLineItem[]>([]);
@@ -371,9 +475,11 @@ export default function CustomerApprovalPage() {
     }
   }, [estimateData, isJobLoading, isLoadingWorkOrders]);
 
-  // 合計金額を計算
+  // 合計金額を計算（法定費用を含む）
   const calculateTotal = () => {
-    return items.filter((item) => item.selected).reduce((sum, item) => sum + item.price, 0);
+    const itemsTotal = items.filter((item) => item.selected).reduce((sum, item) => sum + item.price, 0);
+    const legalFeesTotal = legalFees?.total || 0;
+    return itemsTotal + legalFeesTotal;
   };
 
   // 表示用合計のアニメーション
@@ -558,6 +664,32 @@ export default function CustomerApprovalPage() {
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7日後
   const isExpired = isEstimateExpired(expiresAt);
 
+  // マジックリンクトークン検証中
+  if (isTokenValidating) {
+    return (
+      <div className="flex-1 bg-slate-50 pb-32 flex items-center justify-center overflow-auto">
+        <div className="max-w-5xl mx-auto px-4 py-8 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-600 mx-auto mb-4" />
+          <p className="text-base text-slate-700">認証を確認しています...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // マジックリンクトークン検証エラー
+  if (tokenValidationError) {
+    return (
+      <div className="flex-1 bg-slate-50 pb-32 flex items-center justify-center overflow-auto">
+        <Card className="max-w-5xl mx-4">
+          <CardContent className="py-8 text-center">
+            <p className="text-slate-700 mb-4">{tokenValidationError}</p>
+            <p className="text-base text-slate-700">メールに記載されたリンクを再度ご確認ください。</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // ローディング中
   if (isJobLoading || isLoadingWorkOrders) {
     return (
@@ -577,12 +709,52 @@ export default function CustomerApprovalPage() {
 
   // エラーまたは見積データがない場合
   if (!job || !estimateData || !estimateData.items || estimateData.items.length === 0) {
+    // workOrderIdが指定されているが、ワークオーダーが見つからない場合
+    if (workOrderId && (!workOrdersList || workOrdersList.length === 0 || !selectedWorkOrder)) {
+      return (
+        <div className="flex-1 bg-slate-50 pb-32 flex items-center justify-center overflow-auto">
+          <Card className="max-w-5xl mx-4">
+            <CardContent className="py-8 text-center">
+              <p className="text-slate-700 mb-4">指定された作業が見つかりませんでした</p>
+              <p className="text-base text-slate-700">作業ID: {workOrderId}</p>
+              <p className="text-base text-slate-700 mt-2">見積が作成されていないか、既に承認済みの可能性があります。</p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    
+    // デバッグ情報を表示
+    const debugInfo = {
+      hasWorkOrders: workOrdersList && workOrdersList.length > 0,
+      workOrdersCount: workOrdersList?.length || 0,
+      workOrderId: workOrderId || "なし",
+      selectedWorkOrderId: selectedWorkOrder?.id || "なし",
+      hasEstimate: selectedWorkOrder?.estimate ? "あり" : "なし",
+      estimateItemsCount: selectedWorkOrder?.estimate?.items?.length || 0,
+      allWorkOrdersEstimate: workOrdersList?.map((wo) => ({
+        id: wo.id,
+        hasEstimate: wo.estimate ? "あり" : "なし",
+        itemsCount: wo.estimate?.items?.length || 0,
+      })) || [],
+    };
+    
     return (
       <div className="flex-1 bg-slate-50 pb-32 flex items-center justify-center overflow-auto">
         <Card className="max-w-5xl mx-4">
           <CardContent className="py-8 text-center">
             <p className="text-slate-700 mb-4">見積データが見つかりませんでした</p>
             <p className="text-base text-slate-700">見積が作成されていないか、既に承認済みの可能性があります。</p>
+            {workOrderId && (
+              <p className="text-base text-slate-600 mt-2">作業ID: {workOrderId}</p>
+            )}
+            {/* デバッグ情報（開発環境のみ） */}
+            {process.env.NODE_ENV === "development" && (
+              <div className="mt-4 p-4 bg-slate-100 rounded-lg text-left text-sm">
+                <p className="font-semibold mb-2">デバッグ情報:</p>
+                <pre className="text-xs overflow-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -598,7 +770,7 @@ export default function CustomerApprovalPage() {
     <div className="flex-1 bg-slate-50 pb-32 overflow-auto">
       <AppHeader
         maxWidthClassName="max-w-5xl"
-        backHref={dashboardHref}
+        backHref={backHref}
         rightArea={
           isExpired && (
             <Badge variant="destructive" className="text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
@@ -668,6 +840,101 @@ export default function CustomerApprovalPage() {
           </section>
         )}
 
+        {/* 診断結果セクション */}
+        {selectedWorkOrder?.diagnosis && (
+          <section className="mb-6">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Car className="h-5 w-5 shrink-0" />
+              診断結果
+            </h2>
+            <Card className="border border-slate-300 rounded-xl shadow-md">
+              <CardContent className="p-4 space-y-4">
+                {/* 走行距離 */}
+                {selectedWorkOrder.diagnosis.mileage && (
+                  <div className="pb-3 border-b border-slate-200">
+                    <p className="text-base font-medium text-slate-900">走行距離</p>
+                    <p className="text-lg font-bold text-slate-900 mt-1">
+                      {selectedWorkOrder.diagnosis.mileage.toLocaleString()}km
+                    </p>
+                  </div>
+                )}
+                
+                {/* 診断項目のサマリー */}
+                {selectedWorkOrder.diagnosis.items && selectedWorkOrder.diagnosis.items.length > 0 && (
+                  <div>
+                    <p className="text-base font-medium text-slate-900 mb-3">確認項目</p>
+                    <div className="space-y-2">
+                      {selectedWorkOrder.diagnosis.items.map((item) => {
+                        const statusConfig = {
+                          green: { label: "OK", variant: "default" as const, color: "text-green-700" },
+                          yellow: { label: "注意", variant: "secondary" as const, color: "text-amber-700" },
+                          red: { label: "要交換", variant: "destructive" as const, color: "text-red-700" },
+                        };
+                        const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.green;
+                        
+                        return (
+                          <div key={item.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+                            <Badge variant={config.variant} className="text-base font-medium shrink-0">
+                              {config.label}
+                            </Badge>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-base font-medium text-slate-900">{item.name}</p>
+                              {item.comment && (
+                                <p className="text-base text-slate-700 mt-1">{item.comment}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* 受入点検写真ギャラリー（車検の場合） */}
+        {selectedWorkOrder?.diagnosis?.photos && selectedWorkOrder.diagnosis.photos.length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 shrink-0" />
+              受入点検写真
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {selectedWorkOrder.diagnosis.photos.map((photo, index) => (
+                <button
+                  key={index}
+                  onClick={() => handlePhotoClick(photo.url, photo.position)}
+                  className="relative aspect-square rounded-lg overflow-hidden border border-slate-300 hover:border-blue-500 transition-colors group"
+                  aria-label={`${photo.position}の写真を確認`}
+                >
+                  <Image
+                    src={photo.url}
+                    alt={photo.position}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform"
+                    sizes="(max-width: 640px) 50vw, 33vw"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white px-2 py-1.5 text-base font-medium">
+                    {photo.position === "engine-room" ? "エンジンルーム" :
+                     photo.position === "tire" ? "タイヤ" :
+                     photo.position === "air-filter" ? "エアコンフィルター" :
+                     photo.position === "front" ? "フロント" :
+                     photo.position === "rear" ? "リア" :
+                     photo.position === "side" ? "サイド" :
+                     photo.position === "interior" ? "室内" :
+                     photo.position === "undercarriage" ? "下回り" :
+                     photo.position}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <Separator className="my-6" />
+
         {/* ショッピングリスト（見積項目） */}
         <div className="mb-4">
           <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -675,6 +942,63 @@ export default function CustomerApprovalPage() {
             ご確認いただく項目
           </h2>
         </div>
+
+        {/* 法定費用セクション（車検の場合のみ） */}
+        {legalFees && (
+          <>
+            <section className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Lock className="h-5 w-5 text-slate-700 shrink-0" />
+                <h2 className="text-xl font-bold text-slate-900">法定費用（自動取得・編集不可）</h2>
+              </div>
+              <Card className="bg-slate-50 border-slate-200">
+                <CardContent className="p-4 space-y-3">
+                  <div className="space-y-2">
+                    {convertLegalFeesToItems(legalFees).map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between py-2 border-b border-slate-200 last:border-b-0"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-medium text-slate-800">
+                              {item.name}
+                            </span>
+                            {item.description && (
+                              <span className="text-base text-slate-700">
+                                ({item.description})
+                              </span>
+                            )}
+                            {!item.required && (
+                              <Badge variant="outline" className="text-base">
+                                任意
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-base font-semibold text-slate-900">
+                          ¥{formatPrice(item.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="pt-3 border-t-2 border-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold text-slate-900">
+                        法定費用合計
+                      </span>
+                      <span className="text-lg font-bold text-slate-900">
+                        ¥{formatPrice(legalFees.total)}
+                      </span>
+                    </div>
+                    <p className="text-base text-slate-700 mt-1">※税込</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+            <Separator className="my-6" />
+          </>
+        )}
 
         {/* 必須整備セクション */}
         <section className="mb-6">
@@ -791,7 +1115,7 @@ export default function CustomerApprovalPage() {
           </div>
 
           <p className="text-base text-center text-slate-700 mt-2">
-            ボタンを押すと注文が確定します
+            このボタンを押すと、選択した内容で作業を依頼します
           </p>
           {items.filter((i) => i.selected).length === 0 && (
             <p className="text-base text-center text-red-700 mt-1">

@@ -6,6 +6,7 @@
  */
 
 const NAV_HISTORY_KEY = "repair-shop-nav-history";
+const CURRENT_PATH_KEY = "repair-shop-current-path";
 
 interface NavigationHistory {
   /** 前の画面のパス */
@@ -94,7 +95,27 @@ export function getPageTypeFromPath(pathname: string): NavigationHistory["referr
   if (pathname.startsWith("/mechanic/diagnosis/")) return "diagnosis";
   if (pathname.startsWith("/admin/estimate/")) return "estimate";
   if (pathname.startsWith("/mechanic/work/")) return "work";
+  if (pathname.startsWith("/presentation/")) return "work"; // 整備完了レポートは作業ページから遷移
+  if (pathname.startsWith("/customer/approval/")) return "estimate"; // 顧客承認ページは見積ページから遷移
   return "other";
+}
+
+/**
+ * 現在のパスを保存（次回のページ読み込み時に前のパスとして使用）
+ */
+export function saveCurrentPath(pathname: string, search?: string): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    const currentPath = pathname + (search || "");
+    sessionStorage.setItem(CURRENT_PATH_KEY, currentPath);
+    
+    if (process.env.NODE_ENV === "development") {
+      console.log("[NavigationHistory] Current path saved:", currentPath);
+    }
+  } catch (error) {
+    console.error("[NavigationHistory] Failed to save current path:", error);
+  }
 }
 
 /**
@@ -104,28 +125,13 @@ export function getPageTypeFromPath(pathname: string): NavigationHistory["referr
 export function getBackHref(jobId?: string): string {
   const history = getNavigationHistory();
 
-  // デバッグログ（開発環境のみ）
-  if (process.env.NODE_ENV === "development") {
-    console.log("[NavigationHistory] getBackHref:", {
-      jobId,
-      history,
-      referrer: typeof window !== "undefined" ? document.referrer : null,
-    });
-  }
-
   // 履歴がない場合はトップページに戻る
   if (!history.previousPath || !history.referrerType) {
-    if (process.env.NODE_ENV === "development") {
-      console.log("[NavigationHistory] Returning '/' (no history)");
-    }
     return "/";
   }
 
   // トップページから来た場合はトップページに戻る
   if (history.referrerType === "top") {
-    if (process.env.NODE_ENV === "development") {
-      console.log("[NavigationHistory] Returning '/' (from top)");
-    }
     return "/";
   }
 
@@ -133,19 +139,20 @@ export function getBackHref(jobId?: string): string {
   if (jobId) {
     // 前の画面のjobIdと一致する場合のみ、前の画面に戻る
     if (history.previousJobId === jobId) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("[NavigationHistory] Returning previousPath (jobId matches):", history.previousPath);
-      }
       return history.previousPath;
     }
     
-    // jobIdが一致しない場合は、トップページに戻る（別の案件）
-    if (process.env.NODE_ENV === "development") {
-      console.log("[NavigationHistory] Returning '/' (jobId mismatch)", {
-        currentJobId: jobId,
-        previousJobId: history.previousJobId,
-      });
+    // jobIdが一致しない場合でも、作業フロー内（diagnosis, estimate, work）の場合は前の画面に戻る
+    // （同じ案件の異なる作業タイプやワークオーダーで遷移する場合があるため）
+    if (history.referrerType === "diagnosis" || history.referrerType === "estimate" || history.referrerType === "work") {
+      // 前の画面のパスからjobIdを抽出して比較
+      const previousJobId = extractJobIdFromPath(history.previousPath);
+      if (previousJobId === jobId) {
+        return history.previousPath;
+      }
     }
+    
+    // jobIdが一致しない場合は、トップページに戻る（別の案件）
     return "/";
   }
 
@@ -154,16 +161,10 @@ export function getBackHref(jobId?: string): string {
   if (history.referrerType === "diagnosis" || history.referrerType === "estimate" || history.referrerType === "work") {
     // 作業フロー内の場合は、前の画面が有効かどうかを確認
     // （例: 診断ページから見積ページ、見積ページから作業ページなど）
-    if (process.env.NODE_ENV === "development") {
-      console.log("[NavigationHistory] Returning previousPath (workflow):", history.previousPath);
-    }
     return history.previousPath;
   }
 
   // その他の場合は前の画面に戻る
-  if (process.env.NODE_ENV === "development") {
-    console.log("[NavigationHistory] Returning previousPath:", history.previousPath);
-  }
   return history.previousPath;
 }
 

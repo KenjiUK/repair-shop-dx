@@ -8,6 +8,8 @@
 import { ApiResponse } from "@/types";
 import { InspectionItem } from "./inspection-items";
 import { InspectionRecordData } from "./inspection-pdf-generator";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { loadCustomFont, mmToPt } from "./pdf-utils";
 
 // =============================================================================
 // 型定義
@@ -150,6 +152,19 @@ interface TemplateTextFields {
   mileage: TextFieldPosition;
   /** 点検日 */
   inspectionDate: TextFieldPosition;
+  /** 測定値フィールド（24ヶ月点検リデザイン版） */
+  measurements?: {
+    coConcentration?: TextFieldPosition;
+    hcConcentration?: TextFieldPosition;
+    brakePadFrontLeft?: TextFieldPosition;
+    brakePadFrontRight?: TextFieldPosition;
+    brakePadRearLeft?: TextFieldPosition;
+    brakePadRearRight?: TextFieldPosition;
+    tireDepthFrontLeft?: TextFieldPosition;
+    tireDepthFrontRight?: TextFieldPosition;
+    tireDepthRearLeft?: TextFieldPosition;
+    tireDepthRearRight?: TextFieldPosition;
+  };
 }
 
 /**
@@ -169,10 +184,25 @@ const TEMPLATE_12MONTH_TEXT_FIELDS: TemplateTextFields = {
 
 /**
  * 24ヶ月点検テンプレートのテキストフィールド位置
+ * 
+ * 注意: 実際のPDFテンプレートの座標を確認して調整してください。
  */
 const TEMPLATE_24MONTH_TEXT_FIELDS: TemplateTextFields = {
   ...TEMPLATE_12MONTH_TEXT_FIELDS,
   // 24ヶ月点検で異なる位置がある場合は上書き
+  // 測定値フィールドの位置（PDFテンプレートに合わせて調整が必要）
+  measurements: {
+    coConcentration: { x: 170, y: 170, fontSize: 9 },
+    hcConcentration: { x: 170, y: 175, fontSize: 9 },
+    brakePadFrontLeft: { x: 170, y: 180, fontSize: 9 },
+    brakePadFrontRight: { x: 195, y: 180, fontSize: 9 },
+    brakePadRearLeft: { x: 170, y: 185, fontSize: 9 },
+    brakePadRearRight: { x: 195, y: 185, fontSize: 9 },
+    tireDepthFrontLeft: { x: 170, y: 190, fontSize: 9 },
+    tireDepthFrontRight: { x: 195, y: 190, fontSize: 9 },
+    tireDepthRearLeft: { x: 170, y: 195, fontSize: 9 },
+    tireDepthRearRight: { x: 195, y: 195, fontSize: 9 },
+  },
 };
 
 // =============================================================================
@@ -257,9 +287,6 @@ export async function generateInspectionTemplatePDF(
   templateType: InspectionTemplateType = "12month"
 ): Promise<ApiResponse<Blob>> {
   try {
-    // pdf-libを動的インポート（クライアント側でのみ使用）
-    const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
-
     // テンプレートPDFのパスを決定
     const templatePath = templateType === "12month"
       ? "/12カ月点検テンプレート.pdf"
@@ -278,17 +305,13 @@ export async function generateInspectionTemplatePDF(
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    // 日本語フォントの読み込みを試みる（利用可能な場合）
-    let japaneseFont: any = null;
-    try {
-      // NotoSansJPフォントを読み込む（publicフォルダから）
-      const fontResponse = await fetch("/fonts/NotoSansJP-Regular.ttf");
-      if (fontResponse.ok) {
-        const fontBytes = await fontResponse.arrayBuffer();
-        japaneseFont = await pdfDoc.embedFont(fontBytes);
-      }
-    } catch (error) {
-      console.warn("[PDF] 日本語フォントの読み込みに失敗、Helveticaを使用:", error);
+    // 日本語フォントの読み込み
+    // pdf-utilsのloadCustomFontを使用（fontkitを登録して正しく読み込む）
+    const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
+    let japaneseFont = await loadCustomFont(pdfDoc, regularFontUrl, "NotoSansJP-Regular");
+
+    if (!japaneseFont) {
+      console.warn("[PDF] 日本語フォントの読み込みに失敗、Helveticaを使用");
     }
 
     const pages = pdfDoc.getPages();
@@ -304,35 +327,32 @@ export async function generateInspectionTemplatePDF(
       : TEMPLATE_24MONTH_TEXT_FIELDS;
 
     const fontToUse = japaneseFont || helveticaFont;
-    const fontBoldToUse = japaneseFont || helveticaBoldFont;
+    // const fontBoldToUse = japaneseFont || helveticaBoldFont; 
 
     // =============================================================================
     // テキストフィールドにデータを書き込む
     // =============================================================================
 
-    // mmからptへの変換係数（1mm = 2.83465pt）
-    const mmToPt = 2.83465;
-
     // 依頼者(使用者)
     firstPage.drawText(data.vehicle.ownerName || "", {
-      x: textFields.ownerName.x * mmToPt,
-      y: pageHeight - (textFields.ownerName.y * mmToPt),
+      x: mmToPt(textFields.ownerName.x),
+      y: pageHeight - mmToPt(textFields.ownerName.y),
       size: textFields.ownerName.fontSize || 10,
       font: fontToUse,
     });
 
     // 車名及び型式
     firstPage.drawText(data.vehicle.vehicleName || "", {
-      x: textFields.vehicleName.x * mmToPt,
-      y: pageHeight - (textFields.vehicleName.y * mmToPt),
+      x: mmToPt(textFields.vehicleName.x),
+      y: pageHeight - mmToPt(textFields.vehicleName.y),
       size: textFields.vehicleName.fontSize || 10,
       font: fontToUse,
     });
 
     // 自動車登録番号又は車両番号
     firstPage.drawText(data.vehicle.licensePlate || "", {
-      x: textFields.licensePlate.x * mmToPt,
-      y: pageHeight - (textFields.licensePlate.y * mmToPt),
+      x: mmToPt(textFields.licensePlate.x),
+      y: pageHeight - mmToPt(textFields.licensePlate.y),
       size: textFields.licensePlate.fontSize || 10,
       font: fontToUse,
     });
@@ -340,8 +360,8 @@ export async function generateInspectionTemplatePDF(
     // 原動機の型式（ある場合）
     if (data.vehicle.engineType && textFields.engineType) {
       firstPage.drawText(data.vehicle.engineType, {
-        x: textFields.engineType.x * mmToPt,
-        y: pageHeight - (textFields.engineType.y * mmToPt),
+        x: mmToPt(textFields.engineType.x),
+        y: pageHeight - mmToPt(textFields.engineType.y),
         size: textFields.engineType.fontSize || 10,
         font: fontToUse,
       });
@@ -350,8 +370,8 @@ export async function generateInspectionTemplatePDF(
     // 初度登録年又は初度検査年（ある場合）
     if (data.vehicle.firstRegistrationYear && textFields.firstRegistrationYear) {
       firstPage.drawText(data.vehicle.firstRegistrationYear, {
-        x: textFields.firstRegistrationYear.x * mmToPt,
-        y: pageHeight - (textFields.firstRegistrationYear.y * mmToPt),
+        x: mmToPt(textFields.firstRegistrationYear.x),
+        y: pageHeight - mmToPt(textFields.firstRegistrationYear.y),
         size: textFields.firstRegistrationYear.fontSize || 10,
         font: fontToUse,
       });
@@ -360,8 +380,8 @@ export async function generateInspectionTemplatePDF(
     // 車台番号（ある場合）
     if (data.vehicle.chassisNumber && textFields.chassisNumber) {
       firstPage.drawText(data.vehicle.chassisNumber, {
-        x: textFields.chassisNumber.x * mmToPt,
-        y: pageHeight - (textFields.chassisNumber.y * mmToPt),
+        x: mmToPt(textFields.chassisNumber.x),
+        y: pageHeight - mmToPt(textFields.chassisNumber.y),
         size: textFields.chassisNumber.fontSize || 10,
         font: fontToUse,
       });
@@ -369,16 +389,19 @@ export async function generateInspectionTemplatePDF(
 
     // 整備主任者
     firstPage.drawText(data.mechanicName || "", {
-      x: textFields.mechanicName.x * mmToPt,
-      y: pageHeight - (textFields.mechanicName.y * mmToPt),
+      x: mmToPt(textFields.mechanicName.x),
+      y: pageHeight - mmToPt(textFields.mechanicName.y),
       size: textFields.mechanicName.fontSize || 10,
       font: fontToUse,
     });
 
-    // 点検(整備)時の総走行距離
-    firstPage.drawText(`${data.mileage.toLocaleString()} km`, {
-      x: textFields.mileage.x * mmToPt,
-      y: pageHeight - (textFields.mileage.y * mmToPt),
+    // 点検(整備)時の総走行距離（顧客申告があればその値、無ければ空欄）
+    const mileageText = data.mileage !== null && data.mileage !== undefined
+      ? `${data.mileage.toLocaleString()} km`
+      : "";
+    firstPage.drawText(mileageText, {
+      x: mmToPt(textFields.mileage.x),
+      y: pageHeight - mmToPt(textFields.mileage.y),
       size: textFields.mileage.fontSize || 10,
       font: fontToUse,
     });
@@ -391,11 +414,119 @@ export async function generateInspectionTemplatePDF(
       day: "2-digit",
     });
     firstPage.drawText(dateStr, {
-      x: textFields.inspectionDate.x * mmToPt,
-      y: pageHeight - (textFields.inspectionDate.y * mmToPt),
+      x: mmToPt(textFields.inspectionDate.x),
+      y: pageHeight - mmToPt(textFields.inspectionDate.y),
       size: textFields.inspectionDate.fontSize || 10,
       font: fontToUse,
     });
+
+    // =============================================================================
+    // 測定値を書き込む（24ヶ月点検リデザイン版）
+    // =============================================================================
+    if (data.measurements && textFields.measurements) {
+      const m = data.measurements;
+      const mf = textFields.measurements;
+
+      // CO濃度
+      if (m.coConcentration !== undefined && mf.coConcentration) {
+        firstPage.drawText(`${m.coConcentration}%`, {
+          x: mmToPt(mf.coConcentration.x),
+          y: pageHeight - mmToPt(mf.coConcentration.y),
+          size: mf.coConcentration.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // HC濃度
+      if (m.hcConcentration !== undefined && mf.hcConcentration) {
+        firstPage.drawText(`${m.hcConcentration}ppm`, {
+          x: mmToPt(mf.hcConcentration.x),
+          y: pageHeight - mmToPt(mf.hcConcentration.y),
+          size: mf.hcConcentration.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // ブレーキパッド（前輪左）
+      if (m.brakePadFrontLeft !== undefined && mf.brakePadFrontLeft) {
+        firstPage.drawText(`${m.brakePadFrontLeft}mm`, {
+          x: mmToPt(mf.brakePadFrontLeft.x),
+          y: pageHeight - mmToPt(mf.brakePadFrontLeft.y),
+          size: mf.brakePadFrontLeft.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // ブレーキパッド（前輪右）
+      if (m.brakePadFrontRight !== undefined && mf.brakePadFrontRight) {
+        firstPage.drawText(`${m.brakePadFrontRight}mm`, {
+          x: mmToPt(mf.brakePadFrontRight.x),
+          y: pageHeight - mmToPt(mf.brakePadFrontRight.y),
+          size: mf.brakePadFrontRight.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // ブレーキパッド（後輪左）
+      if (m.brakePadRearLeft !== undefined && mf.brakePadRearLeft) {
+        firstPage.drawText(`${m.brakePadRearLeft}mm`, {
+          x: mmToPt(mf.brakePadRearLeft.x),
+          y: pageHeight - mmToPt(mf.brakePadRearLeft.y),
+          size: mf.brakePadRearLeft.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // ブレーキパッド（後輪右）
+      if (m.brakePadRearRight !== undefined && mf.brakePadRearRight) {
+        firstPage.drawText(`${m.brakePadRearRight}mm`, {
+          x: mmToPt(mf.brakePadRearRight.x),
+          y: pageHeight - mmToPt(mf.brakePadRearRight.y),
+          size: mf.brakePadRearRight.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // タイヤ溝（前輪左）
+      if (m.tireDepthFrontLeft !== undefined && mf.tireDepthFrontLeft) {
+        firstPage.drawText(`${m.tireDepthFrontLeft}mm`, {
+          x: mmToPt(mf.tireDepthFrontLeft.x),
+          y: pageHeight - mmToPt(mf.tireDepthFrontLeft.y),
+          size: mf.tireDepthFrontLeft.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // タイヤ溝（前輪右）
+      if (m.tireDepthFrontRight !== undefined && mf.tireDepthFrontRight) {
+        firstPage.drawText(`${m.tireDepthFrontRight}mm`, {
+          x: mmToPt(mf.tireDepthFrontRight.x),
+          y: pageHeight - mmToPt(mf.tireDepthFrontRight.y),
+          size: mf.tireDepthFrontRight.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // タイヤ溝（後輪左）
+      if (m.tireDepthRearLeft !== undefined && mf.tireDepthRearLeft) {
+        firstPage.drawText(`${m.tireDepthRearLeft}mm`, {
+          x: mmToPt(mf.tireDepthRearLeft.x),
+          y: pageHeight - mmToPt(mf.tireDepthRearLeft.y),
+          size: mf.tireDepthRearLeft.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+
+      // タイヤ溝（後輪右）
+      if (m.tireDepthRearRight !== undefined && mf.tireDepthRearRight) {
+        firstPage.drawText(`${m.tireDepthRearRight}mm`, {
+          x: mmToPt(mf.tireDepthRearRight.x),
+          y: pageHeight - mmToPt(mf.tireDepthRearRight.y),
+          size: mf.tireDepthRearRight.fontSize || 9,
+          font: fontToUse,
+        });
+      }
+    }
 
     // =============================================================================
     // 検査項目にチェックマーク（レテン）を書き込む
@@ -410,13 +541,21 @@ export async function generateInspectionTemplatePDF(
       }
 
       // mm座標をpt座標に変換
-      const xPt = position.x * mmToPt;
-      const yPt = pageHeight - (position.y * mmToPt); // pdf-libは左下が原点
+      const xPt = mmToPt(position.x);
+      const yPt = pageHeight - mmToPt(position.y); // pdf-libは左下が原点
 
       // 状態に応じてチェックマークを描画
-      // OK（green）、調整（adjust）、清掃（clean）の場合はレテンを描画
-      if (item.status === "green" || item.status === "adjust" || item.status === "clean") {
-        const checkSize = (position.size || 3) * mmToPt;
+      // 良好（green/good）、調整（adjust）、清掃（clean）の場合はレテン（✓）を描画
+      // 24ヶ月点検リデザイン版のステータス値にも対応
+      const shouldDrawCheckmark =
+        item.status === "green" ||
+        item.status === "good" ||      // 24ヶ月リデザイン版: 良好
+        item.status === "adjust" ||
+        item.status === "clean" ||
+        item.status === "ok";          // 従来版: OK
+
+      if (shouldDrawCheckmark) {
+        const checkSize = mmToPt(position.size || 3);
         drawCheckmark(
           firstPage,
           xPt,
@@ -426,11 +565,51 @@ export async function generateInspectionTemplatePDF(
         );
       }
 
+      // 交換（exchange/red）の場合は「×」を描画
+      if (item.status === "exchange" || item.status === "red") {
+        firstPage.drawText("×", {
+          x: xPt,
+          y: yPt,
+          size: 10,
+          font: fontToUse,
+        });
+      }
+
+      // 修理（repair）の場合は「△」を描画
+      if (item.status === "repair") {
+        firstPage.drawText("△", {
+          x: xPt,
+          y: yPt,
+          size: 10,
+          font: fontToUse,
+        });
+      }
+
+      // 省略（skip）の場合は「P」を描画
+      if (item.status === "skip") {
+        firstPage.drawText("P", {
+          x: xPt,
+          y: yPt,
+          size: 10,
+          font: fontToUse,
+        });
+      }
+
+      // 該当なし（not_applicable）の場合は「／」を描画
+      if (item.status === "not_applicable") {
+        firstPage.drawText("/", {
+          x: xPt,
+          y: yPt,
+          size: 10,
+          font: fontToUse,
+        });
+      }
+
       // 測定値がある場合は、位置の近くにテキストで表示
       if (item.measurementValue !== undefined && item.measurement) {
         const measurementText = `${item.measurementValue}${item.measurement.unit}`;
         firstPage.drawText(measurementText, {
-          x: xPt + (10 * mmToPt),
+          x: xPt + mmToPt(10),
           y: yPt,
           size: 8,
           font: fontToUse,
@@ -441,11 +620,11 @@ export async function generateInspectionTemplatePDF(
       if (item.comment) {
         // pdf-libではmaxWidthはwidthパラメータとして指定
         firstPage.drawText(item.comment, {
-          x: xPt + (20 * mmToPt),
+          x: xPt + mmToPt(20),
           y: yPt,
           size: 8,
           font: fontToUse,
-          maxWidth: 100 * mmToPt,
+          maxWidth: mmToPt(100),
         });
       }
     }
@@ -456,17 +635,17 @@ export async function generateInspectionTemplatePDF(
     if (data.replacementParts && data.replacementParts.length > 0) {
       // 2ページ目を作成するか、1ページ目の指定位置に書き込む
       // ここでは1ページ目の下部に書き込む例
-      let partsY = pageHeight - (250 * mmToPt); // 下部から250mmの位置
+      let partsY = pageHeight - mmToPt(250); // 下部から250mmの位置
 
       for (const part of data.replacementParts) {
         const partText = `${part.name}: ${part.quantity}${part.unit}`;
         firstPage.drawText(partText, {
-          x: 30 * mmToPt,
+          x: mmToPt(30),
           y: partsY,
           size: 9,
           font: fontToUse,
         });
-        partsY -= (10 * mmToPt); // 次の行へ
+        partsY -= mmToPt(10); // 次の行へ
       }
     }
 
@@ -494,4 +673,3 @@ export async function generateInspectionTemplatePDF(
     };
   }
 }
-

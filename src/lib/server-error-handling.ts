@@ -155,12 +155,10 @@ export function logServerError(
 ): void {
   const errorLog = createErrorLogEntry(error, code, context);
 
-  // 開発環境ではコンソールに出力
-  if (process.env.NODE_ENV === "development") {
-    console.error("[Server Error Log]", JSON.stringify(errorLog, null, 2));
-  }
+  // 全ての環境でコンソールに出力（開発者向けエラーフィードバック）
+  console.error("[Server Error Log]", JSON.stringify(errorLog, null, 2));
 
-  // 本番環境では外部ログサービスに送信
+  // 本番環境では外部ログサービスにも送信することを推奨
   // 例: Sentry.captureException(error, { extra: errorLog });
   // 例: LogRocket.captureException(error, { extra: errorLog });
 }

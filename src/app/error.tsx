@@ -14,8 +14,14 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // エラーログを記録（本番環境では適切なログサービスに送信）
+    // エラーログを記録（全ての環境で開発者向けエラーフィードバックを表示）
     console.error("Application error:", error);
+    if (error.stack) {
+      console.error("Error stack trace:", error.stack);
+    }
+    if (error.digest) {
+      console.error("Error digest:", error.digest);
+    }
   }, [error]);
 
   return (
@@ -43,6 +49,16 @@ export default function Error({
               <p className="text-base text-slate-600 mt-2">
                 エラーID: <span className="font-mono">{error.digest}</span>
               </p>
+            )}
+            {error.stack && (
+              <details className="mt-4">
+                <summary className="text-base text-slate-700 cursor-pointer font-medium">
+                  スタックトレース（開発者向け）
+                </summary>
+                <pre className="text-sm text-slate-600 mt-2 p-3 bg-slate-100 rounded-md font-mono break-words whitespace-pre-wrap overflow-auto max-h-64">
+                  {error.stack}
+                </pre>
+              </details>
             )}
           </div>
 

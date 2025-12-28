@@ -87,7 +87,7 @@ export function AnnouncementBanner({
   return (
     <div
       className={cn(
-        "w-full sticky top-0 z-30",
+        "w-full sticky top-0 z-30 overflow-x-hidden",
         backgroundColor,
         textColor,
         "transition-all duration-300 ease-in-out",
@@ -98,7 +98,7 @@ export function AnnouncementBanner({
       aria-label="お知らせ"
       aria-live="polite"
     >
-      <div className="w-full px-4 py-1.5 sm:py-2">
+      <div className="w-full px-4 py-1.5 sm:py-2 max-w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 relative">
           {/* メッセージ - Phase 2: フォントサイズとコントラストの最適化（40歳以上ユーザー向け） */}
           <p className="text-base sm:text-lg font-semibold text-center flex-1 px-8 sm:px-10 leading-relaxed">

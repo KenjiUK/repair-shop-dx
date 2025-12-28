@@ -23,11 +23,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Eye, CheckCircle2, AlertCircle, ImageIcon, Video } from "lucide-react";
+import { Eye, CheckCircle2, AlertCircle, ImageIcon, Video, Lock } from "lucide-react";
 import { ZohoJob, EstimatePriority } from "@/types";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { DiagnosisPhoto, DiagnosisVideo } from "@/types";
+import { LegalFees, convertLegalFeesToItems } from "@/lib/legal-fees";
+import { calculateTax } from "@/lib/tax-calculation";
 
 // EstimateLineItem型をexportして、見積画面から使用できるようにする
 export type { EstimateLineItem as EstimatePreviewItem };
@@ -52,6 +54,10 @@ interface EstimatePreviewDialogProps {
   photos: DiagnosisPhoto[];
   videos: DiagnosisVideo[];
   onSave?: () => void;
+  /** 法定費用（車検の場合のみ） */
+  legalFees?: LegalFees | null;
+  /** 税込/税抜表示（デフォルト: 税込） */
+  isTaxIncluded?: boolean;
 }
 
 /**
@@ -206,6 +212,8 @@ export function EstimatePreviewDialog({
   photos,
   videos,
   onSave,
+  legalFees,
+  isTaxIncluded = true,
 }: EstimatePreviewDialogProps) {
   /**
    * 保存
@@ -236,10 +244,21 @@ export function EstimatePreviewDialog({
   const recommendedTotal = calculateSectionTotal(recommendedItems);
   const optionalTotal = calculateSectionTotal(optionalItems);
 
-  // 全体の合計
+  // 全体の合計（追加見積項目のみ）
   const grandPartTotal = requiredTotal.partTotal + recommendedTotal.partTotal + optionalTotal.partTotal;
   const grandLaborTotal = requiredTotal.laborTotal + recommendedTotal.laborTotal + optionalTotal.laborTotal;
-  const grandTotal = grandPartTotal + grandLaborTotal;
+  const grandSubtotal = grandPartTotal + grandLaborTotal;
+  
+  // 法定費用を含めた合計（車検の場合）
+  const legalFeesTotal = legalFees?.total || 0;
+  const grandTotalWithLegalFees = grandSubtotal + legalFeesTotal;
+  
+  // 税計算
+  const taxCalculation = calculateTax(grandSubtotal);
+  const grandTotal = isTaxIncluded ? taxCalculation.total : grandSubtotal;
+  const grandTotalWithLegalFeesAndTax = isTaxIncluded 
+    ? calculateTax(grandTotalWithLegalFees).total 
+    : grandTotalWithLegalFees;
 
   // 確認項目のチェック
   const hasEstimateItems = estimateItems.length > 0;
@@ -334,6 +353,60 @@ export function EstimatePreviewDialog({
             </CardContent>
           </Card>
 
+          {/* 法定費用（車検の場合のみ） */}
+          {legalFees && (
+            <Card className="bg-slate-50 border-slate-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Lock className="h-4 w-4 text-slate-700 shrink-0" />
+                  法定費用（自動取得・編集不可）
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  {convertLegalFeesToItems(legalFees).map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between py-2 border-b border-slate-200 last:border-b-0"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-medium text-slate-800">
+                            {item.name}
+                          </span>
+                          {item.description && (
+                            <span className="text-base text-slate-700">
+                              ({item.description})
+                            </span>
+                          )}
+                          {!item.required && (
+                            <Badge variant="outline" className="text-base">
+                              任意
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-base font-semibold text-slate-900">
+                        ¥{formatPrice(item.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-3 border-t-2 border-slate-300">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-bold text-slate-900">
+                      法定費用合計
+                    </span>
+                    <span className="text-lg font-bold text-slate-900">
+                      ¥{formatPrice(legalFees.total)}
+                    </span>
+                  </div>
+                  <p className="text-base text-slate-700 mt-1">※税込</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {hasEstimateItems && (
             <div className="space-y-4">
               <SectionPreview
@@ -379,11 +452,38 @@ export function EstimatePreviewDialog({
                       ¥{formatPrice(grandLaborTotal)}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-base text-slate-700">追加見積小計{isTaxIncluded ? "（税抜）" : ""}:</span>
+                    <span className="text-base font-medium text-slate-900">
+                      ¥{formatPrice(grandSubtotal)}
+                    </span>
+                  </div>
+                  {isTaxIncluded && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-base text-slate-700">消費税（{taxCalculation.taxRate}%）:</span>
+                      <span className="text-base font-medium text-slate-900">
+                        ¥{formatPrice(taxCalculation.tax)}
+                      </span>
+                    </div>
+                  )}
+                  {legalFees && (
+                    <>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-base text-slate-700">法定費用合計:</span>
+                        <span className="text-base font-medium text-slate-900">
+                          ¥{formatPrice(legalFeesTotal)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <Separator className="my-2" />
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-slate-900">総合計:</span>
+                    <span className="text-lg font-semibold text-slate-900">
+                      総合計{isTaxIncluded ? "（税込）" : "（税抜）"}:
+                    </span>
                     <span className="text-2xl font-bold text-slate-900">
-                      ¥{formatPrice(grandTotal)}
+                      ¥{formatPrice(legalFees ? grandTotalWithLegalFeesAndTax : grandTotal)}
                     </span>
                   </div>
                 </div>

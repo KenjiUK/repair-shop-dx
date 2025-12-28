@@ -267,10 +267,8 @@ export function logError(entry: ErrorLogEntry): void {
 
   // クライアント側でのみ実行
   try {
-    // 開発環境ではコンソールに出力
-    if (process.env.NODE_ENV === "development") {
-      console.error("[Error Log]", entry);
-    }
+    // 全ての環境でコンソールに出力（開発者向けエラーフィードバック）
+    console.error("[Error Log]", entry);
 
     // ローカルストレージに保存（最大100件）
     const logs = getStoredErrorLogs();

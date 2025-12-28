@@ -287,17 +287,17 @@ export function CustomerDetailDialog({
 
             {/* 変更申請セクション（変更申請がある場合のみ表示） */}
             {hasChangeRequest && (
-              <Card className="border-amber-300 bg-amber-50/50">
+              <Card className="border-rose-200 bg-rose-50/50">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2 text-amber-900">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2 text-rose-700">
                     <FileText className="h-4 w-4 shrink-0" />
                     変更申請
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Alert className="bg-amber-50 border-amber-300">
-                    <AlertCircle className="h-4 w-4 text-amber-700" />
-                    <AlertDescription className="text-amber-800">
+                  <Alert className="bg-rose-50 border-rose-200">
+                    <AlertCircle className="h-4 w-4 text-rose-700" />
+                    <AlertDescription className="text-rose-700">
                       顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
                     </AlertDescription>
                   </Alert>
@@ -307,9 +307,9 @@ export function CustomerDetailDialog({
                     {getChangeRequests().map((request, index) => (
                       <div
                         key={index}
-                        className="p-3 bg-white border border-amber-300 rounded-md text-base"
+                        className="p-3 bg-white border border-rose-200 rounded-md text-base"
                       >
-                        <p className="text-amber-900 font-mono text-base whitespace-pre-wrap break-words">
+                        <p className="text-rose-700 font-mono text-base whitespace-pre-wrap break-words">
                           {request}
                         </p>
                       </div>

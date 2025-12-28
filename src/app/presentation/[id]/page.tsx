@@ -37,6 +37,8 @@ import { fetchJobById, updateJobField7, checkOut, fetchAllCourtesyCars } from "@
 import { InspectionCheckoutChecklistDialog } from "@/components/features/inspection-checkout-checklist-dialog";
 import { parseInspectionChecklistFromField7, appendInspectionChecklistToField7 } from "@/lib/inspection-checklist-parser";
 import { InspectionChecklist, ServiceKind } from "@/types";
+import { setNavigationHistory, getBackHref, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
+import { useEffect } from "react";
 
 // =============================================================================
 // Types
@@ -141,6 +143,74 @@ export default function PresentationPage() {
   const [activeTab, setActiveTab] = useState("summary");
   const [isInspectionCheckoutChecklistDialogOpen, setIsInspectionCheckoutChecklistDialogOpen] = useState(false);
   const [inspectionChecklist, setInspectionChecklist] = useState<InspectionChecklist | null>(null);
+
+  // ナビゲーション履歴を記録
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const currentPath = window.location.pathname + window.location.search;
+    const currentPathname = window.location.pathname;
+
+    // 前回保存されたパスを取得（sessionStorageから）
+    let previousPath: string | null = null;
+    try {
+      previousPath = sessionStorage.getItem("repair-shop-current-path");
+    } catch (error) {
+      console.error("[Presentation] Failed to get previous path from sessionStorage:", error);
+    }
+
+    // リファラー（遷移元）を取得（フォールバック用）
+    const referrer = document.referrer;
+
+    // 前回保存されたパスがある場合、それを優先して使用
+    if (previousPath && previousPath !== currentPath) {
+      try {
+        const previousUrl = new URL(previousPath, window.location.origin);
+        const previousPathname = previousUrl.pathname;
+        const referrerType = getPageTypeFromPath(previousPathname);
+        
+        // 履歴を記録（前の画面のパスとタイプを記録）
+        setNavigationHistory(previousPath, referrerType);
+        
+        if (process.env.NODE_ENV === "development") {
+          console.log("[Presentation] Navigation history saved from sessionStorage:", { previousPath, referrerType });
+        }
+      } catch (error) {
+        console.error("[Presentation] Failed to parse previous path:", error);
+        // エラーが発生した場合は、document.referrerを使用
+        previousPath = null;
+      }
+    }
+
+    // 前回保存されたパスがない場合、document.referrerを使用（フォールバック）
+    if (!previousPath && referrer) {
+      try {
+        const referrerUrl = new URL(referrer);
+        const currentOrigin = window.location.origin;
+
+        // 同じオリジンのみ記録（外部サイトからの遷移は無視）
+        if (referrerUrl.origin === currentOrigin) {
+          const referrerPath = referrerUrl.pathname + referrerUrl.search;
+          const referrerType = getPageTypeFromPath(referrerUrl.pathname);
+
+          // 現在のページと同じページへの遷移は記録しない（リロードなど）
+          if (referrerPath !== currentPath) {
+            // 履歴を記録（前の画面のパスとタイプを記録）
+            setNavigationHistory(referrerPath, referrerType);
+            
+            if (process.env.NODE_ENV === "development") {
+              console.log("[Presentation] Navigation history saved from referrer:", { referrerPath, referrerType });
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[Presentation] Failed to record navigation history from referrer:", error);
+      }
+    }
+
+    // 現在のパスを保存（次回のページ読み込み時に使用）
+    saveCurrentPath(currentPathname, window.location.search);
+  }, []);
 
   // 顧客情報と車両情報を取得
   const customerName = job?.field4?.name || (isJobLoading ? "読み込み中..." : "未登録");
@@ -382,6 +452,11 @@ export default function PresentationPage() {
     <div className="flex-1 bg-slate-50 overflow-auto">
       <AppHeader 
         maxWidthClassName="max-w-5xl"
+        collapsibleOnMobile={true}
+        backHref={getBackHref(jobId)}
+        collapsedCustomerName={customerName}
+        collapsedVehicleName={vehicleName}
+        collapsedLicensePlate={licensePlate}
         rightArea={
           <Button
             variant="destructive"
@@ -405,7 +480,7 @@ export default function PresentationPage() {
       </AppHeader>
 
       {/* メインコンテンツ */}
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="max-w-5xl mx-auto px-4 py-6" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
         {/* 顧客・車両情報カード */}
         <CustomerInfoCard
           customerName={customerName}

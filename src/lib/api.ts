@@ -885,6 +885,34 @@ export async function saveDiagnosis(
     qualityInspection?: QualityInspection | null; // 品質検査結果
     manufacturerInquiry?: ManufacturerInquiry | null; // メーカー問い合わせ結果
     isComplete?: boolean; // 診断完了フラグ（true: 完了保存、false: 一時保存）
+    // 24ヶ月点検リデザイン版の追加データ
+    inspectionMeasurements?: {
+      coConcentration?: number;
+      hcConcentration?: number;
+      brakePadFrontLeft?: number;
+      brakePadFrontRight?: number;
+      brakePadRearLeft?: number;
+      brakePadRearRight?: number;
+      tireDepthFrontLeft?: number;
+      tireDepthFrontRight?: number;
+      tireDepthRearLeft?: number;
+      tireDepthRearRight?: number;
+    };
+    inspectionParts?: {
+      engineOil?: number;
+      oilFilter?: number;
+      wiperRubber?: number;
+      cleanAirFilter?: number;
+      llc?: number;
+      brakeFluid?: number;
+    };
+    customParts?: Array<{ name: string; quantity: string }>;
+    qualityCheckData?: unknown; // 品質管理・最終検査データ
+    maintenanceAdvice?: string; // 整備アドバイス
+    obdPdfResult?: unknown; // OBD診断PDF結果
+    additionalEstimateRequired?: unknown; // 追加見積（必須整備）
+    additionalEstimateRecommended?: unknown; // 追加見積（推奨整備）
+    additionalEstimateOptional?: unknown; // 追加見積（任意整備）
   }
 ): Promise<ApiResponse<{ saved: boolean; version?: number }>> {
   await delay();
@@ -932,6 +960,13 @@ export async function saveDiagnosis(
         enhancedOBDDiagnosticResult: data.enhancedOBDDiagnosticResult || undefined,
         qualityInspection: data.qualityInspection || undefined,
         manufacturerInquiry: data.manufacturerInquiry || undefined,
+        // 24ヶ月点検リデザイン版の追加データ
+        inspectionMeasurements: data.inspectionMeasurements || undefined,
+        inspectionParts: data.inspectionParts || undefined,
+        customParts: data.customParts || undefined,
+        qualityCheckData: data.qualityCheckData || undefined,
+        maintenanceAdvice: data.maintenanceAdvice || undefined,
+        obdPdfResult: data.obdPdfResult || undefined,
       },
       ...(data.isComplete === true ? { status: "見積作成待ち" as const } : {}),
     });
@@ -1750,6 +1785,89 @@ export async function fetchAnalyticsData(
     "データポイント"
   );
   return success(analyticsData);
+}
+
+/**
+ * 売上分析データを取得
+ */
+export async function fetchRevenueAnalyticsData(
+  dateRange: "week" | "month" | "quarter" | "year",
+  startDate: Date,
+  endDate: Date
+): Promise<ApiResponse<import("@/lib/analytics-utils").RevenueAnalyticsData>> {
+  await delay();
+
+  const params = new URLSearchParams({
+    dateRange,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+
+  const response = await fetch(`/api/analytics/revenue?${params.toString()}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    return error(
+      "FETCH_ERROR",
+      errorData.error?.message || "売上分析データの取得に失敗しました"
+    );
+  }
+
+  const result = await response.json();
+  return result;
+}
+
+/**
+ * 顧客分析データを取得
+ */
+export async function fetchCustomerAnalyticsData(
+  startDate: Date,
+  endDate: Date
+): Promise<ApiResponse<import("@/lib/analytics-utils").CustomerAnalyticsData>> {
+  await delay();
+
+  const params = new URLSearchParams({
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+
+  const response = await fetch(`/api/analytics/customer?${params.toString()}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    return error(
+      "FETCH_ERROR",
+      errorData.error?.message || "顧客分析データの取得に失敗しました"
+    );
+  }
+
+  const result = await response.json();
+  return result;
+}
+
+/**
+ * 業務効率分析データを取得
+ */
+export async function fetchEfficiencyAnalyticsData(
+  startDate: Date,
+  endDate: Date
+): Promise<ApiResponse<import("@/lib/analytics-utils").EfficiencyAnalyticsData>> {
+  await delay();
+
+  const params = new URLSearchParams({
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+
+  const response = await fetch(`/api/analytics/efficiency?${params.toString()}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    return error(
+      "FETCH_ERROR",
+      errorData.error?.message || "業務効率分析データの取得に失敗しました"
+    );
+  }
+
+  const result = await response.json();
+  return result;
 }
 
 // =============================================================================

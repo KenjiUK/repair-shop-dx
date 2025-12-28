@@ -119,14 +119,17 @@ export function PhotoManager({
     setDragOverIndex(null);
   };
 
-  if (photos.length === 0) {
+  // 有効な写真のみをフィルタリング（previewUrlが存在するもの）
+  const validPhotos = photos.filter((photo) => photo.previewUrl && photo.previewUrl.trim() !== "");
+
+  if (validPhotos.length === 0) {
     return null;
   }
 
   return (
     <>
       <div className={cn("grid grid-cols-3 gap-2", className)}>
-        {photos.map((photo, index) => (
+        {validPhotos.map((photo, index) => (
           <div
             key={photo.id}
             draggable={!disabled}
@@ -134,7 +137,7 @@ export function PhotoManager({
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
             className={cn(
-              "relative group cursor-move",
+              "relative group cursor-move aspect-square rounded overflow-hidden bg-slate-200",
               draggedIndex === index && "opacity-50",
               dragOverIndex === index && "ring-2 ring-blue-500",
               disabled && "cursor-not-allowed"
@@ -144,10 +147,11 @@ export function PhotoManager({
               src={photo.previewUrl}
               alt={`写真 ${index + 1}`}
               fill
-              className="object-cover rounded"
+              className="object-cover"
               sizes="(max-width: 768px) 33vw, 200px"
               loading="lazy"
               quality={75}
+              unoptimized
             />
             <div className="absolute top-1 left-1 bg-black/50 text-white text-base px-1 rounded">
               {index + 1}

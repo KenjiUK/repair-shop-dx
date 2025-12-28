@@ -2,196 +2,144 @@
  * 作業指示書PDF生成機能
  *
  * メカニック向けの統合された作業指示書をPDF形式で生成
- * 
- * 含まれる情報:
- * - 基本情報（顧客名、車両、入庫日時、サービス種別、担当整備士、走行距離、タグ、代車）
- * - 顧客からの申し送り事項
- * - 受付メモ（受付スタッフからの指示）
- * - 承認済み作業内容（作業待ち以降）
  */
 
 import { ApiResponse, WorkOrderPDFData, ServiceKind } from "@/types";
-import { NOTO_SANS_JP_REGULAR, isJapaneseFontAvailable } from "@/lib/japanese-font-data";
 import { fetchHistoricalJobsByCustomerId } from "@/lib/api";
+import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from "pdf-lib";
+import { loadCustomFont, drawText as drawTextHelper, splitTextToSize, drawLine, drawRect, mmToPt } from "./pdf-utils";
 
 // =============================================================================
 // PDF生成
 // =============================================================================
 
 /**
- * 作業指示書PDFを生成
- *
- * @param data 作業指示書データ
- * @returns PDF Blob
+ * テキストボックスを描画するヘルパー関数
+ * 背景を先に描画し、その後にテキストを描画する
  */
-/**
- * 日本語フォントを読み込んでjsPDFに追加
- * 
- * フォントファイルは public/fonts/ に配置されていることを前提とします。
- */
-async function loadJapaneseFont(doc: any): Promise<boolean> {
-  try {
-    // フォントファイルをpublicフォルダから読み込む
-    const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
-    const boldFontUrl = "/fonts/NotoSansJP-Bold.ttf";
-    
-    console.log("[PDF] 日本語フォントの読み込みを開始:", regularFontUrl);
-    
-    // フォントファイルをフェッチしてBase64エンコード
-    const [regularResponse, boldResponse] = await Promise.all([
-      fetch(regularFontUrl).catch((err) => {
-        console.error("[PDF] Regularフォントのフェッチエラー:", err);
-        return null;
-      }),
-      fetch(boldFontUrl).catch((err) => {
-        console.error("[PDF] Boldフォントのフェッチエラー:", err);
-        return null;
-      }),
-    ]);
-    
-    if (!regularResponse || !regularResponse.ok) {
-      console.warn("[PDF] 日本語フォントファイルが見つかりません:", regularFontUrl, regularResponse?.status);
-      return false;
-    }
-    
-    console.log("[PDF] フォントファイルのフェッチ成功。Base64エンコード中...");
-    const regularBlob = await regularResponse.blob();
-    const regularBase64 = await blobToBase64(regularBlob);
-    
-    console.log("[PDF] Base64エンコード完了。フォントサイズ:", regularBase64.length, "文字");
-    
-    // Regularフォントを追加
-    try {
-      doc.addFileToVFS("NotoSansJP-Regular.ttf", regularBase64);
-      doc.addFont("NotoSansJP-Regular.ttf", "NotoSansJP", "normal");
-      console.log("[PDF] Regularフォントの追加に成功");
-    } catch (fontError) {
-      console.error("[PDF] Regularフォントの追加に失敗:", fontError);
-      return false;
-    }
-    
-    // Boldフォントも追加（利用可能な場合）
-    if (boldResponse && boldResponse.ok) {
-      try {
-        const boldBlob = await boldResponse.blob();
-        const boldBase64 = await blobToBase64(boldBlob);
-        doc.addFileToVFS("NotoSansJP-Bold.ttf", boldBase64);
-        doc.addFont("NotoSansJP-Bold.ttf", "NotoSansJP", "bold");
-        console.log("[PDF] Boldフォントの追加に成功");
-      } catch (boldError) {
-        console.warn("[PDF] Boldフォントの追加に失敗（Regularフォントのみ使用）:", boldError);
-        // Boldフォントの追加に失敗しても、Regularフォントは使用可能なので続行
-      }
-    } else {
-      console.warn("[PDF] Boldフォントファイルが見つかりません。Regularフォントのみ使用します。");
-    }
-    
-    console.log("[PDF] 日本語フォントの読み込み完了");
-    return true;
-  } catch (error) {
-    console.error("[PDF] 日本語フォントの読み込みに失敗:", error);
-    return false;
+function drawTextBox(
+  page: PDFPage,
+  text: string,
+  startY: number,
+  options: {
+    margin: { left: number; right: number };
+    fontSize: number;
+    lineHeight: number;
+    padding: number;
+    fillColor: [number, number, number]; // 0-1 range for pdf-lib rgb
+    borderColor: [number, number, number]; // 0-1 range for pdf-lib rgb
+    font: PDFFont;
   }
+): number {
+  const { margin, fontSize, lineHeight, padding, fillColor, borderColor, font } = options;
+  const maxWidthPt = mmToPt(210 - margin.left - margin.right - padding * 2);
+
+  // テキストを複数行に分割
+  const lines = splitTextToSize(text, font, fontSize, maxWidthPt);
+
+  // ボックスの高さを計算
+  const boxHeight = lines.length * lineHeight + padding * 2;
+
+  // 背景ボックスを先に描画
+  drawRect(page, margin.left, startY, 210 - margin.left - margin.right, boxHeight, {
+    fillColor: rgb(fillColor[0], fillColor[1], fillColor[2]),
+    borderColor: rgb(borderColor[0], borderColor[1], borderColor[2]),
+    borderWidth: 0.5,
+  });
+
+  // テキストを描画
+  let currentY = startY + padding + fontSize * 0.35 * 0.35; // Rough baseline adjustment, pdf-lib handles differently but let's stick to accumulating Y
+  // Actually my drawTextHelper takes "baseline from top" roughly?
+  // Let's just accumulate Y.
+
+  // Re-adjust currentY to be the first line position.
+  currentY = startY + padding;
+
+  for (const line of lines) {
+    drawTextHelper(page, line, margin.left + padding, currentY, font, fontSize, rgb(0, 0, 0));
+    currentY += lineHeight;
+  }
+
+  return startY + boxHeight;
 }
 
 /**
- * BlobをBase64文字列に変換
+ * 作業指示書PDFを生成
  */
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
 export async function generateWorkOrderPDF(
   data: WorkOrderPDFData
 ): Promise<ApiResponse<Blob>> {
   try {
-    // 動的インポート（クライアント側でのみ使用）
-    const { jsPDF } = await import("jspdf");
+    const doc = await PDFDocument.create();
 
-    // PDFドキュメントを作成（A4サイズ）
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-      compress: false, // 日本語フォントの互換性のため圧縮を無効化
-    });
+    const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
+    const boldFontUrl = "/fonts/NotoSansJP-Bold.ttf";
 
-    // 日本語フォントを読み込む（awaitを追加）
-    const fontLoaded = await loadJapaneseFont(doc);
-    
-    // 使用するフォント名を決定
-    const fontName = fontLoaded ? "NotoSansJP" : "helvetica";
-    
-    // フォントが読み込まれなかった場合の警告
-    if (!fontLoaded) {
-      console.warn("[PDF] 日本語フォントが読み込めませんでした。文字化けが発生する可能性があります。");
-    }
+    let regularFont = await loadCustomFont(doc, regularFontUrl, "NotoSansJP-Regular");
+    let boldFont = await loadCustomFont(doc, boldFontUrl, "NotoSansJP-Bold");
 
-    // フォントサイズ設定
+    const fallbackFont = await doc.embedFont(StandardFonts.Helvetica);
+    const fallbackBoldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+
+    if (!regularFont) regularFont = fallbackFont;
+    if (!boldFont) boldFont = regularFont || fallbackBoldFont;
+
     const fontSize = {
-      title: 20,
-      heading: 14,
-      normal: 11,
-      small: 9,
+      title: 22,
+      heading: 16,
+      normal: 12,
+      small: 10,
     };
 
-    // マージン設定
     const margin = {
-      top: 25,
+      top: 20,
       left: 20,
       right: 20,
-      bottom: 25,
+      bottom: 20,
     };
 
+    let page = doc.addPage([595.28, 841.89]);
     let yPosition = margin.top;
 
+    // Helper to add page
+    const checkPageBreak = (heightNeeded: number) => {
+      if (yPosition + heightNeeded > 277) {
+        page = doc.addPage([595.28, 841.89]);
+        yPosition = margin.top;
+      }
+    };
+
     // =============================================================================
-    // タイトル
+    // ヘッダー（タイトル + 生成日時）
     // =============================================================================
-    doc.setFontSize(fontSize.title);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "bold");
-    } else {
-      doc.setFont("helvetica", "bold");
-    }
-    doc.text("作業指示書", 105, yPosition, { align: "center" });
-    yPosition += 15;
+    drawTextHelper(page, "作業指示書", 105, yPosition, boldFont, fontSize.title, rgb(0, 0, 0), { align: "center" });
+    yPosition += 10;
+
+    const generatedDate = new Date(data.generatedAt);
+    const generatedDateStr = generatedDate.toLocaleString("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Tokyo",
+    });
+
+    drawTextHelper(page, `生成日時: ${generatedDateStr}`, 105, yPosition, regularFont, fontSize.small, rgb(0.4, 0.4, 0.4), { align: "center" });
+    yPosition += 8;
 
     // 区切り線
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(100, 100, 100);
-    doc.line(margin.left, yPosition, 210 - margin.right, yPosition);
-    yPosition += 8;
+    drawLine(page, margin.left, yPosition, 210 - margin.right, yPosition, 0.8, rgb(0.2, 0.2, 0.2));
+    yPosition += 10;
 
     // =============================================================================
-    // 基本情報
+    // 基本情報（テーブル形式）
     // =============================================================================
-    doc.setFontSize(fontSize.heading);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "bold");
-    } else {
-      doc.setFont("helvetica", "bold");
-    }
-    doc.text("【基本情報】", margin.left, yPosition);
+    drawTextHelper(page, "基本情報", margin.left, yPosition, boldFont, fontSize.heading);
     yPosition += 8;
 
-    doc.setFontSize(fontSize.normal);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "normal");
-    } else {
-      doc.setFont("helvetica", "normal");
-    }
-    
-    // 情報をテーブル形式で表示
-    const infoItems = [
+    // 左列の情報
+    const leftColumnItems: Array<{ label: string; value: string }> = [
       { label: "顧客名", value: data.customerName },
       {
         label: "車両",
@@ -210,336 +158,195 @@ export async function generateWorkOrderPDF(
           timeZone: "Asia/Tokyo",
         }),
       },
+    ];
+
+    // 右列の情報
+    const rightColumnItems: Array<{ label: string; value: string }> = [
       { label: "サービス種別", value: data.serviceKind },
     ];
 
     if (data.assignedMechanic) {
-      infoItems.push({ label: "担当整備士", value: data.assignedMechanic });
+      rightColumnItems.push({ label: "担当整備士", value: data.assignedMechanic });
     }
 
-    // 走行距離を追加
     if (data.mileage !== null && data.mileage !== undefined) {
-      infoItems.push({ label: "走行距離", value: `${data.mileage.toLocaleString()} km` });
+      rightColumnItems.push({ label: "走行距離", value: `${data.mileage.toLocaleString()} km` });
     }
 
-    // タグ情報を追加
     if (data.tagId) {
-      infoItems.push({ label: "タグNo.", value: data.tagId });
+      rightColumnItems.push({ label: "タグNo.", value: data.tagId });
     }
 
-    // 代車情報を追加
     if (data.courtesyCar) {
       const courtesyCarText = data.courtesyCar.licensePlate
         ? `${data.courtesyCar.name} / ${data.courtesyCar.licensePlate}（貸出中）`
         : `${data.courtesyCar.name}（貸出中）`;
-      infoItems.push({ label: "代車", value: courtesyCarText });
+      rightColumnItems.push({ label: "代車", value: courtesyCarText });
     }
 
-    infoItems.forEach((item) => {
-      // ページを超える場合は新しいページを作成
-      if (yPosition > 270) {
-        doc.addPage();
-        yPosition = margin.top;
-      }
+    // ボックスの高さを計算
+    const maxRows = Math.max(leftColumnItems.length, rightColumnItems.length);
+    const rowHeight = 8;
+    const infoBoxPadding = 6;
+    const infoBoxHeight = maxRows * rowHeight + infoBoxPadding * 2;
 
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "bold");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
-      doc.text(`${item.label}:`, margin.left, yPosition);
-      
-      const labelText = `${item.label}:`;
-      const labelWidth = doc.getTextWidth(labelText);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
-      
-      // 値が長い場合は複数行に分割
-      const maxValueWidth = 210 - margin.left - margin.right - labelWidth - 5;
-      const valueLines = doc.splitTextToSize(item.value || "", maxValueWidth);
-      
-      if (valueLines.length > 1) {
-        doc.text(valueLines[0], margin.left + labelWidth + 3, yPosition);
-        yPosition += 5;
-        for (let i = 1; i < valueLines.length; i++) {
-          if (yPosition > 270) {
-            doc.addPage();
-            yPosition = margin.top;
-          }
-          doc.text(valueLines[i], margin.left + labelWidth + 3, yPosition);
-          yPosition += 5;
-        }
-      } else {
-        doc.text(item.value || "", margin.left + labelWidth + 3, yPosition);
-        yPosition += 7;
-      }
+    // 背景ボックスを先に描画
+    // Color 248, 250, 252 -> normalized: 0.97, 0.98, 0.99
+    // Color 203, 213, 225 -> normalized: 0.80, 0.84, 0.88
+    drawRect(page, margin.left, yPosition, 210 - margin.left - margin.right, infoBoxHeight, {
+      fillColor: rgb(248 / 255, 250 / 255, 252 / 255),
+      borderColor: rgb(203 / 255, 213 / 255, 225 / 255),
+      borderWidth: 0.5
     });
 
-    yPosition += 5;
+    // テキストを描画
+    const leftColumnX = margin.left + infoBoxPadding;
+    const rightColumnX = margin.left + 100;
+
+    // 左列を表示
+    let currentY = yPosition + infoBoxPadding + 2; // +2 reasonable offset
+    leftColumnItems.forEach((item) => {
+      const labelText = `${item.label}:`;
+      drawTextHelper(page, labelText, leftColumnX, currentY, boldFont, fontSize.normal);
+
+      const labelWidth = boldFont.widthOfTextAtSize(labelText, fontSize.normal);
+      // Convert width to mm? normalize. pdf-lib width is in points. 
+      // My drawTextHelper expects x in mm.
+      // 1 pt = 1/2.83465 mm. widthInMm = width / 2.83465.
+      const labelWidthMm = labelWidth / 2.83465;
+
+      drawTextHelper(page, item.value || "", leftColumnX + labelWidthMm + 3, currentY, regularFont, fontSize.normal);
+      currentY += rowHeight;
+    });
+
+    // 右列を表示
+    currentY = yPosition + infoBoxPadding + 2;
+    rightColumnItems.forEach((item) => {
+      const labelText = `${item.label}:`;
+      drawTextHelper(page, labelText, rightColumnX, currentY, boldFont, fontSize.normal);
+
+      const labelWidth = boldFont.widthOfTextAtSize(labelText, fontSize.normal);
+      const labelWidthMm = labelWidth / 2.83465;
+
+      // 値が長い場合は複数行に分割
+      const maxValueWidthPt = mmToPt(210 - margin.right - rightColumnX - labelWidthMm - 8);
+      const valueLines = splitTextToSize(item.value || "", regularFont, fontSize.normal, maxValueWidthPt);
+
+      valueLines.forEach((line: string, lineIndex: number) => {
+        drawTextHelper(page, line, rightColumnX + labelWidthMm + 3, currentY + lineIndex * 5, regularFont, fontSize.normal);
+      });
+      currentY += rowHeight;
+    });
+
+    yPosition += infoBoxHeight + 10;
 
     // =============================================================================
     // 顧客からの申し送り事項
     // =============================================================================
     if (data.customerNotes) {
-      // ページを超える場合は新しいページを作成
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = margin.top;
-      }
+      checkPageBreak(30);
 
-      doc.setFontSize(fontSize.heading);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "bold");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
-      doc.text("【顧客からの申し送り事項】", margin.left, yPosition);
+      drawTextHelper(page, "顧客からの申し送り事項", margin.left, yPosition, boldFont, fontSize.heading);
       yPosition += 8;
 
-      // 背景色付きボックス
-      const boxHeight = Math.min(40, (data.customerNotes.length / 50) * 5 + 10);
-      doc.setFillColor(255, 248, 220); // 薄い黄色
-      doc.rect(margin.left, yPosition - 2, 210 - margin.left - margin.right, boxHeight, "F");
-      
-      doc.setFontSize(fontSize.normal);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
-      
-      // テキストを複数行に分割（幅に合わせて）
-      const maxWidth = 210 - margin.left - margin.right - 4; // パディング分を引く
-      const lines = doc.splitTextToSize(data.customerNotes, maxWidth);
-      
-      lines.forEach((line: string) => {
-        // ページを超える場合は新しいページを作成
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = margin.top;
-          // 新しいページにも背景色を追加
-          doc.setFillColor(255, 248, 220);
-          doc.rect(margin.left, yPosition - 2, 210 - margin.left - margin.right, boxHeight, "F");
-        }
-        doc.text(line, margin.left + 2, yPosition);
-        yPosition += 6;
+      yPosition = drawTextBox(doc.getPage(doc.getPageCount() - 1), data.customerNotes, yPosition, {
+        margin,
+        fontSize: fontSize.normal,
+        lineHeight: 7,
+        padding: 5,
+        fillColor: [255 / 255, 251 / 255, 235 / 255],
+        borderColor: [251 / 255, 191 / 255, 36 / 255],
+        font: regularFont,
       });
 
-      yPosition += 8;
+      yPosition += 10;
     }
 
     // =============================================================================
     // 受付メモ（受付スタッフからの指示）
     // =============================================================================
     if (data.workOrder) {
-      // ページを超える場合は新しいページを作成
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = margin.top;
-      }
+      checkPageBreak(30);
 
-      doc.setFontSize(fontSize.heading);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "bold");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
-      doc.text("【受付メモ】", margin.left, yPosition);
+      drawTextHelper(page, "受付メモ", margin.left, yPosition, boldFont, fontSize.heading);
       yPosition += 8;
 
-      // 背景色付きボックス（オレンジ系）
-      const boxHeight = Math.min(40, (data.workOrder.length / 50) * 5 + 10);
-      doc.setFillColor(255, 247, 237); // 薄いオレンジ
-      doc.rect(margin.left, yPosition - 2, 210 - margin.left - margin.right, boxHeight, "F");
-      
-      doc.setFontSize(fontSize.normal);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
-      
-      // テキストを複数行に分割（幅に合わせて）
-      const maxWidth = 210 - margin.left - margin.right - 4; // パディング分を引く
-      const lines = doc.splitTextToSize(data.workOrder, maxWidth);
-      
-      lines.forEach((line: string, index: number) => {
-        // ページを超える場合は新しいページを作成
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = margin.top;
-          // 新しいページにも背景色を追加
-          doc.setFillColor(255, 247, 237); // 薄いオレンジ
-          doc.rect(margin.left, yPosition - 2, 210 - margin.left - margin.right, boxHeight, "F");
-        }
-        doc.text(line, margin.left + 2, yPosition);
-        yPosition += 6;
+      yPosition = drawTextBox(doc.getPage(doc.getPageCount() - 1), data.workOrder, yPosition, {
+        margin,
+        fontSize: fontSize.normal,
+        lineHeight: 7,
+        padding: 5,
+        fillColor: [255 / 255, 247 / 255, 237 / 255],
+        borderColor: [251 / 255, 146 / 255, 60 / 255],
+        font: regularFont,
       });
 
-      yPosition += 8;
+      yPosition += 10;
     }
 
     // =============================================================================
     // 承認済み作業内容（作業待ち以降のみ表示）
     // =============================================================================
     if (data.approvedWorkItems) {
-      // ページを超える場合は新しいページを作成
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = margin.top;
-      }
+      checkPageBreak(30);
 
-      doc.setFontSize(fontSize.heading);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "bold");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
-      doc.text("【承認済み作業内容】", margin.left, yPosition);
+      drawTextHelper(page, "承認済み作業内容", margin.left, yPosition, boldFont, fontSize.heading);
       yPosition += 8;
 
-      // 背景色付きボックス（青系）
-      const boxHeight = Math.min(40, (data.approvedWorkItems.length / 50) * 5 + 10);
-      doc.setFillColor(239, 246, 255); // 薄い青
-      doc.rect(margin.left, yPosition - 2, 210 - margin.left - margin.right, boxHeight, "F");
-      
-      doc.setFontSize(fontSize.normal);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
-      
-      // テキストを複数行に分割（幅に合わせて）
-      const maxWidth = 210 - margin.left - margin.right - 4; // パディング分を引く
-      const lines = doc.splitTextToSize(data.approvedWorkItems, maxWidth);
-      
-      lines.forEach((line: string) => {
-        // ページを超える場合は新しいページを作成
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = margin.top;
-          // 新しいページにも背景色を追加
-          doc.setFillColor(239, 246, 255); // 薄い青
-          doc.rect(margin.left, yPosition - 2, 210 - margin.left - margin.right, boxHeight, "F");
-        }
-        doc.text(line, margin.left + 2, yPosition);
-        yPosition += 6;
+      yPosition = drawTextBox(doc.getPage(doc.getPageCount() - 1), data.approvedWorkItems, yPosition, {
+        margin,
+        fontSize: fontSize.normal,
+        lineHeight: 7,
+        padding: 5,
+        fillColor: [239 / 255, 246 / 255, 255 / 255],
+        borderColor: [96 / 255, 165 / 255, 250 / 255],
+        font: regularFont,
       });
 
-      yPosition += 8;
+      yPosition += 10;
     }
 
     // =============================================================================
     // 過去の作業履歴（関連情報）
     // =============================================================================
     if (data.historicalJobs && data.historicalJobs.length > 0) {
-      // ページを超える場合は新しいページを作成
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = margin.top;
-      }
+      checkPageBreak(30);
 
-      doc.setFontSize(fontSize.heading);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "bold");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
-      doc.text("【過去の作業履歴】", margin.left, yPosition);
+      drawTextHelper(page, "過去の作業履歴", margin.left, yPosition, boldFont, fontSize.heading);
       yPosition += 8;
 
-      doc.setFontSize(fontSize.normal);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
+      // 履歴テキストを生成
+      const historyText = data.historicalJobs
+        .map((item, index) => `${index + 1}. ${item.date} - ${item.serviceKind}: ${item.summary}`)
+        .join("\n");
 
-      // 過去の作業履歴をリスト形式で表示
-      data.historicalJobs.forEach((historyItem, index) => {
-        // ページを超える場合は新しいページを作成
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = margin.top;
-        }
-
-        // 項目のテキストを生成
-        const historyText = `・${historyItem.date}: ${historyItem.serviceKind} - ${historyItem.summary}`;
-        
-        // テキストを複数行に分割（幅に合わせて）
-        const maxWidth = 210 - margin.left - margin.right - 4;
-        const lines = doc.splitTextToSize(historyText, maxWidth);
-        
-        lines.forEach((line: string) => {
-          // ページを超える場合は新しいページを作成
-          if (yPosition > 270) {
-            doc.addPage();
-            yPosition = margin.top;
-          }
-          doc.text(line, margin.left + 2, yPosition);
-          yPosition += 6;
-        });
+      yPosition = drawTextBox(doc.getPage(doc.getPageCount() - 1), historyText, yPosition, {
+        margin,
+        fontSize: fontSize.normal,
+        lineHeight: 7,
+        padding: 5,
+        fillColor: [248 / 255, 250 / 255, 252 / 255],
+        borderColor: [203 / 255, 213 / 255, 225 / 255],
+        font: regularFont,
       });
 
-      yPosition += 8;
+      yPosition += 10;
     }
 
     // =============================================================================
-    // フッター（生成日時・ページ番号）
+    // フッター（ページ番号）
     // =============================================================================
-    const generatedDate = new Date(data.generatedAt);
-    const generatedDateStr = generatedDate.toLocaleString("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Asia/Tokyo",
-    });
+    const pageCount = doc.getPageCount();
+    for (let i = 0; i < pageCount; i++) {
+      const p = doc.getPage(i);
 
-    // 各ページの下部に生成日時とページ番号を表示
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      
-      // フッター区切り線
-      doc.setLineWidth(0.3);
-      doc.setDrawColor(200, 200, 200);
-      doc.line(margin.left, 280, 210 - margin.right, 280);
-      
-      doc.setFontSize(fontSize.small);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
-      doc.setTextColor(128, 128, 128);
-      
-      // 生成日時（左）
-      doc.text(
-        `生成日時: ${generatedDateStr}`,
-        margin.left,
-        287
-      );
-      
-      // ページ番号（右）
-      doc.text(
-        `${i} / ${pageCount}`,
-        210 - margin.right,
-        287,
-        { align: "right" }
-      );
-      
-      // テキストカラーをリセット
-      doc.setTextColor(0, 0, 0);
+      drawLine(p, margin.left, 280, 210 - margin.right, 280, 0.3, rgb(200 / 255, 200 / 255, 200 / 255));
+
+      drawTextHelper(p, `${i + 1} / ${pageCount}`, 105, 287, regularFont, fontSize.small, rgb(100 / 255, 100 / 255, 100 / 255), { align: "center" });
     }
 
-    // PDFをBlobに変換
-    const pdfBlob = doc.output("blob");
+    const pdfBytes = await doc.save();
+    const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
 
     return { success: true, data: pdfBlob };
   } catch (error) {
@@ -556,9 +363,6 @@ export async function generateWorkOrderPDF(
 
 /**
  * ジョブ情報から作業指示書PDFデータを生成
- *
- * @param job ジョブ情報
- * @returns 作業指示書PDFデータ
  */
 export async function createWorkOrderPDFDataFromJob(job: {
   id: string;
@@ -567,13 +371,13 @@ export async function createWorkOrderPDFDataFromJob(job: {
   field22: string | null;
   field?: string | null;
   field7?: string | null;
-  field10?: number | null; // 走行距離
-  field13?: string | null; // 承認済み作業内容
+  field10?: number | null;
+  field13?: string | null;
   serviceKind?: ServiceKind | null;
   field_service_kinds?: ServiceKind[] | null;
   assignedMechanic?: string | null;
-  tagId?: string | null; // スマートタグID
-  courtesyCar?: { // 代車情報
+  tagId?: string | null;
+  courtesyCar?: {
     name: string;
     licensePlate?: string;
   } | null;
@@ -582,75 +386,58 @@ export async function createWorkOrderPDFDataFromJob(job: {
     return null;
   }
 
-  // 車両情報から車名とナンバープレートを抽出
   const vehicleInfo = job.field6.name || "";
   const vehicleParts = vehicleInfo.split(" / ");
   const vehicleName = vehicleParts[0] || vehicleInfo;
   const licensePlate = vehicleParts[1] || "";
 
-  // サービス種別を取得
   const serviceKind = job.field_service_kinds?.[0] || job.serviceKind || ("一般整備" as ServiceKind);
 
-  // 顧客からの申し送り事項を抽出（field7から一時帰宅情報などを除く）
   let customerNotes = job.field7 || null;
   if (customerNotes) {
-    // 一時帰宅情報セクションを削除
     customerNotes = customerNotes.replace(/【一時帰宅情報】\s*\n[\s\S]*?(?=\n\n|$)/g, "").trim();
-    // 車検チェックリスト情報セクションを削除
     customerNotes = customerNotes.replace(/【車検チェックリスト】\s*\n[\s\S]*?(?=\n\n|$)/g, "").trim();
-    // エラーランプ情報セクションを削除
     customerNotes = customerNotes.replace(/【エラーランプ情報】\s*\n[\s\S]*?(?=\n\n|$)/g, "").trim();
-    // 空になった場合はnullに
     if (!customerNotes || customerNotes.length === 0) {
       customerNotes = null;
     }
   }
 
-  // 過去の作業履歴を取得
   let historicalJobs: WorkOrderPDFData["historicalJobs"] = null;
   if (job.field4.id) {
     try {
       const historicalJobsResult = await fetchHistoricalJobsByCustomerId(job.field4.id, {
-        statusFilter: "completed", // 完了した案件のみ
+        statusFilter: "completed",
       });
-      
+
       if (historicalJobsResult.success && historicalJobsResult.data) {
-        // 現在のジョブを除外（自分自身は履歴に含めない）
         const filteredJobs = historicalJobsResult.data.filter((hJob) => hJob.id !== job.id);
-        
-        // 最新5件に制限
         const limitedJobs = filteredJobs.slice(0, 5);
-        
-        // WorkOrderPDFDataの形式に変換
+
         historicalJobs = limitedJobs.map((hJob) => {
-          // サービス種別を取得（HistoricalJobには含まれていないため、ステータスから推測）
           const serviceKindText = hJob.status === "出庫済み" ? "整備完了" : hJob.status;
-          
-          // 日付をフォーマット
           const date = hJob.arrivalDateTime || hJob.createdAt;
           const dateStr = date
             ? new Date(date).toLocaleDateString("ja-JP", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-              })
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            })
             : "";
-          
+
           return {
             date: dateStr,
             serviceKind: serviceKindText,
             summary: `${hJob.vehicleName} - ${serviceKindText}`,
           };
         });
-        
-        // 空配列の場合はnullに
+
         if (historicalJobs.length === 0) {
           historicalJobs = null;
         }
       }
     } catch (error) {
       console.error("[PDF] 過去の作業履歴の取得に失敗:", error);
-      // エラーが発生してもPDF生成は続行（過去の作業履歴なしで生成）
       historicalJobs = null;
     }
   }
@@ -663,7 +450,7 @@ export async function createWorkOrderPDFDataFromJob(job: {
       licensePlate: licensePlate,
     },
     entryDate: job.field22 || new Date().toISOString(),
-    workOrder: job.field || null, // 受付メモ（旧: 作業指示）
+    workOrder: job.field || null,
     serviceKind: serviceKind,
     assignedMechanic: job.assignedMechanic || null,
     customerNotes: customerNotes,
@@ -675,10 +462,3 @@ export async function createWorkOrderPDFDataFromJob(job: {
     historicalJobs: historicalJobs,
   };
 }
-
-
-
-
-
-
-

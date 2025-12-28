@@ -49,9 +49,6 @@ export default function RootLayout({
             position="top-right"
             toastOptions={{
               duration: 4000,
-              style: {
-                zIndex: 50,
-              },
             }}
             closeButton
             expand={true}

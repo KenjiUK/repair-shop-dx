@@ -109,3 +109,10 @@ vercel env ls
    - 旧API Key方式で使用
    - Service Account認証を使用する場合は不要ですが、一部のコードでまだ使用されています
 
+
+
+
+
+
+
+

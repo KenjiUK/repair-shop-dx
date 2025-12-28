@@ -255,6 +255,7 @@ export default function JobHistoryPage() {
         <AppHeader
           isTopPage={true}
           hideBrandOnScroll={false}
+          maxWidthClassName="max-w-5xl"
         />
         <main className="max-w-5xl mx-auto px-4 py-6">
           <Skeleton className="h-[600px] w-full" />
@@ -283,6 +284,7 @@ export default function JobHistoryPage() {
       <AppHeader
         isTopPage={true}
         hideBrandOnScroll={false}
+        maxWidthClassName="max-w-5xl"
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchJobs={jobs}

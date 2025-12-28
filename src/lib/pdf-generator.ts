@@ -1,12 +1,12 @@
 /**
  * 見積書PDF生成エンジン
- * jsPDFを使用して見積書PDFを生成
- * 
- * パフォーマンス最適化: jsPDFは動的インポートで読み込む（コード分割）
+ * pdf-libを使用して見積書PDFを生成
  */
 
 import { EstimateLineItem, EstimatePriority } from "@/types";
 import { calculateTax } from "./tax-calculation";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { loadCustomFont, drawText as drawTextHelper, splitTextToSize, drawLine } from "./pdf-utils";
 
 /**
  * 見積書PDF生成オプション
@@ -32,11 +32,8 @@ export interface EstimatePdfOptions {
 
 /**
  * 見積書PDFを生成
- * パフォーマンス最適化: jsPDFを動的インポートで読み込む
  */
-export async function generateEstimatePdf(options: EstimatePdfOptions): Promise<import("jspdf").jsPDF> {
-  // 動的インポート（コード分割）
-  const { jsPDF } = await import("jspdf");
+export async function generateEstimatePdf(options: EstimatePdfOptions): Promise<PDFDocument> {
   const {
     customerName,
     vehicleName,
@@ -48,54 +45,64 @@ export async function generateEstimatePdf(options: EstimatePdfOptions): Promise<
     note,
   } = options;
 
-  // PDFドキュメントを作成（A4サイズ）
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
+  // PDFドキュメントを作成
+  const doc = await PDFDocument.create();
 
-  // ページ設定
-  const pageWidth = 210;
-  const pageHeight = 297;
+  // フォント読み込み
+  const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
+  const boldFontUrl = "/fonts/NotoSansJP-Bold.ttf";
+
+  let regularFont = await loadCustomFont(doc, regularFontUrl, "NotoSansJP-Regular");
+  let boldFont = await loadCustomFont(doc, boldFontUrl, "NotoSansJP-Bold");
+
+  // フォールバックフォント
+  const fallbackFont = await doc.embedFont(StandardFonts.Helvetica);
+  const fallbackBoldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  if (!regularFont) regularFont = fallbackFont;
+  if (!boldFont) boldFont = regularFont || fallbackBoldFont;
+
+  // ページ設定 (A4)
+  let page = doc.addPage([595.28, 841.89]);
+
+  const pageWidth = 210; // mm
+  // const pageHeight = 297; // mm
   const margin = 20;
   const contentWidth = pageWidth - margin * 2;
   let currentY = margin;
 
+  // Helper to check page break
+  const checkPageBreak = (heightNeeded: number) => {
+    if (currentY + heightNeeded > 277) {
+      page = doc.addPage([595.28, 841.89]);
+      currentY = margin;
+    }
+  };
+
   // ヘッダー（タイトル）
-  doc.setFontSize(20);
-  doc.setFont("helvetica", "bold");
-  doc.text("見積書", pageWidth / 2, currentY, { align: "center" });
+  drawTextHelper(page, "見積書", pageWidth / 2, currentY, boldFont, 20, rgb(0, 0, 0), { align: "center" });
   currentY += 15;
 
   // 見積日
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
   const dateStr = formatDate(estimateDate);
-  doc.text(`見積日: ${dateStr}`, pageWidth - margin, currentY, { align: "right" });
+  drawTextHelper(page, `見積日: ${dateStr}`, pageWidth - margin, currentY, regularFont, 10, rgb(0, 0, 0), { align: "right" });
   currentY += 8;
 
   // 顧客情報セクション
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("お客様情報", margin, currentY);
+  drawTextHelper(page, "お客様情報", margin, currentY, boldFont, 12);
   currentY += 8;
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(`お客様名: ${customerName}`, margin, currentY);
+  drawTextHelper(page, `お客様名: ${customerName}`, margin, currentY, regularFont, 10);
   currentY += 7;
-  
-  const vehicleInfo = licensePlate 
+
+  const vehicleInfo = licensePlate
     ? `${vehicleName} / ${licensePlate}`
     : vehicleName;
-  doc.text(`車両: ${vehicleInfo}`, margin, currentY);
+  drawTextHelper(page, `車両: ${vehicleInfo}`, margin, currentY, regularFont, 10);
   currentY += 10;
 
   // 見積明細セクション
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("見積明細", margin, currentY);
+  drawTextHelper(page, "見積明細", margin, currentY, boldFont, 12);
   currentY += 10;
 
   // 見積項目を優先度でグループ化
@@ -119,89 +126,64 @@ export async function generateEstimatePdf(options: EstimatePdfOptions): Promise<
 
     // セクションタイトル
     if (Object.keys(itemsByPriority).length > 1) {
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.text(priorityLabels[priority as EstimatePriority], margin, currentY);
+      checkPageBreak(15);
+      drawTextHelper(page, priorityLabels[priority as EstimatePriority], margin, currentY, boldFont, 10);
       currentY += 7;
     }
 
     // テーブルヘッダー
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
+    checkPageBreak(10);
     const headerY = currentY;
-    doc.text("作業内容", margin, headerY);
-    doc.text("数量", margin + 70, headerY, { align: "right" });
-    doc.text("単価", margin + 90, headerY, { align: "right" });
-    doc.text("部品代", margin + 110, headerY, { align: "right" });
-    doc.text("技術量", margin + 130, headerY, { align: "right" });
-    doc.text("合計", margin + 150, headerY, { align: "right" });
+    drawTextHelper(page, "作業内容", margin, headerY, boldFont, 9);
+    drawTextHelper(page, "数量", margin + 70, headerY, boldFont, 9, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, "単価", margin + 90, headerY, boldFont, 9, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, "部品代", margin + 110, headerY, boldFont, 9, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, "技術量", margin + 130, headerY, boldFont, 9, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, "合計", margin + 150, headerY, boldFont, 9, rgb(0, 0, 0), { align: "right" });
     currentY += 6;
 
     // 区切り線
-    doc.line(margin, currentY, pageWidth - margin, currentY);
+    drawLine(page, margin, currentY, pageWidth - margin, currentY);
     currentY += 4;
 
     // 明細行
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    
     for (const item of priorityItems) {
-      // ページ分割チェック
-      if (currentY > pageHeight - 50) {
-        doc.addPage();
-        currentY = margin;
-      }
-
       const partTotal = (item.partQuantity || 0) * (item.partUnitPrice || 0);
       const laborTotal = item.laborCost || 0;
       const itemTotal = partTotal + laborTotal;
       totalSubtotal += itemTotal;
 
       // 作業内容（複数行対応）
-      const lines = doc.splitTextToSize(item.name || "", 65);
-      doc.text(lines, margin, currentY);
-      
+      // splitTextToSize roughly calculates characters width. 
+      // 65mm is roughly 184 pt.
+      const maxWidthPt = 184;
+      const lines = splitTextToSize(item.name || "", regularFont, 9, maxWidthPt);
       const itemHeight = Math.max(lines.length * 5, 7);
-      
+
+      checkPageBreak(itemHeight + 3);
+
+      let lineY = currentY;
+      for (const line of lines) {
+        drawTextHelper(page, line, margin, lineY, regularFont, 9);
+        lineY += 5;
+      }
+
+      const rowCenterY = currentY + (itemHeight > 7 ? itemHeight / 2 : 0) - (lines.length > 1 ? 2 : 0); // rough centering fix
+
       // 数量
-      doc.text(
-        (item.partQuantity || 0).toString(),
-        margin + 70,
-        currentY + (itemHeight > 7 ? itemHeight / 2 : 0),
-        { align: "right" }
-      );
-      
+      drawTextHelper(page, (item.partQuantity || 0).toString(), margin + 70, rowCenterY, regularFont, 9, rgb(0, 0, 0), { align: "right" });
+
       // 単価
-      doc.text(
-        formatPrice(item.partUnitPrice || 0),
-        margin + 90,
-        currentY + (itemHeight > 7 ? itemHeight / 2 : 0),
-        { align: "right" }
-      );
-      
+      drawTextHelper(page, formatPrice(item.partUnitPrice || 0), margin + 90, rowCenterY, regularFont, 9, rgb(0, 0, 0), { align: "right" });
+
       // 部品代
-      doc.text(
-        formatPrice(partTotal),
-        margin + 110,
-        currentY + (itemHeight > 7 ? itemHeight / 2 : 0),
-        { align: "right" }
-      );
-      
+      drawTextHelper(page, formatPrice(partTotal), margin + 110, rowCenterY, regularFont, 9, rgb(0, 0, 0), { align: "right" });
+
       // 技術量
-      doc.text(
-        formatPrice(laborTotal),
-        margin + 130,
-        currentY + (itemHeight > 7 ? itemHeight / 2 : 0),
-        { align: "right" }
-      );
-      
+      drawTextHelper(page, formatPrice(laborTotal), margin + 130, rowCenterY, regularFont, 9, rgb(0, 0, 0), { align: "right" });
+
       // 合計
-      doc.text(
-        formatPrice(itemTotal),
-        margin + 150,
-        currentY + (itemHeight > 7 ? itemHeight / 2 : 0),
-        { align: "right" }
-      );
+      drawTextHelper(page, formatPrice(itemTotal), margin + 150, rowCenterY, regularFont, 9, rgb(0, 0, 0), { align: "right" });
 
       currentY += itemHeight + 3;
     }
@@ -211,87 +193,89 @@ export async function generateEstimatePdf(options: EstimatePdfOptions): Promise<
 
   // 合計セクション
   currentY += 5;
-  
+
   // 区切り線
-  doc.line(margin, currentY, pageWidth - margin, currentY);
+  drawLine(page, margin, currentY, pageWidth - margin, currentY);
   currentY += 8;
 
   // 小計（税抜）
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("小計（税抜）:", margin + 100, currentY, { align: "right" });
-  doc.setFont("helvetica", "bold");
-  doc.text(formatPrice(totalSubtotal), margin + 150, currentY, { align: "right" });
+  checkPageBreak(30);
+  drawTextHelper(page, "小計（税抜）:", margin + 100, currentY, regularFont, 10, rgb(0, 0, 0), { align: "right" });
+  drawTextHelper(page, formatPrice(totalSubtotal), margin + 150, currentY, boldFont, 10, rgb(0, 0, 0), { align: "right" });
   currentY += 7;
 
   if (isTaxIncluded) {
     // 消費税
     const taxCalculation = calculateTax(totalSubtotal);
-    doc.setFont("helvetica", "normal");
-    doc.text(`消費税（${taxCalculation.taxRate}%）:`, margin + 100, currentY, { align: "right" });
-    doc.setFont("helvetica", "bold");
-    doc.text(formatPrice(taxCalculation.tax), margin + 150, currentY, { align: "right" });
+    drawTextHelper(page, `消費税（${taxCalculation.taxRate}%）:`, margin + 100, currentY, regularFont, 10, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, formatPrice(taxCalculation.tax), margin + 150, currentY, boldFont, 10, rgb(0, 0, 0), { align: "right" });
     currentY += 7;
 
     // 合計（税込）
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("合計（税込）:", margin + 100, currentY, { align: "right" });
-    doc.text(formatPrice(taxCalculation.total), margin + 150, currentY, { align: "right" });
+    drawTextHelper(page, "合計（税込）:", margin + 100, currentY, boldFont, 12, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, formatPrice(taxCalculation.total), margin + 150, currentY, boldFont, 12, rgb(0, 0, 0), { align: "right" });
   } else {
     // 合計（税抜）
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("合計（税抜）:", margin + 100, currentY, { align: "right" });
-    doc.text(formatPrice(totalSubtotal), margin + 150, currentY, { align: "right" });
+    drawTextHelper(page, "合計（税抜）:", margin + 100, currentY, boldFont, 12, rgb(0, 0, 0), { align: "right" });
+    drawTextHelper(page, formatPrice(totalSubtotal), margin + 150, currentY, boldFont, 12, rgb(0, 0, 0), { align: "right" });
   }
 
   currentY += 15;
 
   // 有効期限
   if (validUntil) {
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`有効期限: ${formatDate(validUntil)}`, margin, currentY);
+    checkPageBreak(10);
+    drawTextHelper(page, `有効期限: ${formatDate(validUntil)}`, margin, currentY, regularFont, 9);
     currentY += 10;
   }
 
   // 備考
   if (note) {
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    const noteLines = doc.splitTextToSize(`備考: ${note}`, contentWidth);
-    doc.text(noteLines, margin, currentY);
-    currentY += noteLines.length * 5 + 5;
+    const maxWidthPt = mmToPt(contentWidth);
+    const noteLines = splitTextToSize(`備考: ${note}`, regularFont, 9, maxWidthPt);
+    checkPageBreak(noteLines.length * 5 + 5);
+
+    for (const line of noteLines) {
+      drawTextHelper(page, line, margin, currentY, regularFont, 9);
+      currentY += 5;
+    }
   }
 
   // フッター（会社情報など）
-  currentY = pageHeight - 20;
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(128, 128, 128);
-  doc.text("この見積書はシステムにより自動生成されました。", pageWidth / 2, currentY, { align: "center" });
+  // Always on the bottom of the last page, or new page if no space?
+  // Let's simplified: put it at the bottom of current page or 280mm
+  const footerY = 280; // mm
+  drawTextHelper(page, "この見積書はシステムにより自動生成されました。", pageWidth / 2, footerY, regularFont, 8, rgb(0.5, 0.5, 0.5), { align: "center" });
 
   return doc;
 }
 
 /**
  * 見積書PDFをダウンロード
- * パフォーマンス最適化: jsPDFを動的インポートで読み込む
  */
 export async function downloadEstimatePdf(options: EstimatePdfOptions, filename?: string): Promise<void> {
   const doc = await generateEstimatePdf(options);
+  const pdfBytes = await doc.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+
   const defaultFilename = `見積書_${options.customerName}_${formatDate(new Date(), "YYYYMMDD")}.pdf`;
-  doc.save(filename || defaultFilename);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || defaultFilename;
+  link.click();
+
+  URL.revokeObjectURL(url);
 }
 
 /**
  * 見積書PDFのBlob URLを取得（プレビュー用）
- * パフォーマンス最適化: jsPDFを動的インポートで読み込む
  */
 export async function getEstimatePdfBlobUrl(options: EstimatePdfOptions): Promise<string> {
   const doc = await generateEstimatePdf(options);
-  const blob = doc.output("blob");
+  const pdfBytes = await doc.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
   return URL.createObjectURL(blob);
 }
 
@@ -315,5 +299,3 @@ function formatDate(date: Date, format: string = "YYYY年MM月DD日"): string {
     .replace("MM", month)
     .replace("DD", day);
 }
-
-

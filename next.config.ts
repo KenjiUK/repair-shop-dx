@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.googleapis.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
     // 外部画像の最適化を無効化（動的URLが多い場合）
     unoptimized: false,

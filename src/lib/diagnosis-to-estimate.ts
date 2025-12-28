@@ -12,8 +12,9 @@ import { InspectionItem } from "./inspection-items";
 import { TireInspectionItem } from "./tire-inspection-items";
 import { MaintenanceInspectionItemState } from "@/components/features/maintenance-inspection-view";
 import { TuningPartsInspectionItem } from "@/components/features/tuning-parts-inspection-view";
-import { BodyConditionCheck, BodyConditionStatus } from "@/components/features/coating-inspection-view";
+import { BodyConditionCheck } from "@/components/features/coating-inspection-view";
 import { EstimateItem, EstimatePriority } from "@/types";
+import { InspectionItemRedesign, InspectionStatus } from "@/types/inspection-redesign";
 
 // =============================================================================
 // 診断結果から見積項目への変換
@@ -324,9 +325,76 @@ export function addCoatingDiagnosisItemsToEstimate(
   return [...existingItems, ...itemsToAdd];
 }
 
+// =============================================================================
+// 24ヶ月点検リデザイン版の診断結果から見積項目への変換
+// =============================================================================
 
+/**
+ * 24ヶ月点検リデザイン版の診断結果から見積項目を生成
+ * 
+ * 「交換」「修理」「調整」と判定された項目を自動的に見積項目に追加
+ *
+ * @param inspectionItems 24ヶ月点検リデザイン版の検査項目リスト
+ * @returns 見積項目リスト
+ */
+export function convertInspectionRedesignToEstimateItems(
+  inspectionItems: InspectionItemRedesign[]
+): EstimateItem[] {
+  const estimateItems: EstimateItem[] = [];
 
+  // 「交換」「修理」「調整」と判定された項目を抽出
+  const flaggedStatuses: InspectionStatus[] = ["exchange", "repair", "adjust"];
+  const flaggedItems = inspectionItems.filter(
+    (item) => flaggedStatuses.includes(item.status)
+  );
 
+  for (const item of flaggedItems) {
+    // 優先度を決定
+    // 交換・修理 = 必須、調整 = 推奨
+    const priority: EstimatePriority =
+      item.status === "exchange" || item.status === "repair"
+        ? "required"
+        : "recommended";
+
+    // 見積項目を作成
+    const estimateItem: EstimateItem = {
+      id: `estimate-${item.id}`,
+      name: item.label,
+      price: 0, // 金額は手動入力（基幹システムから転記）
+      priority,
+      selected: priority === "required", // 必須項目は自動選択
+      linkedPhotoUrls: item.photoUrls || [],
+      linkedVideoUrl: null,
+      note: item.comment || null,
+    };
+
+    estimateItems.push(estimateItem);
+  }
+
+  return estimateItems;
+}
+
+/**
+ * 24ヶ月点検リデザイン版の診断結果から見積項目を追加（既存項目と重複チェック）
+ *
+ * @param existingItems 既存の見積項目リスト
+ * @param inspectionItems 24ヶ月点検リデザイン版の検査項目リスト
+ * @returns 追加された見積項目リスト
+ */
+export function addInspectionRedesignItemsToEstimate(
+  existingItems: EstimateItem[],
+  inspectionItems: InspectionItemRedesign[]
+): EstimateItem[] {
+  const newItems = convertInspectionRedesignToEstimateItems(inspectionItems);
+  const existingNames = new Set(existingItems.map((item) => item.name));
+
+  // 重複を除外して追加
+  const itemsToAdd = newItems.filter(
+    (item) => !existingNames.has(item.name)
+  );
+
+  return [...existingItems, ...itemsToAdd];
+}
 
 
 

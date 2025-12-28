@@ -163,7 +163,7 @@ body[data-navigating="true"]::before {
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.173 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
@@ -198,10 +198,24 @@ body[data-navigating="true"]::before {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* 横スクロールを防ぐ */
+    overflow-x: hidden;
+    /* 縦スクロールはデフォルト（windowのスクロールを使用） */
+    /* overflow-yは設定しない（window.scrollYと競合するため） */
+    /* ヘッダーの高さをCSS変数として管理（初期値、AppHeaderで動的に更新される） */
+    --header-height: 176px;
+    /* スクロールバーの幅を確保してレイアウトシフトを防止 */
+    scrollbar-gutter: stable;
+  }
   body {
     @apply bg-background text-foreground;
     /* 日本語フォントスタック: Geist Sansを優先し、日本語表示時はNoto Sans JP、OS標準フォントにフォールバック */
     font-family: var(--font-geist-sans), "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", "MS PGothic", sans-serif;
+    /* 横スクロールを防ぐ */
+    overflow-x: hidden;
+    /* 縦スクロールはデフォルト（windowのスクロールを使用） */
+    /* overflow-yは設定しない（window.scrollYと競合するため） */
   }
 }
 
@@ -228,8 +242,9 @@ body[data-navigating="true"]::before {
 @layer base {
   /* Sonnerトーストのz-indexをヘッダーより高く設定（ヘッダーはz-[40]） */
   /* DialogのOverlay（z-50）より高く設定して、Dialogが開いている間もトーストが見えるようにする */
+  /* モーダル（Sheet/Dialog）が開いている時でも確実に見えるように、z-indexを120に設定 */
   [data-sonner-toaster] {
-    z-index: 110 !important; /* Z-Index階層管理に準拠：Toast=110（Dialog=50より高く） */
+    z-index: 120 !important; /* Z-Index階層管理に準拠：Toast=120（Dialog=50、Sheet=50より高く） */
     /* ヘッダーの下に配置（ヘッダーの高さを考慮） */
     top: 80px !important;
   }
@@ -261,10 +276,171 @@ body[data-navigating="true"]::before {
   
   /* トーストのアニメーション改善 */
   [data-sonner-toast] {
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 10px 10px -5px rgb(0 0 0 / 0.2) !important;
     border: 1px solid hsl(var(--border)) !important;
-    backdrop-filter: blur(8px);
-    background: hsl(var(--popover)) / 0.95 !important;
+    backdrop-filter: blur(12px);
+    background: hsl(var(--popover)) / 0.98 !important;
+  }
+  
+  /* エラートースト: 左ボーダー + 薄い背景 + 濃いテキスト */
+  [data-sonner-toast][data-type="error"] {
+    background: hsl(0 100% 97% / 0.98) !important; /* red-50相当 */
+    color: hsl(0 84% 17%) !important; /* red-900相当 */
+    border-left: 4px solid hsl(0 84% 60%) !important; /* red-600相当 */
+    border-top: 1px solid hsl(0 84% 80%) !important; /* red-200相当 */
+    border-right: 1px solid hsl(0 84% 80%) !important;
+    border-bottom: 1px solid hsl(0 84% 80%) !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 10px 10px -5px rgb(0 0 0 / 0.2) !important;
+  }
+  
+  /* エラートーストのアイコンとテキスト色 */
+  [data-sonner-toast][data-type="error"] svg {
+    color: hsl(0 84% 60%) !important; /* red-600 */
+  }
+  
+  [data-sonner-toast][data-type="error"] > *:not(button):not(svg) {
+    color: hsl(0 84% 17%) !important; /* red-900 */
+  }
+  
+  /* 警告トースト: 左ボーダー + 薄い背景 + 濃いテキスト */
+  [data-sonner-toast][data-type="warning"] {
+    background: hsl(43 96% 96% / 0.98) !important; /* amber-50相当 */
+    color: hsl(43 96% 17%) !important; /* amber-900相当 */
+    border-left: 4px solid hsl(43 96% 56%) !important; /* amber-600相当 */
+    border-top: 1px solid hsl(43 96% 76%) !important; /* amber-200相当 */
+    border-right: 1px solid hsl(43 96% 76%) !important;
+    border-bottom: 1px solid hsl(43 96% 76%) !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 10px 10px -5px rgb(0 0 0 / 0.2) !important;
+  }
+  
+  /* 警告トーストのアイコンとテキスト色 */
+  [data-sonner-toast][data-type="warning"] svg {
+    color: hsl(43 96% 56%) !important; /* amber-600 */
+  }
+  
+  [data-sonner-toast][data-type="warning"] > *:not(button):not(svg) {
+    color: hsl(43 96% 17%) !important; /* amber-900 */
+  }
+  
+  /* 成功トースト: 左ボーダー + 薄い背景 + 濃いテキスト */
+  [data-sonner-toast][data-type="success"] {
+    background: hsl(142 76% 96% / 0.98) !important; /* green-50相当 */
+    color: hsl(142 76% 17%) !important; /* green-900相当 */
+    border-left: 4px solid hsl(142 76% 36%) !important; /* green-600相当 */
+    border-top: 1px solid hsl(142 76% 76%) !important; /* green-200相当 */
+    border-right: 1px solid hsl(142 76% 76%) !important;
+    border-bottom: 1px solid hsl(142 76% 76%) !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 10px 10px -5px rgb(0 0 0 / 0.2) !important;
+  }
+  
+  /* 成功トーストのアイコンとテキスト色 */
+  [data-sonner-toast][data-type="success"] svg {
+    color: hsl(142 76% 36%) !important; /* green-600 */
+  }
+  
+  [data-sonner-toast][data-type="success"] > *:not(button):not(svg) {
+    color: hsl(142 76% 17%) !important; /* green-900 */
+  }
+  
+  /* 情報トースト: 左ボーダー + 薄い背景 + 濃いテキスト */
+  [data-sonner-toast][data-type="info"] {
+    background: hsl(199 89% 96% / 0.98) !important; /* blue-50相当 */
+    color: hsl(199 89% 17%) !important; /* blue-900相当 */
+    border-left: 4px solid hsl(199 89% 48%) !important; /* blue-600相当 */
+    border-top: 1px solid hsl(199 89% 76%) !important; /* blue-200相当 */
+    border-right: 1px solid hsl(199 89% 76%) !important;
+    border-bottom: 1px solid hsl(199 89% 76%) !important;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 10px 10px -5px rgb(0 0 0 / 0.2) !important;
+  }
+  
+  /* 情報トーストのアイコンとテキスト色 */
+  [data-sonner-toast][data-type="info"] svg {
+    color: hsl(199 89% 48%) !important; /* blue-600 */
+  }
+  
+  [data-sonner-toast][data-type="info"] > *:not(button):not(svg) {
+    color: hsl(199 89% 17%) !important; /* blue-900 */
+  }
+  
+  /* エラー/警告/成功/情報トーストの閉じるボタン（濃いテキストに合わせたスタイル） */
+  [data-sonner-toast][data-type="error"] button[aria-label="Close"],
+  [data-sonner-toast][data-type="error"] button[aria-label="閉じる"],
+  [data-sonner-toast][data-type="error"] [data-sonner-close-button],
+  [data-sonner-toast][data-type="warning"] button[aria-label="Close"],
+  [data-sonner-toast][data-type="warning"] button[aria-label="閉じる"],
+  [data-sonner-toast][data-type="warning"] [data-sonner-close-button],
+  [data-sonner-toast][data-type="success"] button[aria-label="Close"],
+  [data-sonner-toast][data-type="success"] button[aria-label="閉じる"],
+  [data-sonner-toast][data-type="success"] [data-sonner-close-button],
+  [data-sonner-toast][data-type="info"] button[aria-label="Close"],
+  [data-sonner-toast][data-type="info"] button[aria-label="閉じる"],
+  [data-sonner-toast][data-type="info"] [data-sonner-close-button] {
+    background: rgba(0, 0, 0, 0.05) !important;
+    color: hsl(var(--foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: 0.375rem !important;
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease-in-out !important;
+    opacity: 0.7 !important;
+  }
+  
+  /* エラー/警告/成功/情報トーストの閉じるボタンのホバー効果 */
+  [data-sonner-toast][data-type="error"] button[aria-label="Close"]:hover,
+  [data-sonner-toast][data-type="error"] button[aria-label="閉じる"]:hover,
+  [data-sonner-toast][data-type="error"] [data-sonner-close-button]:hover,
+  [data-sonner-toast][data-type="warning"] button[aria-label="Close"]:hover,
+  [data-sonner-toast][data-type="warning"] button[aria-label="閉じる"]:hover,
+  [data-sonner-toast][data-type="warning"] [data-sonner-close-button]:hover,
+  [data-sonner-toast][data-type="success"] button[aria-label="Close"]:hover,
+  [data-sonner-toast][data-type="success"] button[aria-label="閉じる"]:hover,
+  [data-sonner-toast][data-type="success"] [data-sonner-close-button]:hover,
+  [data-sonner-toast][data-type="info"] button[aria-label="Close"]:hover,
+  [data-sonner-toast][data-type="info"] button[aria-label="閉じる"]:hover,
+  [data-sonner-toast][data-type="info"] [data-sonner-close-button]:hover {
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-color: hsl(var(--border)) !important;
+    opacity: 1 !important;
+    transform: scale(1.1) !important;
+  }
+  
+  /* 通常のトースト（デフォルト）の閉じるボタン */
+  [data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]):not([data-type="success"]):not([data-type="info"]) button[aria-label="Close"],
+  [data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]):not([data-type="success"]):not([data-type="info"]) button[aria-label="閉じる"],
+  [data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]):not([data-type="success"]):not([data-type="info"]) [data-sonner-close-button] {
+    background: rgba(0, 0, 0, 0.1) !important;
+    color: hsl(var(--foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: 0.375rem !important;
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease-in-out !important;
+    opacity: 0.8 !important;
+  }
+  
+  /* 通常のトーストの閉じるボタンのホバー効果 */
+  [data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]):not([data-type="success"]):not([data-type="info"]) button[aria-label="Close"]:hover,
+  [data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]):not([data-type="success"]):not([data-type="info"]) button[aria-label="閉じる"]:hover,
+  [data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]):not([data-type="success"]):not([data-type="info"]) [data-sonner-close-button]:hover {
+    background: rgba(0, 0, 0, 0.15) !important;
+    border-color: hsl(var(--border)) !important;
+    opacity: 1 !important;
+    transform: scale(1.1) !important;
+  }
+  
+  /* descriptionテキストの色調整（エラー/警告/成功/情報トースト） */
+  [data-sonner-toast][data-type="error"] [data-description],
+  [data-sonner-toast][data-type="warning"] [data-description],
+  [data-sonner-toast][data-type="success"] [data-description],
+  [data-sonner-toast][data-type="info"] [data-description] {
+    color: inherit !important;
+    opacity: 0.8 !important;
   }
   
   /* トーストのホバー効果 */

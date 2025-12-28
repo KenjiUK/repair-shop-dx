@@ -355,8 +355,8 @@ export function EstimateChangeHistorySection({
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
+          <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0" />
             見積変更履歴
           </CardTitle>
         </CardHeader>

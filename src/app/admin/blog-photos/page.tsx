@@ -113,6 +113,7 @@ export default function BlogPhotosPage() {
         <AppHeader
           isTopPage={true}
           hideBrandOnScroll={false}
+          maxWidthClassName="max-w-6xl"
         />
         <main className="max-w-6xl mx-auto px-4 py-6">
           <Skeleton className="h-[600px] w-full" />
@@ -126,6 +127,7 @@ export default function BlogPhotosPage() {
       <AppHeader
         isTopPage={true}
         hideBrandOnScroll={false}
+        maxWidthClassName="max-w-6xl"
       />
 
       <main className="max-w-6xl mx-auto px-4 py-6">

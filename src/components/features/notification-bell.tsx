@@ -135,14 +135,14 @@ export function NotificationBell({ jobs, refreshInterval = 60000 }: Notification
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-12 w-12"
+          className="relative h-12 w-12 shrink-0"
           aria-label={`通知${unreadCount > 0 ? `（${unreadCount}件の未読）` : ""}`}
         >
           <Bell className="h-5 w-5 shrink-0" strokeWidth={2.5} />
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 text-base font-bold rounded-full"
+              className="absolute top-0 right-0 h-6 w-6 flex items-center justify-center p-0 text-base font-bold rounded-full translate-x-1/4 -translate-y-1/4 min-w-[24px] pointer-events-none z-10"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>

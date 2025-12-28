@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -70,14 +71,16 @@ import {
   AlertCircle,
   Eye,
   ExternalLink,
+  Lightbulb,
 } from "lucide-react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
 import { CompactJobHeader } from "@/components/layout/compact-job-header";
 import { User, Printer } from "lucide-react";
-import { generateWorkOrderPDF, createWorkOrderPDFDataFromJob } from "@/lib/work-order-pdf-generator";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WorkflowStepIndicator } from "@/components/features/workflow-step-indicator";
+import { VoiceInputButton } from "@/components/features/voice-input-button";
 
 // ダイアログコンポーネントを動的インポート（コード分割）
 const AddWorkOrderDialog = dynamic(
@@ -98,8 +101,15 @@ const JobMemoDialog = dynamic(
 import { parseJobMemosFromField26 } from "@/lib/job-memo-parser";
 import { usePageTiming } from "@/hooks/use-page-timing";
 import { withFetcherTiming } from "@/lib/api-timing";
+import {
+  InspectionWorkView,
+  AcceptanceInspectionData,
+  FinalInspectionData,
+  QualityCheckData as InspectionQualityCheckData,
+  ReplacementPartItem,
+} from "@/components/features/inspection-work-view";
 import { getOrCreateWorkOrderFolder, uploadFile } from "@/lib/google-drive";
-import { setNavigationHistory, getBackHref, getPageTypeFromPath } from "@/lib/navigation-history";
+import { setNavigationHistory, getBackHref, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
 
 // =============================================================================
 // Helper Functions
@@ -277,7 +287,7 @@ function WorkItemCard({
             <div className="flex items-center gap-2 mb-1">
               <p className={cn(
                 "font-medium",
-                item.isCompleted ? "text-green-700" : "text-slate-900"
+                item.isCompleted ? "text-green-700 dark:text-green-400" : "text-slate-900 dark:text-white"
               )}>
                 {item.name}
               </p>
@@ -289,7 +299,7 @@ function WorkItemCard({
             {/* Before写真（あれば） */}
             {item.beforePhotoUrl && (
               <div className="mt-2 mb-3">
-                <p className="text-base text-slate-700 mb-1">Before:</p>
+                <p className="text-base text-slate-700 dark:text-white mb-1">Before:</p>
                 <div className="relative w-24 h-18 rounded border overflow-hidden">
                   <Image
                     src={item.beforePhotoUrl}
@@ -305,7 +315,7 @@ function WorkItemCard({
             {/* After写真プレビュー（撮影済みの場合） */}
             {item.afterPhotoUrl && (
               <div className="mt-2 mb-3">
-                <p className="text-base text-green-700 mb-1">✓ After:</p>
+                <p className="text-base text-green-700 dark:text-green-400 mb-1">✓ After:</p>
                 <div className="relative w-24 h-18 rounded border border-green-400 overflow-hidden">
                   <Image
                     src={item.afterPhotoUrl}
@@ -504,8 +514,6 @@ function MechanicWorkPageContent() {
   const searchParams = useSearchParams();
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
 
-  console.log("[MechanicWorkPage] params:", params);
-  console.log("[MechanicWorkPage] jobId:", jobId);
 
   // URLパラメータからworkOrderIdを取得
   const workOrderId = useMemo(() => {
@@ -533,11 +541,42 @@ function MechanicWorkPageContent() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // リファラー（遷移元）を取得
+    const currentPath = window.location.pathname + window.location.search;
+    const currentPathname = window.location.pathname;
+
+    // 前回保存されたパスを取得（sessionStorageから）
+    let previousPath: string | null = null;
+    try {
+      previousPath = sessionStorage.getItem("repair-shop-current-path");
+    } catch (error) {
+      console.error("[Work] Failed to get previous path from sessionStorage:", error);
+    }
+
+    // リファラー（遷移元）を取得（フォールバック用）
     const referrer = document.referrer;
 
-    // 同じオリジン（同じドメイン）からの遷移かどうかを確認
-    if (referrer) {
+    // 前回保存されたパスがある場合、それを優先して使用
+    if (previousPath && previousPath !== currentPath) {
+      try {
+        const previousUrl = new URL(previousPath, window.location.origin);
+        const previousPathname = previousUrl.pathname;
+        const referrerType = getPageTypeFromPath(previousPathname);
+        
+        // 履歴を記録（前の画面のパスとタイプを記録）
+        setNavigationHistory(previousPath, referrerType);
+        
+        if (process.env.NODE_ENV === "development") {
+          console.log("[Work] Navigation history saved from sessionStorage:", { previousPath, referrerType });
+        }
+      } catch (error) {
+        console.error("[Work] Failed to parse previous path:", error);
+        // エラーが発生した場合は、document.referrerを使用
+        previousPath = null;
+      }
+    }
+
+    // 前回保存されたパスがない場合、document.referrerを使用（フォールバック）
+    if (!previousPath && referrer) {
       try {
         const referrerUrl = new URL(referrer);
         const currentOrigin = window.location.origin;
@@ -548,27 +587,26 @@ function MechanicWorkPageContent() {
           const referrerType = getPageTypeFromPath(referrerUrl.pathname);
 
           // 現在のページと同じページへの遷移は記録しない（リロードなど）
-          const currentPath = window.location.pathname + window.location.search;
           if (referrerPath !== currentPath) {
             // 履歴を記録（前の画面のパスとタイプを記録）
             setNavigationHistory(referrerPath, referrerType);
+            
+            if (process.env.NODE_ENV === "development") {
+              console.log("[Work] Navigation history saved from referrer:", { referrerPath, referrerType });
+            }
           } else {
             // 同じページへの遷移（リロードなど）は履歴を保持
             // 既存の履歴があればそのまま使用
           }
-        } else {
-          // 外部サイトからの遷移は履歴をクリア
-          // トップページから来たとみなすため、履歴は記録しない（getBackHrefが"/"を返す）
         }
       } catch (error) {
-        console.error("[Work] Failed to record navigation history:", error);
-        // エラーが発生した場合も履歴をクリア
+        console.error("[Work] Failed to record navigation history from referrer:", error);
       }
-    } else {
-      // リファラーがない場合（直接アクセス、QRコードなど）は履歴を記録しない
-      // トップページから来たとみなすため、履歴は記録しない（getBackHrefが"/"を返す）
     }
-  }, []);
+
+    // 現在のパスを保存（次回のページ読み込み時に使用）
+    saveCurrentPath(currentPathname, window.location.search);
+  }, [jobId]); // jobIdが変更された時のみ実行（ページ遷移時）
 
   // ワークオーダーを取得
   const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
@@ -637,6 +675,23 @@ function MechanicWorkPageContent() {
     // フォールバック：serviceKindsから判定
     return serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
   }, [primaryServiceKind, serviceKinds]);
+
+  // 24ヶ月点検（車検）フラグ
+  const is24MonthInspection = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "車検";
+    }
+    return serviceKinds.includes("車検" as ServiceKind);
+  }, [primaryServiceKind, serviceKinds]);
+
+  // 12ヶ月点検フラグ
+  const is12MonthInspection = useMemo(() => {
+    if (primaryServiceKind) {
+      return primaryServiceKind === "12ヵ月点検";
+    }
+    return serviceKinds.includes("12ヵ月点検" as ServiceKind);
+  }, [primaryServiceKind, serviceKinds]);
+
   const isTireReplacement = useMemo(() => {
     if (primaryServiceKind) {
       return primaryServiceKind === "タイヤ交換・ローテーション";
@@ -697,9 +752,24 @@ function MechanicWorkPageContent() {
 
   // 承認された作業項目の状態管理（車検の場合）
   const [approvedWorkItems, setApprovedWorkItems] = useState<ApprovedWorkItem[]>([]);
+  // 無限ループを防ぐため、前の値を保持
+  const approvedWorkItemsRef = useRef<ApprovedWorkItem[]>([]);
 
-  // 交換部品の状態管理（車検の場合）
-  const [replacementParts, setReplacementParts] = useState<ReplacementPart[]>([]);
+  // ========================================
+  // 法定点検作業用の状態管理（Phase 5: 整備・完成検査）
+  // ========================================
+  // 受入点検データ（Phase 2からの引き継ぎ）
+  const [acceptanceData, setAcceptanceData] = useState<AcceptanceInspectionData | undefined>(undefined);
+  // 完成検査データ（テスター値）
+  const [finalInspectionData, setFinalInspectionData] = useState<FinalInspectionData>({});
+  // 品質管理・最終検査データ
+  const [inspectionQualityCheckData, setInspectionQualityCheckData] = useState<InspectionQualityCheckData>({});
+  
+  // 交換部品等（Phase 5で入力）
+  const [replacementParts, setReplacementParts] = useState<ReplacementPartItem[]>([]);
+
+  // 整備アドバイス（Phase 2からの引き継ぎ、Phase 5で編集）
+  const [maintenanceAdvice, setMaintenanceAdvice] = useState<string>("");
 
   // 既存のWorkItem形式の状態管理（非車検の場合）
   // 注意: 現在はすべてのサービス種類で承認された作業項目を使用するため、workItemsは使用されていません
@@ -755,6 +825,72 @@ function MechanicWorkPageContent() {
     }
   }, [isBodyPaint]);
 
+  // 法定点検用：受入点検データの読み込み（Phase 2からの引き継ぎ）
+  useEffect(() => {
+    if ((isInspection || is12MonthInspection) && selectedWorkOrder?.diagnosis) {
+      const diagnosis = selectedWorkOrder.diagnosis as any;
+      const data: AcceptanceInspectionData = {
+        items: diagnosis.items?.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          status: item.status,
+          comment: item.comment,
+        })) || [],
+        measurements: diagnosis.inspectionMeasurements,
+      };
+      setAcceptanceData(data);
+      // 整備アドバイスを読み込み
+      if (diagnosis.maintenanceAdvice) {
+        setMaintenanceAdvice(diagnosis.maintenanceAdvice);
+      }
+    }
+  }, [isInspection, is12MonthInspection, selectedWorkOrder]);
+
+  // 法定点検用：診断画面から引き継いだ作業データの読み込み（追加見積もりがない場合）
+  useEffect(() => {
+    if ((isInspection || is12MonthInspection) && selectedWorkOrder?.work) {
+      const work = selectedWorkOrder.work as any;
+      // 交換部品等を読み込み
+      if (work.replacementParts && work.replacementParts.length > 0 && replacementParts.length === 0) {
+        setReplacementParts(work.replacementParts);
+      }
+      // 測定値を読み込み（finalInspectionDataに反映）
+      if (work.measurements && Object.keys(work.measurements).length > 0 && Object.keys(finalInspectionData).length === 0) {
+        setFinalInspectionData(work.measurements);
+      }
+      // 品質管理・最終検査を読み込み
+      if (work.qualityCheck && Object.keys(work.qualityCheck).length > 0 && Object.keys(inspectionQualityCheckData).length === 0) {
+        setInspectionQualityCheckData(work.qualityCheck);
+      }
+      // 作業メモを読み込み
+      if (work.memo && !maintenanceAdvice) {
+        setMaintenanceAdvice(work.memo);
+      }
+    }
+  }, [isInspection, is12MonthInspection, selectedWorkOrder, replacementParts.length, finalInspectionData, inspectionQualityCheckData, maintenanceAdvice]);
+
+  // 法定点検用：承認済み作業項目から交換部品を自動生成
+  useEffect(() => {
+    if ((isInspection || is12MonthInspection) && acceptanceData?.items && replacementParts.length === 0) {
+      // 「交換」ステータスの項目から自動生成
+      const exchangeItems = acceptanceData.items.filter(
+        (item) => item.status === "exchange"
+      );
+      
+      if (exchangeItems.length > 0) {
+        const autoGeneratedParts: ReplacementPartItem[] = exchangeItems.map((item) => ({
+          id: `auto-${item.id}`,
+          name: item.name,
+          quantity: 1,
+          unit: "個",
+          isAutoGenerated: true,
+        }));
+        setReplacementParts(autoGeneratedParts);
+      }
+    }
+  }, [isInspection, is12MonthInspection, acceptanceData, replacementParts.length]);
+
   /**
    * 分解整備記録簿PDF出力（テンプレートPDF使用）
    */
@@ -790,6 +926,11 @@ function MechanicWorkPageContent() {
       const licensePlate = extractLicensePlate(job.field6?.name);
       const customerName = job.field4?.name || "未登録";
 
+      // 24ヶ月点検リデザイン版の測定値データを取得
+      const diagnosisMeasurements = (selectedWorkOrder.diagnosis as any)?.inspectionMeasurements;
+      const diagnosisInspectionParts = (selectedWorkOrder.diagnosis as any)?.inspectionParts;
+      const diagnosisCustomParts = (selectedWorkOrder.diagnosis as any)?.customParts;
+
       // 分解整備記録簿データを準備
       const recordData: InspectionRecordData = {
         vehicle: {
@@ -801,10 +942,37 @@ function MechanicWorkPageContent() {
           engineType: undefined,
         },
         inspectionItems,
-        replacementParts: [], // 交換部品は作業完了時に追加されるため、ここでは空
+        replacementParts: [
+          // 24ヶ月点検リデザイン版の交換部品データを変換
+          ...(diagnosisInspectionParts?.engineOil ? [{ name: "エンジンオイル", quantity: diagnosisInspectionParts.engineOil, unit: "L" }] : []),
+          ...(diagnosisInspectionParts?.oilFilter ? [{ name: "オイルフィルター", quantity: diagnosisInspectionParts.oilFilter, unit: "個" }] : []),
+          ...(diagnosisInspectionParts?.llc ? [{ name: "LLC", quantity: diagnosisInspectionParts.llc, unit: "L" }] : []),
+          ...(diagnosisInspectionParts?.brakeFluid ? [{ name: "ブレーキフルード", quantity: diagnosisInspectionParts.brakeFluid, unit: "L" }] : []),
+          ...(diagnosisInspectionParts?.wiperRubber ? [{ name: "ワイパーゴム", quantity: diagnosisInspectionParts.wiperRubber, unit: "個" }] : []),
+          ...(diagnosisInspectionParts?.cleanAirFilter ? [{ name: "クリーンエアフィルター", quantity: diagnosisInspectionParts.cleanAirFilter, unit: "個" }] : []),
+          // カスタム部品
+          ...(diagnosisCustomParts || []).map((part: { name: string; quantity: string }) => ({
+            name: part.name,
+            quantity: parseFloat(part.quantity) || 1,
+            unit: "",
+          })),
+        ],
         mechanicName: job.assignedMechanic || "未設定",
-        mileage: job.field10 || 0,
+        mileage: job.field10 || null, // 顧客申告の走行距離（無ければnull、空欄になる）
         inspectionDate: new Date().toISOString(),
+        // 24ヶ月点検リデザイン版の測定値データ
+        measurements: diagnosisMeasurements ? {
+          coConcentration: diagnosisMeasurements.coConcentration,
+          hcConcentration: diagnosisMeasurements.hcConcentration,
+          brakePadFrontLeft: diagnosisMeasurements.brakePadFrontLeft,
+          brakePadFrontRight: diagnosisMeasurements.brakePadFrontRight,
+          brakePadRearLeft: diagnosisMeasurements.brakePadRearLeft,
+          brakePadRearRight: diagnosisMeasurements.brakePadRearRight,
+          tireDepthFrontLeft: diagnosisMeasurements.tireDepthFrontLeft,
+          tireDepthFrontRight: diagnosisMeasurements.tireDepthFrontRight,
+          tireDepthRearLeft: diagnosisMeasurements.tireDepthRearLeft,
+          tireDepthRearRight: diagnosisMeasurements.tireDepthRearRight,
+        } : undefined,
       };
 
       // テンプレートタイプを判定（12ヶ月点検か24ヶ月点検か）
@@ -844,76 +1012,6 @@ function MechanicWorkPageContent() {
     }
   };
 
-  /**
-   * 作業指示書PDF出力
-   */
-  const handlePrintWorkOrder = async () => {
-    if (!job) return;
-
-    setIsGeneratingPDF(true);
-    triggerHapticFeedback("medium");
-
-    try {
-      // 代車情報を取得（配列チェックを追加）
-      const courtesyCar = Array.isArray(courtesyCars) ? courtesyCars.find(car => car.jobId === job.id) : undefined;
-
-      // ジョブ情報からPDFデータを生成（新しい情報を含める）
-      const pdfData = await createWorkOrderPDFDataFromJob({
-        ...job,
-        field10: job.field10 || null,
-        tagId: job.tagId || null,
-        field13: job.field13 || null,
-        courtesyCar: courtesyCar ? {
-          name: courtesyCar.name,
-          licensePlate: courtesyCar.licensePlate || undefined,
-        } : null,
-      });
-      if (!pdfData) {
-        toast.error("PDFデータの生成に失敗しました");
-        return;
-      }
-
-      // PDFを生成
-      const result = await generateWorkOrderPDF(pdfData);
-      if (!result.success || !result.data) {
-        throw new Error(result.error?.message || "PDF生成に失敗しました");
-      }
-
-      // PDFをダウンロード
-      const url = URL.createObjectURL(result.data);
-      const link = document.createElement("a");
-      link.href = url;
-      // ファイル名を生成（ユーザー視点で分かりやすい形式）
-      const date = new Date();
-      const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-      const customerName = (job.field4?.name || "未登録").replace(/[\/\\:*?"<>|]/g, "_"); // ファイル名に使えない文字を置換
-      const vehicleName = job.field6?.name
-        ? job.field6.name.split(" / ")[0].replace(/[\/\\:*?"<>|]/g, "_")
-        : "";
-
-      // ファイル名: 作業指示書_日付_顧客名_車両名.pdf
-      const fileName = vehicleName
-        ? `作業指示書_${dateStr}_${customerName}_${vehicleName}.pdf`
-        : `作業指示書_${dateStr}_${customerName}.pdf`;
-
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      triggerHapticFeedback("success");
-      toast.success("作業指示書PDFを生成しました");
-    } catch (error) {
-      console.error("PDF生成エラー:", error);
-      triggerHapticFeedback("error");
-      toast.error("PDF生成に失敗しました", {
-        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
-      });
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  };
 
   /**
    * 写真撮影ハンドラ
@@ -1173,21 +1271,30 @@ function MechanicWorkPageContent() {
         return;
       }
     } else if (isInspection || isFaultDiagnosis || isRepair || isTireReplacement || isMaintenance || isTuningParts || isCoating || isOther) {
-      const hasApprovedItems = approvedWorkItems.length > 0;
-      if (!hasApprovedItems) {
-        toast.error("作業項目がありません", {
-          description: "見積もりが承認されていないか、作業項目が設定されていません",
-        });
-        return;
-      }
+      // 24ヶ月点検（車検）で追加見積もりがない場合、作業項目がなくても完了可能
+      const is24MonthInspectionWithoutWorkItems = 
+        isInspection && 
+        selectedWorkOrder?.serviceKind === "車検" && 
+        approvedWorkItems.length === 0;
+      
+      if (!is24MonthInspectionWithoutWorkItems) {
+        // 通常の場合は作業項目が必要
+        const hasApprovedItems = approvedWorkItems.length > 0;
+        if (!hasApprovedItems) {
+          toast.error("作業項目がありません", {
+            description: "見積もりが承認されていないか、作業項目が設定されていません",
+          });
+          return;
+        }
 
-      // エラーチェック：作業項目が1つ以上完了しているか確認
-      const completedCount = approvedWorkItems.filter((i) => i.status === "completed").length;
-      if (completedCount === 0) {
-        toast.error("作業項目を完了してください", {
-          description: "少なくとも1つの作業項目を完了してください",
-        });
-        return;
+        // エラーチェック：作業項目が1つ以上完了しているか確認
+        const completedCount = approvedWorkItems.filter((i) => i.status === "completed").length;
+        if (completedCount === 0) {
+          toast.error("作業項目を完了してください", {
+            description: "少なくとも1つの作業項目を完了してください",
+          });
+          return;
+        }
       }
     }
 
@@ -1256,7 +1363,7 @@ function MechanicWorkPageContent() {
           inspectionItems,
           replacementParts,
           mechanicName: job.assignedMechanic || "未設定",
-          mileage: job.field10 || 0,
+          mileage: job.field10 || null, // 顧客申告の走行距離（無ければnull、空欄になる）
           inspectionDate: new Date().toISOString(),
         };
 
@@ -1283,14 +1390,27 @@ function MechanicWorkPageContent() {
         // 作業データを保存（workOrderIdを含める）
         if (selectedWorkOrder?.id && inspectionWorkOrder?.id === selectedWorkOrder.id) {
           // 複数作業管理対応：作業データを選択中のワークオーダーに保存
+          // 診断画面から引き継いだデータ（交換部品、測定値、品質管理など）を取得
+          const existingWorkData = selectedWorkOrder.work as any;
           const workData = {
-            records: [{
+            records: approvedWorkItems.length > 0 ? approvedWorkItems
+              .filter((i) => i.status === "completed")
+              .map((i) => ({
+                time: new Date().toISOString(),
+                content: i.name,
+                photos: [],
+              })) : [{
               time: new Date().toISOString(),
               content: "分解整備記録簿を生成",
               photos: [],
             }],
             completedAt: new Date().toISOString(),
             mechanicName: job.assignedMechanic || undefined,
+            // 診断画面から引き継いだデータを保存
+            replacementParts: replacementParts.length > 0 ? replacementParts : existingWorkData?.replacementParts,
+            measurements: finalInspectionData && Object.keys(finalInspectionData).length > 0 ? finalInspectionData : existingWorkData?.measurements,
+            qualityCheck: inspectionQualityCheckData && Object.keys(inspectionQualityCheckData).length > 0 ? inspectionQualityCheckData : existingWorkData?.qualityCheck,
+            memo: maintenanceAdvice || existingWorkData?.memo,
           };
 
           const updateResult = await updateWorkOrder(jobId, selectedWorkOrder.id, {
@@ -1758,7 +1878,10 @@ function MechanicWorkPageContent() {
   useEffect(() => {
     // 板金・塗装とレストアの場合はスキップ
     if (isBodyPaint || isRestore) {
-      setApprovedWorkItems([]);
+      // 値が実際に変更された場合のみ更新（無限ループを防ぐ）
+      if (approvedWorkItems.length > 0) {
+        setApprovedWorkItems([]);
+      }
       return;
     }
 
@@ -1774,7 +1897,10 @@ function MechanicWorkPageContent() {
     const targetWorkOrder = selectedWorkOrder || workOrders[0];
 
     if (!targetWorkOrder?.estimate?.items) {
-      setApprovedWorkItems([]);
+      // 値が実際に変更された場合のみ更新（無限ループを防ぐ）
+      if (approvedWorkItems.length > 0) {
+        setApprovedWorkItems([]);
+      }
       return;
     }
 
@@ -1863,7 +1989,24 @@ function MechanicWorkPageContent() {
       });
     }
 
-    setApprovedWorkItems(approvedItems);
+    // 値が実際に変更された場合のみ更新（無限ループを防ぐ）
+    // 配列の内容を比較（浅い比較）
+    const prevItems = approvedWorkItemsRef.current;
+    const hasChanged = approvedItems.length !== prevItems.length ||
+      approvedItems.some((item, index) => {
+        const existingItem = prevItems[index];
+        return !existingItem ||
+          item.id !== existingItem.id ||
+          item.name !== existingItem.name ||
+          item.status !== existingItem.status ||
+          item.beforePhotos.length !== existingItem.beforePhotos.length ||
+          item.afterPhotos.length !== existingItem.afterPhotos.length;
+      });
+    
+    if (hasChanged) {
+      approvedWorkItemsRef.current = approvedItems;
+      setApprovedWorkItems(approvedItems);
+    }
   }, [isInspection, isFaultDiagnosis, isRepair, isTireReplacement, isMaintenance, isTuningParts, isCoating, isOther, isBodyPaint, isRestore, workOrders, selectedWorkOrder]);
 
   // 統計
@@ -1884,15 +2027,15 @@ function MechanicWorkPageContent() {
     return workOrders.every((wo) => wo.status === "完了");
   }, [workOrders]);
 
-  // 作業タイトルを決定
+  // 作業タイトルを決定（コンセプトに基づき「整備・完成検査」に変更）
   const workTitle = (() => {
     // 複数作業管理の場合、選択中のワークオーダーから取得
     if (selectedWorkOrder?.serviceKind) {
       const serviceKind = selectedWorkOrder.serviceKind;
       if (serviceKind === "車検") {
-        return "車検作業";
+        return "整備・完成検査（車検）";
       } else if (serviceKind === "12ヵ月点検") {
-        return "12ヵ月点検作業";
+        return "整備・完成検査（12ヵ月点検）";
       } else if (serviceKind === "エンジンオイル交換") {
         return "エンジンオイル交換作業";
       } else if (serviceKind === "タイヤ交換・ローテーション") {
@@ -1987,10 +2130,71 @@ function MechanicWorkPageContent() {
     return parts[1] || "";
   }
 
+  // ワークフロー・フェーズ表示用の判定
+  // 完了フェーズの判定
+  const completedPhases = useMemo(() => {
+    if (!job) return [];
+    const phases: number[] = [];
+    
+    // Phase 0（事前チェックイン）: field7に顧客入力がある場合、またはfield22（入庫日時）が設定されている場合
+    if (job.field7 || job.field22) {
+      phases.push(0);
+    }
+    
+    // Phase 1（受付）: field5が「入庫済み」以上の場合
+    if (job.field5 && (job.field5 === "入庫済み" || job.field5 === "見積作成待ち" || job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
+      phases.push(1);
+    }
+    
+    // Phase 2（診断）: field5が「入庫済み」以上の場合（診断は入庫済みの状態で実施される）
+    if (job.field5 && (job.field5 === "入庫済み" || job.field5 === "見積作成待ち" || job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
+      phases.push(2);
+    }
+    
+    // Phase 3（見積）: field5が「見積作成待ち」以上の場合
+    if (job.field5 && (job.field5 === "見積作成待ち" || job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
+      phases.push(3);
+    }
+    
+    // Phase 4（承認）: field5が「見積提示済み」以上の場合（見積提示済みは顧客承認待ちの状態）
+    if (job.field5 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
+      phases.push(4);
+    }
+    
+    // Phase 5（作業）: 現在のページ（作業ページ）にいる場合、完了はしない（アクティブ）
+    
+    // Phase 6（報告）: field5が「出庫待ち」以上の場合
+    if (job.field5 && (job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
+      phases.push(6);
+    }
+    
+    return phases;
+  }, [job]);
+
+  // スキップフェーズの判定（追加見積もりがない場合）
+  const skippedPhases = useMemo(() => {
+    if (!job) return [];
+    // 24ヶ月点検・12ヶ月点検で追加見積もりがない場合、Phase 3-4（見積・承認）をスキップ
+    const isInspection = serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
+    if (isInspection) {
+      // 診断データから追加見積もりの有無を判定
+      const diagnosis = selectedWorkOrder?.diagnosis as any;
+      const hasAdditionalEstimate =
+        (diagnosis?.additionalEstimateRequired?.length || 0) > 0 ||
+        (diagnosis?.additionalEstimateRecommended?.length || 0) > 0 ||
+        (diagnosis?.additionalEstimateOptional?.length || 0) > 0;
+      
+      if (!hasAdditionalEstimate) {
+        return [3, 4]; // 見積・承認をスキップ
+      }
+    }
+    return [];
+  }, [job, serviceKinds, selectedWorkOrder]);
+
   // エラー状態のチェック（すべてのHooksの後に配置）
   if (jobError) {
     return (
-      <div className="flex-1 bg-slate-50 overflow-auto">
+      <div className="flex-1 bg-slate-50 dark:bg-slate-900">
         <AppHeader maxWidthClassName="max-w-4xl">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 bg-slate-200 animate-pulse rounded" />
@@ -2003,7 +2207,7 @@ function MechanicWorkPageContent() {
               <CardTitle className="text-red-600">エラーが発生しました</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-700 mb-4">{jobError.message || "ジョブデータの取得に失敗しました"}</p>
+              <p className="text-slate-700 dark:text-white mb-4">{jobError.message || "ジョブデータの取得に失敗しました"}</p>
               <Button onClick={() => mutateJob()}>再試行</Button>
             </CardContent>
           </Card>
@@ -2015,7 +2219,7 @@ function MechanicWorkPageContent() {
   // ローディング状態: ジョブデータまたはワークオーダーデータが読み込まれるまで表示しない
   if (isJobLoading || isLoadingWorkOrders || !job) {
     return (
-      <div className="flex-1 bg-slate-50 overflow-auto">
+      <div className="flex-1 bg-slate-50 dark:bg-slate-900">
         <AppHeader maxWidthClassName="max-w-4xl">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 bg-slate-200 animate-pulse rounded" />
@@ -2034,39 +2238,56 @@ function MechanicWorkPageContent() {
   }
 
   return (
-    <div className="flex-1 bg-slate-50 pb-32 overflow-auto">
+    <div className="flex-1 bg-slate-50 dark:bg-slate-900 pb-32">
       {/* ヘッダー */}
       <AppHeader
         maxWidthClassName="max-w-4xl"
         backHref={getBackHref(jobId)}
-        statusBadge={
-          job ? (
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-base font-medium px-2.5 py-0.5 rounded-full shrink-0",
-                getStatusBadgeStyle(job.field5)
-              )}
-            >
-              {job.field5}
-            </Badge>
-          ) : undefined
-        }
+        hideBrandOnScroll={true}
+        scrollThreshold={30}
+        collapsibleOnMobile={true}
+        hasUnsavedChanges={hasUnsavedChanges}
+        collapsedCustomerName={customerName}
+        collapsedVehicleName={vehicleName}
+        collapsedLicensePlate={licensePlate}
         rightArea={
-          selectedWorkOrder?.id ? (
-            <SaveStatusIndicator
-              status={saveStatus}
-              hasUnsavedChanges={hasUnsavedChanges}
-              onSave={saveManually}
-              showSaveButton={true}
+          <div className="flex items-center gap-3">
+            <WorkflowStepIndicator
+              currentPhase={5}
+              job={job}
+              skippedPhases={skippedPhases}
+              excludePhases={[0, 4]} // Phase 0（事前問診）とPhase 4（見積承認）を除外（JOBカードに表示）
+              userRole="mechanic" // 作業ページは整備士向け
+              jobId={jobId}
+              hasAdditionalEstimate={
+                (() => {
+                  const diagnosis = selectedWorkOrder?.diagnosis as any;
+                  return (
+                    (diagnosis?.additionalEstimateRequired?.length || 0) > 0 ||
+                    (diagnosis?.additionalEstimateRecommended?.length || 0) > 0 ||
+                    (diagnosis?.additionalEstimateOptional?.length || 0) > 0
+                  );
+                })()
+              }
+              mobileMode={false}
+              enableNavigation={true}
+              serviceKind={primaryServiceKind} // 入庫区分を渡す
             />
-          ) : undefined
+            {selectedWorkOrder?.id && (
+              <SaveStatusIndicator
+                status={saveStatus}
+                hasUnsavedChanges={hasUnsavedChanges}
+                onSave={saveManually}
+                showSaveButton={true}
+              />
+            )}
+          </div>
         }
       >
         {/* ページタイトル */}
         <div className="mb-3">
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-slate-700 shrink-0" />
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Wrench className="h-5 w-5 text-slate-700 dark:text-white shrink-0" />
             {workTitle}
           </h1>
         </div>
@@ -2083,30 +2304,6 @@ function MechanicWorkPageContent() {
           assignedMechanic={job?.assignedMechanic || undefined}
           courtesyCars={courtesyCars}
         />
-
-        {/* 作業指示書PDF出力ボタン */}
-        {(job.field || (job.field7 && job.field7.trim().length > 0)) && (
-          <div className="mt-2 flex justify-end">
-            <Button
-              variant="outline"
-              onClick={handlePrintWorkOrder}
-              disabled={isGeneratingPDF}
-              className="gap-2"
-            >
-              {isGeneratingPDF ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin shrink-0" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <Printer className="h-5 w-5 shrink-0" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
-                  作業指示書を印刷
-                </>
-              )}
-            </Button>
-          </div>
-        )}
 
         {/* 分解整備記録簿PDF出力ボタン（車検・12ヶ月点検の場合のみ） */}
         {selectedWorkOrder &&
@@ -2166,7 +2363,7 @@ function MechanicWorkPageContent() {
       )}
 
       {/* メインコンテンツ */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
         {/* 注意事項 */}
         {!isBodyPaint && !isRestore && (
           <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-4 flex items-start gap-2">
@@ -2189,9 +2386,9 @@ function MechanicWorkPageContent() {
           <Card className="mb-4 border border-slate-300 rounded-xl shadow-md">
             <CardContent className="py-3">
               <div className="flex items-center justify-between">
-                <span className="text-base text-slate-800">作業進捗</span>
+                <span className="text-base text-slate-800 dark:text-white">作業進捗</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-slate-900 tabular-nums">
+                  <span className="text-lg font-bold text-slate-900 dark:text-white tabular-nums">
                     {completedCount} / {totalCount}
                   </span>
                   <Badge variant={allCompleted ? "default" : "secondary"} className="text-base font-medium px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
@@ -2208,6 +2405,69 @@ function MechanicWorkPageContent() {
             </CardContent>
           </Card>
         ) : null}
+
+        {/* ========================================== */}
+        {/* 法定点検用：整備・完成検査ビュー（Phase 5） */}
+        {/* ========================================== */}
+        {(isInspection || is12MonthInspection) && (
+          <div className="mb-6">
+            <InspectionWorkView
+              acceptanceData={acceptanceData}
+              approvedWorkItems={approvedWorkItems.map(item => ({
+                ...item,
+                // Phase 2からの測定値をBefore値として設定
+                beforeValue: acceptanceData?.measurements?.brakePadFrontLeft,
+              }))}
+              onApprovedWorkItemsChange={(items) => {
+                setApprovedWorkItems(items.map(item => ({
+                  id: item.id,
+                  name: item.name,
+                  status: item.isCompleted ? "completed" : "pending",
+                  isCompleted: item.isCompleted,
+                  beforePhotoUrl: null,
+                  afterPhotoUrl: null,
+                  isCapturing: false,
+                })));
+              }}
+              finalInspectionData={finalInspectionData}
+              onFinalInspectionDataChange={setFinalInspectionData}
+              qualityCheckData={inspectionQualityCheckData}
+              onQualityCheckDataChange={setInspectionQualityCheckData}
+              replacementParts={replacementParts}
+              onReplacementPartsChange={setReplacementParts}
+              disabled={isSubmitting}
+              isShaken={isInspection && selectedWorkOrder?.serviceKind === "車検"}
+            />
+
+            {/* 整備アドバイス */}
+            <Card className="mt-4 border-slate-200 shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-slate-600 shrink-0" />
+                  整備アドバイス
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-start gap-2">
+                  <Textarea
+                    value={maintenanceAdvice}
+                    onChange={(e) => setMaintenanceAdvice(e.target.value)}
+                    placeholder="整備アドバイスを入力してください"
+                    className="text-base flex-1 resize-none"
+                    rows={1}
+                    disabled={isSubmitting}
+                  />
+                  <VoiceInputButton
+                    onTranscript={(text) => setMaintenanceAdvice(text)}
+                    currentValue={maintenanceAdvice}
+                    disabled={isSubmitting}
+                    className="mt-1"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* レストア用：作業管理ビュー */}
         {isRestore && (
@@ -2837,7 +3097,7 @@ function MechanicWorkPageContent() {
                 ))
               ) : (
                 <Card>
-                  <CardContent className="py-8 text-center text-slate-700">
+                  <CardContent className="py-8 text-center text-slate-700 dark:text-white">
                     承認された作業項目がありません
                   </CardContent>
                 </Card>
@@ -2849,8 +3109,8 @@ function MechanicWorkPageContent() {
         {/* 作業メモセクション */}
         <Card className="mt-4 mb-4">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <Notebook className="h-5 w-5 shrink-0" />
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
+              <Notebook className="h-5 w-5 shrink-0 dark:text-white" />
               作業メモ
             </CardTitle>
           </CardHeader>
@@ -2872,8 +3132,8 @@ function MechanicWorkPageContent() {
               return (
                 <>
                   {latestMemo ? (
-                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3">
-                      <div className="flex items-center gap-2 text-base text-slate-700 mb-1">
+                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-3">
+                      <div className="flex items-center gap-2 text-base text-slate-700 dark:text-white mb-1">
                         <span>{latestMemo.author}</span>
                         <span>•</span>
                         <span>
@@ -2887,12 +3147,12 @@ function MechanicWorkPageContent() {
                           })}
                         </span>
                       </div>
-                      <p className="text-base text-slate-800 line-clamp-2 whitespace-pre-wrap">
+                      <p className="text-base text-slate-800 dark:text-white line-clamp-2 whitespace-pre-wrap">
                         {latestMemo.content}
                       </p>
                     </div>
                   ) : (
-                    <p className="text-base text-slate-700 text-center py-2">
+                    <p className="text-base text-slate-700 dark:text-white text-center py-2">
                       メモがありません
                     </p>
                   )}
@@ -2918,7 +3178,7 @@ function MechanicWorkPageContent() {
       </main>
 
       {/* 完了ボタン（固定フッター） */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-10">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-lg z-10">
         <div className="max-w-4xl mx-auto">
           <WorkCompleteButton
             onComplete={handleAllComplete}
@@ -2962,7 +3222,7 @@ function MechanicWorkPageContent() {
 export default function MechanicWorkPage() {
   return (
     <Suspense fallback={
-      <div className="flex-1 bg-slate-50 flex items-center justify-center overflow-auto">
+      <div className="flex-1 bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-auto">
         <div className="text-center">
           <div className="h-8 w-8 border-4 border-slate-300 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
           <p className="text-slate-700">読み込み中...</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ import {
   FolderKanban, 
   Image, 
   Settings, 
-  Bell 
+  Bell,
+  BarChart3
 } from "lucide-react";
 
 const menuItems = [
@@ -25,6 +26,8 @@ const menuItems = [
 ];
 
 const adminItems = [
+  { label: "作業指示・進捗管理", href: "/manager/kanban", icon: FolderKanban },
+  { label: "レポート・分析", href: "/manager/analytics", icon: BarChart3 },
   { label: "ブログ写真管理", href: "/admin/blog-photos", icon: Image },
   { label: "数値マスター管理", href: "/admin/settings/numerical-masters", icon: Settings },
   { label: "お知らせ管理", href: "/admin/announcements", icon: Bell },
@@ -39,8 +42,37 @@ export function MobileMenuSheet() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // メニューが開いている間、背景のスクロールとタッチイベントを無効化
+  useEffect(() => {
+    if (open) {
+      // 現在のスクロール位置を保存
+      const scrollY = window.scrollY;
+      
+      // 背景のスクロールを完全に無効化（position: fixedを使用）
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      const originalOverflow = document.body.style.overflow;
+      
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden";
+      
+      // クリーンアップ
+      return () => {
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        document.body.style.overflow = originalOverflow;
+        // スクロール位置を復元
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [open]);
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={setOpen} modal={true}>
       <SheetTrigger asChild>
         <Button
           variant="ghost"

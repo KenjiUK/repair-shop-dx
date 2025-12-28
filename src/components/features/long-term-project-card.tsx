@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ZohoJob, ServiceKind, CourtesyCar } from "@/types";
+import { ManufacturerIcon } from "@/components/features/manufacturer-icon";
 import {
   TrendingUp,
   AlertTriangle,
@@ -30,6 +31,10 @@ import {
   Loader2,
   Plus,
   Camera,
+  UserCog,
+  FileText,
+  Printer,
+  Notebook,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -41,12 +46,18 @@ import { triggerHapticFeedback } from "@/lib/haptic-feedback";
 import { toast } from "sonner";
 import { LongTermProjectDetailDialog } from "@/components/features/long-term-project-detail-dialog";
 import { WorkOrderDialog } from "@/components/features/work-order-dialog";
+import { ChangeRequestDetailDialog } from "@/components/features/change-request-detail-dialog";
+import { JobPhotoGalleryDialog } from "@/components/features/job-photo-gallery-dialog";
+import { VehicleDetailDialog } from "@/components/features/vehicle-detail-dialog";
 import { fetchCustomerById, updateJobTag, fetchAllTags } from "@/lib/api";
+import { BlogPhotoCaptureDialog } from "@/components/features/blog-photo-capture-dialog";
 import { hasChangeRequests } from "@/lib/customer-description-append";
 import { markChangeRequestCompleted } from "@/lib/customer-update";
 import { SmartTag } from "@/types";
 import { mutate } from "swr";
 import { useWorkOrders } from "@/hooks/use-work-orders";
+import { generateWorkOrderPDF, createWorkOrderPDFDataFromJob } from "@/lib/work-order-pdf-generator";
+import { parseJobMemosFromField26 } from "@/lib/job-memo-parser";
 
 // =============================================================================
 // 型定義
@@ -315,14 +326,23 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
 
   // タグ変更ダイアログの状態
   const [isTagChangeDialogOpen, setIsTagChangeDialogOpen] = useState(false);
+  // 変更申請詳細ダイアログの状態
+  const [isChangeRequestDetailOpen, setIsChangeRequestDetailOpen] = useState(false);
   const [isUpdatingTag, setIsUpdatingTag] = useState(false);
   const [selectedNewTagId, setSelectedNewTagId] = useState<string | null>(null);
+  const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
+  const [isVehicleDetailDialogOpen, setIsVehicleDetailDialogOpen] = useState(false);
 
   // 詳細情報の折りたたみ状態
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  // ブログ用写真撮影ダイアログの状態
+  const [isBlogPhotoCaptureDialogOpen, setIsBlogPhotoCaptureDialogOpen] = useState(false);
 
   // 重要な顧客フラグ
   const [isImportant, setIsImportant] = useState(false);
+
+  // PDF生成中フラグ
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   useEffect(() => {
     if (customerId) {
@@ -409,7 +429,10 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
    * 変更対応完了処理
    */
   const handleMarkChangeRequestCompleted = async () => {
-    if (!customerId || !customerData) return;
+    if (!customerId) {
+      toast.error("顧客IDが見つかりません");
+      return;
+    }
 
     setIsMarkingCompleted(true);
     triggerHapticFeedback("medium");
@@ -418,24 +441,91 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
       const result = await markChangeRequestCompleted(customerId);
       if (result.success) {
         triggerHapticFeedback("success");
-        toast.success("変更申請を対応完了としてマークしました");
+        toast.success("変更申請を対応完了としてマークしました", {
+          description: "基幹システムを更新してください",
+        });
+        // モーダルを閉じる
+        setIsChangeRequestDetailOpen(false);
+        // データを再取得（ページ全体のリロードを避ける）
+        await mutate(`customer-${customerId}`);
+        // 必要に応じて他のキャッシュも更新
         window.location.reload();
       } else {
         triggerHapticFeedback("error");
         toast.error("対応完了処理に失敗しました", {
           description: result.error?.message,
         });
+        // エラー時はモーダルを開いたままにする
       }
     } catch (error) {
       console.error("変更対応完了エラー:", error);
       triggerHapticFeedback("error");
       toast.error("対応完了処理に失敗しました");
+      // エラー時はモーダルを開いたままにする
     } finally {
       setIsMarkingCompleted(false);
     }
   };
 
   const vehicleInfo = `${vehicleName}${licensePlate ? ` / ${licensePlate}` : ""}`;
+
+  /**
+   * 作業指示書PDF出力
+   */
+  const handlePrintWorkOrder = async () => {
+    if (!job) return;
+
+    setIsGeneratingPDF(true);
+    triggerHapticFeedback("medium");
+
+    try {
+      // 代車情報を取得（配列チェックを追加）
+      const courtesyCarForPDF = Array.isArray(courtesyCars) ? courtesyCars.find(car => car.jobId === job.id) : undefined;
+
+      // ジョブ情報からPDFデータを生成（新しい情報を含める）
+      const pdfData = await createWorkOrderPDFDataFromJob({
+        ...job,
+        field10: job.field10 || null,
+        tagId: job.tagId || null,
+        field13: job.field13 || null,
+        courtesyCar: courtesyCarForPDF ? {
+          name: courtesyCarForPDF.name,
+          licensePlate: courtesyCarForPDF.licensePlate || undefined,
+        } : null,
+      });
+      if (!pdfData) {
+        toast.error("PDFデータの生成に失敗しました");
+        return;
+      }
+
+      // PDFを生成
+      const result = await generateWorkOrderPDF(pdfData);
+      if (!result.success || !result.data) {
+        throw new Error(result.error?.message || "PDF生成に失敗しました");
+      }
+
+      // PDFをプレビュー表示（新しいタブで開く）
+      const url = URL.createObjectURL(result.data);
+      window.open(url, "_blank");
+      
+      // URLは自動的にクリーンアップされる（ブラウザがタブを閉じた時）
+      // 念のため、少し遅延してからrevoke（タブが開くのを待つ）
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+
+      triggerHapticFeedback("success");
+      toast.success("作業指示書PDFをプレビュー表示しました");
+    } catch (error) {
+      console.error("PDF生成エラー:", error);
+      triggerHapticFeedback("error");
+      toast.error("PDF生成に失敗しました", {
+        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   return (
     <>
@@ -452,44 +542,67 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
         <div className="w-full lg:w-[240px] flex-shrink-0 relative bg-slate-200 aspect-[16/9]">
           {firstPhoto ? (
             <>
-              {/* 写真がある場合：写真を表示 */}
-              <Image
-                src={firstPhoto}
-                alt="車両写真"
-                fill
-                className="object-cover"
-                unoptimized
-              />
-              {/* 写真枚数バッジ */}
-              {photoCount > 0 && (
-                <div className="absolute top-2.5 left-2.5 bg-black/50 text-white px-2 py-1 rounded text-base font-medium flex items-center gap-1 z-10">
-                  <Camera className="h-4 w-4" />
-                  {photoCount}枚
+              {/* 写真がある場合：写真を表示（クリック可能：ブログ用写真撮影ダイアログを開く） */}
+              <div className="relative w-full h-full group">
+                <button
+                  onClick={() => {
+                    triggerHapticFeedback("light");
+                    setIsBlogPhotoCaptureDialogOpen(true);
+                  }}
+                  className="relative w-full h-full cursor-pointer"
+                  aria-label="ブログ用写真を撮影"
+                  title="ブログ用写真を撮影"
+                >
+                  <Image
+                    src={firstPhoto}
+                    alt="車両写真"
+                    fill
+                    className="object-cover transition-opacity"
+                    unoptimized
+                  />
+                  {/* 写真枚数バッジ */}
+                  {photoCount > 0 && (
+                    <div className="absolute top-2.5 left-2.5 bg-black/50 text-white px-2 py-1 rounded text-base font-medium flex items-center gap-1 z-10">
+                      <Camera className="h-4 w-4" />
+                      {photoCount}枚
+                    </div>
+                  )}
+                </button>
+                {/* ホバー時のオーバーレイ（写真を追加することを示す） */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-slate-700" />
+                    <span className="text-base font-medium text-slate-700">写真を追加</span>
+                  </div>
                 </div>
-              )}
+              </div>
             </>
           ) : (
             <>
-              {/* 写真がない場合：グレー背景に車両名を表示（クリック可能） */}
-              <button
-                onClick={() => {
-                  triggerHapticFeedback("light");
-                  if (job.field5 === "入庫済み") {
-                    window.location.href = `/mechanic/diagnosis/${job.id}`;
-                  }
-                }}
-                className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-300 hover:bg-slate-400 transition-colors cursor-pointer group"
-                aria-label="写真を追加"
-                title="写真を追加する（クリック）"
-              >
-                <Car className="h-10 w-10 text-slate-600 mb-2 group-hover:text-slate-800 transition-colors" strokeWidth={1.5} />
-                <span className="text-base font-medium text-center text-slate-700 leading-snug group-hover:text-slate-900 transition-colors">
-                  {vehicleName}
-                </span>
-                <span className="text-sm text-slate-600 mt-1 group-hover:text-slate-800 transition-colors">
-                  ＋写真を追加する
-                </span>
-              </button>
+              {/* 写真がない場合：グレー背景に車両名を表示（クリック可能：ブログ用写真撮影ダイアログを開く） */}
+              <div className="relative w-full h-full group">
+                <button
+                  onClick={() => {
+                    triggerHapticFeedback("light");
+                    setIsBlogPhotoCaptureDialogOpen(true);
+                  }}
+                  className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-300 hover:bg-slate-400 transition-colors cursor-pointer"
+                  aria-label="ブログ用写真を撮影"
+                  title="ブログ用写真を撮影"
+                >
+                  <ManufacturerIcon vehicleName={vehicleName} className="h-10 w-10 mb-2" fallbackClassName="h-10 w-10" />
+                  <span className="text-base font-medium text-center text-slate-700 leading-snug group-hover:text-slate-900 transition-colors">
+                    {vehicleName}
+                  </span>
+                </button>
+                {/* ホバー時のオーバーレイ（写真を追加することを示す） */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-slate-700" />
+                    <span className="text-base font-medium text-slate-700">写真を追加</span>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -505,7 +618,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                 }
               }}
               className={cn(
-                "text-lg font-semibold text-slate-900 text-left truncate",
+                "text-lg font-semibold text-slate-900 text-left truncate transition-all",
                 customerId ? "cursor-pointer" : "cursor-default"
               )}
               title={customerId ? "顧客詳細を表示" : undefined}
@@ -536,6 +649,25 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                   <Folder className="h-4.5 w-4.5" />
                 </a>
               )}
+              {/* 作業指示書印刷ボタン（作業指示または申し送り事項がある場合のみ表示） */}
+              {(hasWorkOrder || hasPreInput) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrintWorkOrder();
+                  }}
+                  disabled={isGeneratingPDF}
+                  className="p-1.5 rounded-md transition-all hover:bg-slate-100 text-slate-400 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="作業指示書を印刷"
+                  title="作業指示書を印刷"
+                >
+                  {isGeneratingPDF ? (
+                    <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                  ) : (
+                    <Printer className="h-4.5 w-4.5" />
+                  )}
+                </button>
+              )}
             </div>
             {/* ステータスバッジ（右寄せ） */}
             <div className="ml-auto">
@@ -552,10 +684,18 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
           </div>
 
           {/* 車両情報行（名前の下に表示） */}
-          <div className="flex items-center gap-2 text-base font-medium text-slate-900 min-w-0">
-            <Car className="h-5 w-5 text-slate-700 shrink-0" strokeWidth={2.5} />
+          <button
+            onClick={() => {
+              triggerHapticFeedback("light");
+              setIsVehicleDetailDialogOpen(true);
+            }}
+            className="flex items-center gap-2 text-base font-medium text-slate-900 min-w-0 cursor-pointer text-left transition-all"
+            title="車両詳細を表示"
+            aria-label="車両詳細を表示"
+          >
+            <ManufacturerIcon vehicleName={vehicleName} className="h-5 w-5" fallbackClassName="h-5 w-5" />
             <span className="break-words min-w-0">{vehicleInfo}</span>
-          </div>
+          </button>
 
           {/* 情報行 */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -580,7 +720,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
             {job.tagId && (
               <button
                 onClick={() => setIsTagChangeDialogOpen(true)}
-                className="flex items-center gap-1.5 text-base text-slate-700 cursor-pointer"
+                className="flex items-center gap-1.5 text-base text-slate-700 cursor-pointer transition-all"
                 title="タグを変更"
                 aria-label="タグを変更"
               >
@@ -592,7 +732,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
             {/* 担当整備士（クリック不可） */}
             {job.assignedMechanic && (
               <div className="flex items-center gap-1.5 text-base text-slate-700 cursor-default">
-                <User className="h-4 w-4 text-slate-500" />
+                <UserCog className="h-4 w-4 text-slate-500" />
                 {job.assignedMechanic}
               </div>
             )}
@@ -636,7 +776,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
             {hasWorkOrder && (
               <button
                 onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
-                className="bg-amber-50 text-amber-900 border border-amber-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                className="bg-amber-50 text-amber-900 border border-amber-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer shrink-0 dark:bg-slate-800 dark:text-white dark:border-amber-400 dark:hover:bg-slate-700"
                 title="受付メモ"
               >
                 <NotebookPen className="h-5 w-5 shrink-0 text-amber-600" />
@@ -648,7 +788,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
             {hasChangeRequest && (
               <button
                 onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
-                className="bg-amber-50 text-amber-900 border border-amber-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                className="bg-amber-50 text-amber-900 border border-amber-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer shrink-0 dark:bg-slate-800 dark:text-white dark:border-amber-400 dark:hover:bg-slate-700"
                 title="変更申請あり"
               >
                 <Bell className="h-5 w-5 shrink-0 text-amber-600" />
@@ -784,13 +924,13 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                   const parsed = parseWorkOrder(job.field);
                   
                   return (
-                    <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base">
+                    <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base dark:bg-slate-800 dark:border-amber-400 dark:text-white">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <NotebookPen className="h-5 w-5 text-amber-600 shrink-0" />
-                          <p className="font-medium text-amber-900">受付メモ</p>
+                          <p className="font-medium text-amber-900 dark:text-white">受付メモ</p>
                           {parsed.author && (
-                            <span className="text-base text-amber-700 font-medium">
+                            <span className="text-base text-amber-700 font-medium dark:text-white">
                               （記入者: {parsed.author}）
                             </span>
                           )}
@@ -800,47 +940,39 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                             e.stopPropagation();
                             handleOpenWorkOrderDialog();
                           }}
-                          className="text-base text-amber-700 hover:text-amber-900 underline flex items-center gap-1"
+                          className="text-base text-amber-700 hover:text-amber-900 underline flex items-center gap-1 dark:text-white dark:hover:text-amber-400"
                         >
                           <Edit className="h-5 w-5 shrink-0" />
                           編集する
                         </button>
                       </div>
-                      <p className="text-amber-900 whitespace-pre-wrap">{parsed.content}</p>
+                      <p className="text-amber-900 whitespace-pre-wrap dark:text-white">{parsed.content}</p>
                     </div>
                   );
                 })()}
                 
                 {/* 変更申請 */}
                 {hasChangeRequest && customerId && (
-                  <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Bell className="h-5 w-5 text-amber-600 shrink-0" />
-                        <p className="font-medium text-amber-900">変更申請あり</p>
-                      </div>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMarkChangeRequestCompleted();
-                        }}
-                        disabled={isMarkingCompleted}
-                        variant="outline"
-                        className="h-12 text-base font-medium bg-white border-amber-400 text-amber-900 hover:bg-amber-100"
-                      >
-                        {isMarkingCompleted ? (
-                          <>
-                            <Loader2 className="h-5 w-5 mr-1.5 animate-spin shrink-0" />
-                            処理中...
-                          </>
-                        ) : (
-                          "対応完了"
-                        )}
-                      </Button>
+                  <div className="bg-rose-50 border border-rose-200 rounded-md p-3 text-base">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Bell className="h-5 w-5 text-rose-600 shrink-0" />
+                      <p className="font-medium text-rose-700">変更申請あり</p>
                     </div>
-                    <p className="text-base text-amber-800 mt-2">
+                    <p className="text-base text-rose-700 mb-2">
                       顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
                     </p>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerHapticFeedback("light");
+                        setIsChangeRequestDetailOpen(true);
+                      }}
+                      variant="outline"
+                      className="w-full h-12 text-base font-medium bg-white border-rose-200 text-rose-700 hover:bg-rose-50"
+                    >
+                      <FileText className="h-5 w-5 mr-1.5 shrink-0" />
+                      詳細を見る
+                    </Button>
                   </div>
                 )}
                 
@@ -854,6 +986,45 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                 <p className="text-green-900 whitespace-pre-wrap">{job.field13}</p>
               </div>
             )}
+
+            {/* 作業メモ */}
+            {(() => {
+              const jobMemos = parseJobMemosFromField26(job.field26);
+              const latestWorkMemo = jobMemos.length > 0 ? jobMemos[0] : null;
+              
+              if (!latestWorkMemo) return null;
+              
+              return (
+                <div className="bg-purple-50 border border-purple-400 rounded-md p-3 text-base">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Notebook className="h-5 w-5 text-purple-600 shrink-0" />
+                    <p className="font-medium text-purple-900">作業メモ</p>
+                    {jobMemos.length > 1 && (
+                      <span className="text-base text-purple-700 font-medium">
+                        （他 {jobMemos.length - 1} 件）
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-base text-purple-700 mb-2">
+                    <span>{latestWorkMemo.author}</span>
+                    <span>•</span>
+                    <span>
+                      {new Date(latestWorkMemo.createdAt).toLocaleString("ja-JP", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "Asia/Tokyo",
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-purple-900 whitespace-pre-wrap line-clamp-3">
+                    {latestWorkMemo.content}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -912,6 +1083,34 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
         </DialogContent>
       </Dialog>
 
+      {/* 変更申請詳細モーダル */}
+      <ChangeRequestDetailDialog
+        open={isChangeRequestDetailOpen}
+        onOpenChange={setIsChangeRequestDetailOpen}
+        customerId={customerId}
+        customerName={project.customerName}
+        onMarkCompleted={handleMarkChangeRequestCompleted}
+        isMarkingCompleted={isMarkingCompleted}
+      />
+
+      {/* 写真ギャラリーダイアログ */}
+      <JobPhotoGalleryDialog
+        open={isPhotoGalleryOpen}
+        onOpenChange={setIsPhotoGalleryOpen}
+        jobId={job.id}
+        workOrders={workOrders}
+        customerName={project.customerName}
+        vehicleName={vehicleName}
+      />
+
+      {/* 車両詳細ダイアログ */}
+      <VehicleDetailDialog
+        open={isVehicleDetailDialogOpen}
+        onOpenChange={setIsVehicleDetailDialogOpen}
+        vehicleId={vehicleId || null}
+        vehicleName={vehicleName}
+      />
+
       {/* 受付メモダイアログ */}
       <WorkOrderDialog
         open={isWorkOrderDialogOpen}
@@ -928,6 +1127,18 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
           job={job}
         />
       )}
+
+      {/* ブログ用写真撮影ダイアログ */}
+      <BlogPhotoCaptureDialog
+        open={isBlogPhotoCaptureDialogOpen}
+        onOpenChange={setIsBlogPhotoCaptureDialogOpen}
+        jobId={job.id}
+        onComplete={() => {
+          // 撮影完了後の処理（必要に応じてデータを再取得）
+          mutate(`job-${job.id}`);
+          mutate(`blog-photos-card-${job.id}`);
+        }}
+      />
     </>
   );
 }

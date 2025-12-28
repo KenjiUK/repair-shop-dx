@@ -86,6 +86,7 @@ export default function NumericalMastersPage() {
       <AppHeader
         isTopPage={true}
         hideBrandOnScroll={false}
+        maxWidthClassName="max-w-5xl"
       />
 
       <main className="max-w-5xl mx-auto px-4 py-6">

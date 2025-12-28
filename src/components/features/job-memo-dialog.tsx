@@ -316,24 +316,25 @@ export function JobMemoDialog({
                             <div className="flex items-center gap-1 shrink-0">
                               <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon"
                                 onClick={() => handleStartEdit(memo)}
                                 title="編集"
+                                className="h-12 w-12"
                               >
-                                <Edit className="h-4 w-4 shrink-0" />
+                                <Edit className="h-5 w-5 shrink-0" />
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon"
                                 onClick={() => handleDeleteMemo(memo.id)}
                                 disabled={isDeleting === memo.id}
-                                className="text-red-700 hover:text-red-800 hover:bg-red-50"
+                                className="h-12 w-12 text-red-700 hover:text-red-800 hover:bg-red-50"
                                 title="削除"
                               >
                                 {isDeleting === memo.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                                  <Loader2 className="h-5 w-5 animate-spin shrink-0" />
                                 ) : (
-                                  <Trash2 className="h-4 w-4 shrink-0" />
+                                  <Trash2 className="h-5 w-5 shrink-0" />
                                 )}
                               </Button>
                             </div>

@@ -2,15 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { User, Car, Clock, Tag, Wrench, FileText, Star, Folder, CarFront, AlertTriangle } from "lucide-react";
-import { ZohoJob } from "@/types";
+import { User, Car, Clock, Tag, Wrench, FileText, Star, Folder, CarFront, AlertTriangle, UserCog, ShieldCheck, CalendarCheck, Droplet, Circle, Settings, Activity, Zap, Package, Shield, Sparkles, Paintbrush, ExternalLink } from "lucide-react";
+import { ZohoJob, ServiceKind } from "@/types";
 import { cn } from "@/lib/utils";
 import { CustomerDetailDialog } from "@/components/features/customer-detail-dialog";
 import { VehicleDetailDialog } from "@/components/features/vehicle-detail-dialog";
+import { ManufacturerIcon } from "@/components/features/manufacturer-icon";
 import { triggerHapticFeedback } from "@/lib/haptic-feedback";
 import { isImportantCustomer, toggleImportantCustomer } from "@/lib/important-customer-flag";
 import { toast } from "sonner";
 import { CourtesyCar } from "@/types";
+import { MechanicSelectDialog } from "@/components/features/mechanic-select-dialog";
+import { CourtesyCarSelectDialog } from "@/components/features/courtesy-car-select-dialog";
+import { assignMechanic, updateJobCourtesyCar, fetchAllCourtesyCars } from "@/lib/api";
+import useSWR from "swr";
+import { mutate } from "swr";
 
 interface CompactJobHeaderProps {
   /** 案件情報 */
@@ -78,7 +84,7 @@ function getStatusBadgeStyle(status: string): string {
     case "出庫待ち":
       return "bg-green-50 text-green-700 border-green-300";
     case "出庫済み":
-      return "bg-slate-50 text-slate-700 border-slate-300";
+      return "bg-slate-50 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-white dark:border-slate-600";
     case "部品調達待ち":
       return "bg-amber-50 text-amber-700 border-amber-300";
     case "部品発注待ち":
@@ -88,9 +94,46 @@ function getStatusBadgeStyle(status: string): string {
     case "見積提示済み":
       return "bg-amber-50 text-amber-900 border-amber-300"; // yellow → amber, text-amber-700 → text-amber-900 (40歳以上ユーザー向け、コントラスト向上)
     case "出庫済み":
-      return "bg-slate-50 text-slate-700 border-slate-300"; // text-slate-600 → text-slate-700, border-slate-200 → border-slate-300 (40歳以上ユーザー向け、コントラスト向上)
+      return "bg-slate-50 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-white dark:border-slate-600"; // text-slate-600 → text-slate-700, border-slate-200 → border-slate-300 (40歳以上ユーザー向け、コントラスト向上)
     default:
-      return "bg-slate-100 text-slate-700 border-slate-300";
+      return "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-600 dark:text-white dark:border-slate-500";
+  }
+}
+
+/**
+ * サービス種類に応じたアイコンを取得（JOBカードと同じ）
+ */
+function getServiceKindIcon(serviceKind?: string) {
+  if (!serviceKind) return null;
+  switch (serviceKind) {
+    case "車検":
+      return <ShieldCheck className="h-4 w-4 text-cyan-600" strokeWidth={2.5} />;
+    case "12ヵ月点検":
+      return <CalendarCheck className="h-4 w-4 text-cyan-600" strokeWidth={2.5} />;
+    case "エンジンオイル交換":
+      return <Droplet className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />;
+    case "タイヤ交換・ローテーション":
+      return <Circle className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />;
+    case "その他のメンテナンス":
+      return <Settings className="h-4 w-4 text-slate-700 dark:text-white" strokeWidth={2.5} />;
+    case "故障診断":
+      return <Activity className="h-4 w-4 text-rose-600" strokeWidth={2.5} />;
+    case "修理・整備":
+      return <Wrench className="h-4 w-4 text-orange-700" strokeWidth={2.5} />;
+    case "チューニング":
+      return <Zap className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "パーツ取付":
+      return <Package className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "コーティング":
+      return <Shield className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "レストア":
+      return <Sparkles className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "板金・塗装":
+      return <Paintbrush className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "その他":
+      return <FileText className="h-4 w-4 text-slate-700 dark:text-white" strokeWidth={2.5} />;
+    default:
+      return <FileText className="h-4 w-4 text-slate-700 dark:text-white" strokeWidth={2.5} />;
   }
 }
 
@@ -119,6 +162,10 @@ export function CompactJobHeader({
 }: CompactJobHeaderProps) {
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [isVehicleDialogOpen, setIsVehicleDialogOpen] = useState(false);
+  const [isMechanicSelectDialogOpen, setIsMechanicSelectDialogOpen] = useState(false);
+  const [isAssigningMechanic, setIsAssigningMechanic] = useState(false);
+  const [isCourtesyCarChangeDialogOpen, setIsCourtesyCarChangeDialogOpen] = useState(false);
+  const [isChangingCourtesyCar, setIsChangingCourtesyCar] = useState(false);
   
   // 顧客IDを取得
   const customerId = job.field4?.id || null;
@@ -128,6 +175,12 @@ export function CompactJobHeader({
   
   // 重要な顧客フラグ
   const [isImportant, setIsImportant] = useState(false);
+  
+  // 代車一覧を取得
+  const { data: allCourtesyCars = [], isLoading: isCourtesyCarsLoading } = useSWR(
+    "all-courtesy-cars",
+    fetchAllCourtesyCars
+  );
   
   useEffect(() => {
     if (!customerId) return;
@@ -170,7 +223,7 @@ export function CompactJobHeader({
       <div className={cn("space-y-1.5", className)}>
         {/* 第1階層: 顧客名 + 重要な顧客フラグ + お客様共有フォルダ + ステータスバッジ */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <User className="h-4 w-4 text-slate-700 shrink-0" />
+          <User className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
           <button
             onClick={() => {
               if (customerId) {
@@ -179,8 +232,8 @@ export function CompactJobHeader({
               }
             }}
             className={cn(
-              "text-base sm:text-lg font-semibold text-slate-900 truncate text-left",
-              customerId && "hover:text-blue-700 transition-colors cursor-pointer"
+              "text-base sm:text-lg font-semibold text-slate-900 truncate text-left dark:text-white",
+              customerId && "hover:text-blue-700 transition-colors cursor-pointer dark:hover:text-blue-400"
             )}
             title={customerId ? "顧客詳細を表示" : undefined}
             disabled={!customerId}
@@ -211,7 +264,7 @@ export function CompactJobHeader({
               href={job.field19}
               target="_blank"
               rel="noopener noreferrer"
-              className="shrink-0 text-slate-700 hover:text-blue-700 transition-colors"
+              className="shrink-0 text-slate-700 hover:text-blue-700 transition-colors dark:text-white dark:hover:text-blue-400"
               onClick={(e) => {
                 e.stopPropagation();
                 triggerHapticFeedback("light");
@@ -263,26 +316,27 @@ export function CompactJobHeader({
             title={vehicleId ? "車両詳細を表示" : undefined}
             disabled={!vehicleId}
           >
-            <Car className="h-4 w-4 text-slate-700 shrink-0" />
-            <span className="text-base text-slate-800 break-words">
+            <ManufacturerIcon vehicleName={vehicleName} className="h-4 w-4" fallbackClassName="h-4 w-4" />
+            <span className="text-base text-slate-800 break-words dark:text-white">
               {vehicleName}
-              {licensePlate && <span className="text-slate-700 ml-1">/ {licensePlate}</span>}
+              {licensePlate && <span className="text-slate-700 ml-1 dark:text-white">/ {licensePlate}</span>}
             </span>
           </button>
 
-        {/* 入庫区分 */}
+        {/* 入庫区分（JOBカードと同じアイコン付き） */}
         {serviceKind && (
           <Badge 
             variant="outline" 
-            className="bg-slate-100 text-slate-800 border-slate-300 text-base font-medium px-2.5 py-1 rounded-full shrink-0"
+            className="bg-slate-100 text-slate-800 border-slate-300 text-base font-medium px-2.5 py-1 rounded-full shrink-0 inline-flex items-center gap-1.5 dark:bg-slate-700 dark:text-white dark:border-slate-600"
           >
+            {getServiceKindIcon(serviceKind)}
             <span className="whitespace-nowrap">{serviceKind}</span>
           </Badge>
         )}
 
         {/* 入庫日時 */}
-        <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0">
-          <Clock className="h-4 w-4 text-slate-700 shrink-0" />
+        <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0 dark:text-white">
+          <Clock className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
           <span className="whitespace-nowrap">
             {arrivalDateTime.date} {arrivalDateTime.time} {arrivalLabel}
           </span>
@@ -294,37 +348,69 @@ export function CompactJobHeader({
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* 現在の作業（入庫区分バッジと重複しない場合のみ表示） */}
             {currentWorkOrderName && !isWorkOrderDuplicated && (
-              <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0">
-                <FileText className="h-4 w-4 text-slate-700 shrink-0" />
+              <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0 dark:text-white">
+                <FileText className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
                 <span className="break-words">{currentWorkOrderName}</span>
               </div>
             )}
 
-            {/* 担当整備士 */}
+            {/* 担当整備士（クリック可能：変更可能） */}
             {assignedMechanic && (
-              <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0">
-                <Wrench className="h-4 w-4 text-slate-700 shrink-0" />
+              <button
+                onClick={() => {
+                  triggerHapticFeedback("light");
+                  setIsMechanicSelectDialogOpen(true);
+                }}
+                className="flex items-center gap-1.5 text-base text-slate-800 shrink-0 cursor-pointer transition-colors dark:text-white"
+                title="整備士を変更"
+                aria-label="整備士を変更"
+              >
+                <UserCog className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
                 <span className="break-words">{assignedMechanic}</span>
-              </div>
+              </button>
+            )}
+            {/* 整備士が未割り当ての場合もクリック可能 */}
+            {!assignedMechanic && (
+              <button
+                onClick={() => {
+                  triggerHapticFeedback("light");
+                  setIsMechanicSelectDialogOpen(true);
+                }}
+                className="flex items-center gap-1.5 text-base text-slate-500 shrink-0 cursor-pointer transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-white"
+                title="整備士を割り当て"
+                aria-label="整備士を割り当て"
+              >
+                <UserCog className="h-4 w-4 text-slate-400 shrink-0" />
+                <span>未割り当て</span>
+              </button>
             )}
             
-            {/* 代車 */}
+            {/* 代車（クリック可能：変更可能） */}
             {courtesyCar && (
-              <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0">
-                <CarFront className="h-4 w-4 text-slate-700 shrink-0" />
+              <button
+                onClick={() => {
+                  triggerHapticFeedback("light");
+                  setIsCourtesyCarChangeDialogOpen(true);
+                }}
+                className="flex items-center gap-1.5 text-base text-slate-800 shrink-0 cursor-pointer transition-colors dark:text-white"
+                title="代車を変更"
+                aria-label="代車を変更"
+              >
+                <CarFront className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
                 <span className="whitespace-nowrap">代車 {courtesyCar.name}</span>
-              </div>
+              </button>
             )}
 
             {/* タグ（第3階層、重要度が低いため最後に配置、showTagId が true の場合のみ表示） */}
             {showTagId && tagId && (
-              <div className="flex items-center gap-1.5 text-base text-slate-700 shrink-0">
-                <Tag className="h-4 w-4 text-slate-700 shrink-0" />
+              <div className="flex items-center gap-1.5 text-base text-slate-700 shrink-0 dark:text-white">
+                <Tag className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
                 <span className="whitespace-nowrap">{tagId}</span>
               </div>
             )}
           </div>
         )}
+
       </div>
 
       {/* 顧客詳細ダイアログ */}
@@ -343,6 +429,92 @@ export function CompactJobHeader({
         vehicleName={vehicleName}
         courtesyCars={courtesyCars}
         reportedMileage={job.field10 || null}
+      />
+
+      {/* 整備士選択ダイアログ */}
+      <MechanicSelectDialog
+        open={isMechanicSelectDialogOpen}
+        onOpenChange={setIsMechanicSelectDialogOpen}
+        isLoading={false}
+        isProcessing={isAssigningMechanic}
+        onSelect={async (mechanicName) => {
+          setIsAssigningMechanic(true);
+          try {
+            const result = await assignMechanic(job.id, mechanicName);
+            if (result.success) {
+              toast.success("整備士を変更しました");
+              // データを再取得
+              mutate(`job-${job.id}`);
+              mutate("today-jobs");
+              mutate("all-jobs");
+              setIsMechanicSelectDialogOpen(false);
+            } else {
+              toast.error("整備士の変更に失敗しました", {
+                description: result.error?.message,
+              });
+            }
+          } catch (error) {
+            console.error("整備士変更エラー:", error);
+            toast.error("エラーが発生しました");
+          } finally {
+            setIsAssigningMechanic(false);
+          }
+        }}
+      />
+
+      {/* 代車変更ダイアログ */}
+      <CourtesyCarSelectDialog
+        open={isCourtesyCarChangeDialogOpen}
+        onOpenChange={setIsCourtesyCarChangeDialogOpen}
+        cars={allCourtesyCars}
+        isLoading={isCourtesyCarsLoading}
+        isProcessing={isChangingCourtesyCar}
+        onSelect={async (carId) => {
+          setIsChangingCourtesyCar(true);
+          try {
+            const result = await updateJobCourtesyCar(job.id, carId);
+            if (result.success) {
+              toast.success("代車を変更しました");
+              // データを再取得
+              mutate(`job-${job.id}`);
+              mutate("today-jobs");
+              mutate("all-jobs");
+              setIsCourtesyCarChangeDialogOpen(false);
+            } else {
+              toast.error("代車の変更に失敗しました", {
+                description: result.error?.message,
+              });
+            }
+          } catch (error) {
+            console.error("代車変更エラー:", error);
+            toast.error("エラーが発生しました");
+          } finally {
+            setIsChangingCourtesyCar(false);
+          }
+        }}
+        onSkip={async () => {
+          setIsChangingCourtesyCar(true);
+          try {
+            const result = await updateJobCourtesyCar(job.id, null);
+            if (result.success) {
+              toast.success("代車を解除しました");
+              // データを再取得
+              mutate(`job-${job.id}`);
+              mutate("today-jobs");
+              mutate("all-jobs");
+              setIsCourtesyCarChangeDialogOpen(false);
+            } else {
+              toast.error("代車の解除に失敗しました", {
+                description: result.error?.message,
+              });
+            }
+          } catch (error) {
+            console.error("代車解除エラー:", error);
+            toast.error("エラーが発生しました");
+          } finally {
+            setIsChangingCourtesyCar(false);
+          }
+        }}
       />
     </>
   );

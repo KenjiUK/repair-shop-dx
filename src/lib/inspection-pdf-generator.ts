@@ -6,6 +6,8 @@
 
 import { ApiResponse } from "@/types";
 import { InspectionItem } from "./inspection-items";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { loadCustomFont, drawText as drawTextHelper, splitTextToSize, drawLine } from "./pdf-utils";
 
 // =============================================================================
 // 型定義
@@ -53,100 +55,38 @@ export interface InspectionRecordData {
   replacementParts?: ReplacementPart[];
   /** 整備主任者の氏名 */
   mechanicName: string;
-  /** 点検(整備)時の総走行距離 */
-  mileage: number;
+  /** 点検(整備)時の総走行距離（顧客申告があればその値、無ければnull） */
+  mileage: number | null;
   /** 点検日 */
   inspectionDate: string; // ISO 8601
+  /** 24ヶ月点検リデザイン版の測定値データ */
+  measurements?: {
+    /** CO濃度（%） */
+    coConcentration?: number;
+    /** HC濃度（ppm） */
+    hcConcentration?: number;
+    /** ブレーキパッド前左（mm） */
+    brakePadFrontLeft?: number;
+    /** ブレーキパッド前右（mm） */
+    brakePadFrontRight?: number;
+    /** ブレーキパッド後左（mm） */
+    brakePadRearLeft?: number;
+    /** ブレーキパッド後右（mm） */
+    brakePadRearRight?: number;
+    /** タイヤ溝前左（mm） */
+    tireDepthFrontLeft?: number;
+    /** タイヤ溝前右（mm） */
+    tireDepthFrontRight?: number;
+    /** タイヤ溝後左（mm） */
+    tireDepthRearLeft?: number;
+    /** タイヤ溝後右（mm） */
+    tireDepthRearRight?: number;
+  };
 }
 
 // =============================================================================
 // PDF生成
 // =============================================================================
-
-/**
- * 日本語フォントを読み込んでjsPDFに追加
- * 
- * フォントファイルは public/fonts/ に配置されていることを前提とします。
- */
-async function loadJapaneseFont(doc: any): Promise<boolean> {
-  try {
-    // フォントファイルをpublicフォルダから読み込む
-    const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
-    const boldFontUrl = "/fonts/NotoSansJP-Bold.ttf";
-    
-    console.log("[PDF] 日本語フォントの読み込みを開始:", regularFontUrl);
-    
-    // フォントファイルをフェッチしてBase64エンコード
-    const [regularResponse, boldResponse] = await Promise.all([
-      fetch(regularFontUrl).catch((err) => {
-        console.error("[PDF] Regularフォントのフェッチエラー:", err);
-        return null;
-      }),
-      fetch(boldFontUrl).catch((err) => {
-        console.error("[PDF] Boldフォントのフェッチエラー:", err);
-        return null;
-      }),
-    ]);
-    
-    if (!regularResponse || !regularResponse.ok) {
-      console.warn("[PDF] 日本語フォントファイルが見つかりません:", regularFontUrl, regularResponse?.status);
-      return false;
-    }
-    
-    console.log("[PDF] フォントファイルのフェッチ成功。Base64エンコード中...");
-    const regularBlob = await regularResponse.blob();
-    const regularBase64 = await blobToBase64(regularBlob);
-    
-    console.log("[PDF] Base64エンコード完了。フォントサイズ:", regularBase64.length, "文字");
-    
-    // Regularフォントを追加
-    try {
-      doc.addFileToVFS("NotoSansJP-Regular.ttf", regularBase64);
-      doc.addFont("NotoSansJP-Regular.ttf", "NotoSansJP", "normal");
-      console.log("[PDF] Regularフォントの追加に成功");
-    } catch (fontError) {
-      console.error("[PDF] Regularフォントの追加に失敗:", fontError);
-      return false;
-    }
-    
-    // Boldフォントも追加（利用可能な場合）
-    if (boldResponse && boldResponse.ok) {
-      try {
-        const boldBlob = await boldResponse.blob();
-        const boldBase64 = await blobToBase64(boldBlob);
-        doc.addFileToVFS("NotoSansJP-Bold.ttf", boldBase64);
-        doc.addFont("NotoSansJP-Bold.ttf", "NotoSansJP", "bold");
-        console.log("[PDF] Boldフォントの追加に成功");
-      } catch (boldError) {
-        console.warn("[PDF] Boldフォントの追加に失敗（Regularフォントのみ使用）:", boldError);
-        // Boldフォントの追加に失敗しても、Regularフォントは使用可能なので続行
-      }
-    } else {
-      console.warn("[PDF] Boldフォントファイルが見つかりません。Regularフォントのみ使用します。");
-    }
-    
-    console.log("[PDF] 日本語フォントの読み込み完了");
-    return true;
-  } catch (error) {
-    console.error("[PDF] 日本語フォントの読み込みに失敗:", error);
-    return false;
-  }
-}
-
-/**
- * BlobをBase64文字列に変換
- */
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
 
 /**
  * 分解整備記録簿PDFを生成
@@ -158,26 +98,34 @@ export async function generateInspectionRecordPDF(
   data: InspectionRecordData
 ): Promise<ApiResponse<Blob>> {
   try {
-    // 動的インポート（クライアント側でのみ使用）
-    const { jsPDF } = await import("jspdf");
+    // PDFドキュメントを作成
+    const doc = await PDFDocument.create();
 
-    // PDFドキュメントを作成（A4サイズ）
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-      compress: false, // 日本語フォントの互換性のため圧縮を無効化
-    });
+    // フォント読み込み
+    const regularFontUrl = "/fonts/NotoSansJP-Regular.ttf";
+    const boldFontUrl = "/fonts/NotoSansJP-Bold.ttf";
 
-    // 日本語フォントを読み込む
-    const fontLoaded = await loadJapaneseFont(doc);
-    
-    // フォントが読み込まれなかった場合の警告
-    if (!fontLoaded) {
-      console.warn("[PDF] 日本語フォントが読み込めませんでした。文字化けが発生する可能性があります。");
+    let regularFont = await loadCustomFont(doc, regularFontUrl, "NotoSansJP-Regular");
+    let boldFont = await loadCustomFont(doc, boldFontUrl, "NotoSansJP-Bold");
+
+    // フォールバックフォント
+    const fallbackFont = await doc.embedFont(StandardFonts.Helvetica);
+    const fallbackBoldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+
+    if (!regularFont) {
+      console.warn("[PDF] 日本語Regularフォントの読み込みに失敗しました。StandardFontsを使用します。");
+      regularFont = fallbackFont;
+    }
+    if (!boldFont) {
+      console.warn("[PDF] 日本語Boldフォントの読み込みに失敗しました。RegularフォントまたはStandardFontsを使用します。");
+      boldFont = regularFont || fallbackBoldFont;
     }
 
-    // フォントサイズ設定
+    // A4サイズ設定 (210mm x 297mm) -> points are handled by pdf-lib default if not specified, 
+    // but we want A4. pdf-lib defaults to something, let's be explicit.
+    // [595.28, 841.89] is standard A4 in points.
+    let page = doc.addPage([595.28, 841.89]);
+
     const fontSize = {
       title: 16,
       heading: 12,
@@ -185,7 +133,6 @@ export async function generateInspectionRecordPDF(
       small: 8,
     };
 
-    // マージン設定
     const margin = {
       top: 20,
       left: 20,
@@ -195,53 +142,45 @@ export async function generateInspectionRecordPDF(
 
     let yPosition = margin.top;
 
+    // Helper to add page if needed
+    const checkPageBreak = (heightNeeded: number) => {
+      // 297mm is page height. Convert to mm roughly for check.
+      // yPosition is in mm.
+      if (yPosition + heightNeeded > 277) { // 297 - 20 (bottom margin)
+        page = doc.addPage([595.28, 841.89]);
+        yPosition = margin.top;
+      }
+    };
+
     // =============================================================================
     // タイトル
     // =============================================================================
-    doc.setFontSize(fontSize.title);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "bold");
-    } else {
-      doc.setFont("helvetica", "bold");
-    }
-    doc.text("分解整備記録簿", 105, yPosition, { align: "center" });
+    drawTextHelper(page, "分解整備記録簿", 105, yPosition, boldFont, fontSize.title, rgb(0, 0, 0), { align: "center" });
     yPosition += 10;
 
     // =============================================================================
     // 車両情報
     // =============================================================================
-    doc.setFontSize(fontSize.heading);
-    doc.setFont("helvetica", "bold");
-    doc.text("車両情報", margin.left, yPosition);
+    drawTextHelper(page, "車両情報", margin.left, yPosition, boldFont, fontSize.heading);
     yPosition += 7;
 
-    doc.setFontSize(fontSize.normal);
-    doc.setFont("helvetica", "normal");
-    doc.text(`依頼者(使用者): ${data.vehicle.ownerName}`, margin.left, yPosition);
+    drawTextHelper(page, `依頼者(使用者): ${data.vehicle.ownerName}`, margin.left, yPosition, regularFont, fontSize.normal);
     yPosition += 6;
-    doc.text(`車名及び型式: ${data.vehicle.vehicleName}`, margin.left, yPosition);
+    drawTextHelper(page, `車名及び型式: ${data.vehicle.vehicleName}`, margin.left, yPosition, regularFont, fontSize.normal);
     yPosition += 6;
-    doc.text(
-      `自動車登録番号又は車両番号: ${data.vehicle.licensePlate}`,
-      margin.left,
-      yPosition
-    );
+    drawTextHelper(page, `自動車登録番号又は車両番号: ${data.vehicle.licensePlate}`, margin.left, yPosition, regularFont, fontSize.normal);
     yPosition += 6;
 
     if (data.vehicle.engineType) {
-      doc.text(`原動機の型式: ${data.vehicle.engineType}`, margin.left, yPosition);
+      drawTextHelper(page, `原動機の型式: ${data.vehicle.engineType}`, margin.left, yPosition, regularFont, fontSize.normal);
       yPosition += 6;
     }
     if (data.vehicle.firstRegistrationYear) {
-      doc.text(
-        `初度登録年又は初度検査年: ${data.vehicle.firstRegistrationYear}`,
-        margin.left,
-        yPosition
-      );
+      drawTextHelper(page, `初度登録年又は初度検査年: ${data.vehicle.firstRegistrationYear}`, margin.left, yPosition, regularFont, fontSize.normal);
       yPosition += 6;
     }
     if (data.vehicle.chassisNumber) {
-      doc.text(`車台番号: ${data.vehicle.chassisNumber}`, margin.left, yPosition);
+      drawTextHelper(page, `車台番号: ${data.vehicle.chassisNumber}`, margin.left, yPosition, regularFont, fontSize.normal);
       yPosition += 6;
     }
 
@@ -250,13 +189,7 @@ export async function generateInspectionRecordPDF(
     // =============================================================================
     // 検査項目
     // =============================================================================
-    doc.setFontSize(fontSize.heading);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "bold");
-    } else {
-      doc.setFont("helvetica", "bold");
-    }
-    doc.text("検査項目", margin.left, yPosition);
+    drawTextHelper(page, "検査項目", margin.left, yPosition, boldFont, fontSize.heading);
     yPosition += 7;
 
     // カテゴリごとにグループ化
@@ -274,40 +207,32 @@ export async function generateInspectionRecordPDF(
     // カテゴリごとに表示
     for (const [category, items] of Object.entries(itemsByCategory)) {
       // カテゴリ名
-      doc.setFontSize(fontSize.normal);
-      doc.setFont("helvetica", "bold");
-      doc.text(
+      checkPageBreak(20);
+      drawTextHelper(
+        page,
         getCategoryDisplayName(category),
         margin.left,
-        yPosition
+        yPosition,
+        boldFont,
+        fontSize.normal
       );
       yPosition += 6;
 
-      // 検査項目リスト
-      doc.setFontSize(fontSize.small);
-      doc.setFont("helvetica", "normal");
-
       for (const item of items) {
-        // ページ改行チェック
-        if (yPosition > 250) {
-          doc.addPage();
-          yPosition = margin.top;
-        }
+        checkPageBreak(10);
 
         const statusText = getStatusText(item.status);
         const measurementText = item.measurementValue
           ? ` (測定値: ${item.measurementValue}${item.measurement?.unit || ""})`
           : "";
 
-        doc.text(
-          `・${item.name}: ${statusText}${measurementText}`,
-          margin.left + 5,
-          yPosition
-        );
+        const lineText = `・${item.name}: ${statusText}${measurementText}`;
+        drawTextHelper(page, lineText, margin.left + 5, yPosition, regularFont, fontSize.small);
         yPosition += 5;
 
         if (item.comment) {
-          doc.text(`  ${item.comment}`, margin.left + 10, yPosition);
+          checkPageBreak(5);
+          drawTextHelper(page, `  ${item.comment}`, margin.left + 10, yPosition, regularFont, fontSize.small);
           yPosition += 5;
         }
       }
@@ -319,33 +244,20 @@ export async function generateInspectionRecordPDF(
     // 交換部品
     // =============================================================================
     if (data.replacementParts && data.replacementParts.length > 0) {
-      // ページ改行チェック
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = margin.top;
-      }
+      checkPageBreak(20);
 
-      doc.setFontSize(fontSize.heading);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "bold");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
-      doc.text("交換部品", margin.left, yPosition);
+      drawTextHelper(page, "交換部品", margin.left, yPosition, boldFont, fontSize.heading);
       yPosition += 7;
 
-      doc.setFontSize(fontSize.normal);
-      if (fontLoaded) {
-        doc.setFont("NotoSansJP", "normal");
-      } else {
-        doc.setFont("helvetica", "normal");
-      }
-
       for (const part of data.replacementParts) {
-        doc.text(
+        checkPageBreak(10);
+        drawTextHelper(
+          page,
           `・${part.name}: ${part.quantity}${part.unit}`,
           margin.left + 5,
-          yPosition
+          yPosition,
+          regularFont,
+          fontSize.normal
         );
         yPosition += 6;
       }
@@ -356,57 +268,42 @@ export async function generateInspectionRecordPDF(
     // =============================================================================
     // 整備情報
     // =============================================================================
-    // ページ改行チェック
-    if (yPosition > 250) {
-      doc.addPage();
-      yPosition = margin.top;
-    }
+    checkPageBreak(30);
 
-    doc.setFontSize(fontSize.heading);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "bold");
-    } else {
-      doc.setFont("helvetica", "bold");
-    }
-    doc.text("整備情報", margin.left, yPosition);
+    drawTextHelper(page, "整備情報", margin.left, yPosition, boldFont, fontSize.heading);
     yPosition += 7;
 
-    doc.setFontSize(fontSize.normal);
-    if (fontLoaded) {
-      doc.setFont("NotoSansJP", "normal");
-    } else {
-      doc.setFont("helvetica", "normal");
-    }
-    doc.text(
-      `整備主任者: ${data.mechanicName}`,
-      margin.left,
-      yPosition
-    );
+    drawTextHelper(page, `整備主任者: ${data.mechanicName}`, margin.left, yPosition, regularFont, fontSize.normal);
     yPosition += 6;
-    doc.text(
-      `点検(整備)時の総走行距離: ${data.mileage.toLocaleString()} km`,
-      margin.left,
-      yPosition
-    );
+
+    const mileageText = data.mileage !== null && data.mileage !== undefined
+      ? `${data.mileage.toLocaleString()} km`
+      : "";
+    drawTextHelper(page, `点検(整備)時の総走行距離: ${mileageText}`, margin.left, yPosition, regularFont, fontSize.normal);
     yPosition += 6;
 
     const inspectionDate = new Date(data.inspectionDate);
-    doc.text(
+    drawTextHelper(
+      page,
       `点検日: ${inspectionDate.toLocaleDateString("ja-JP")}`,
       margin.left,
-      yPosition
+      yPosition,
+      regularFont,
+      fontSize.normal
     );
 
     // =============================================================================
     // PDFをBlobに変換
     // =============================================================================
-    const pdfBlob = doc.output("blob");
+    const pdfBytes = await doc.save();
+    const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
 
     return {
       success: true,
       data: pdfBlob,
     };
   } catch (error) {
+    console.error(error);
     return {
       success: false,
       error: {
@@ -452,26 +349,3 @@ function getStatusText(status: string): string {
   };
   return statusTexts[status] || status;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

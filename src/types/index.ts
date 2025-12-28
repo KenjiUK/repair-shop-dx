@@ -413,8 +413,16 @@ export interface DiagnosisItem {
   comment: string | null;
   /** 証拠写真URL */
   evidencePhotoUrls: string[];
-  /** 証拠動画URL */
-  evidenceVideoUrl: string | null;
+  /** 証拠動画URL（単一、後方互換性のため保持） */
+  evidenceVideoUrl?: string | null;
+  /** 証拠動画URL配列（新規追加） */
+  evidenceVideoUrls?: string[];
+  /** 動画データ（メタデータ用） */
+  videoData?: Array<{
+    url: string;
+    duration?: number;
+    transcription?: string;
+  }>;
 }
 
 /**

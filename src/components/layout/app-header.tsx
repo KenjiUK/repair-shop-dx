@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, ReactElement, isValidElement, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, ReactElement, isValidElement, memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -10,7 +10,9 @@ import { useSidebar } from "@/components/providers/sidebar-provider";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JobSearchBar } from "@/components/features/job-search-bar";
+import { ThemeToggleButton } from "@/components/features/theme-toggle-button";
 import { ZohoJob } from "@/types";
+import { useHeaderCollapseV2 as useHeaderCollapse } from "./app-header-collapse-v2";
 
 interface AppHeaderProps {
   /** 右側に表示するページ固有の内容（バッジやボタンなど） */
@@ -49,6 +51,12 @@ interface AppHeaderProps {
   pageTitle?: string;
   /** ページタイトルアイコン（トップページ以外で使用） */
   pageTitleIcon?: React.ReactNode;
+  /** 縮小版ヘッダーに表示する顧客名（オプション） */
+  collapsedCustomerName?: string;
+  /** 縮小版ヘッダーに表示する車両情報（オプション） */
+  collapsedVehicleName?: string;
+  /** 縮小版ヘッダーに表示するナンバープレート（オプション） */
+  collapsedLicensePlate?: string;
 }
 
 /**
@@ -103,10 +111,19 @@ export function AppHeader({
   onSuggestionSelect,
   pageTitle: pageTitleProp,
   pageTitleIcon: pageTitleIconProp,
+  collapsedCustomerName,
+  collapsedVehicleName,
+  collapsedLicensePlate,
 }: AppHeaderProps) {
   const pathname = usePathname();
   // TOPページかどうかを判定（パスが"/"の場合、または明示的に指定された場合）
-  const isTopPage = isTopPageProp ?? pathname === "/";
+  const isTopPage = useMemo(() => {
+    if (isTopPageProp !== undefined) {
+      return isTopPageProp;
+    }
+    // pathnameが取得できている場合のみ判定
+    return pathname === "/";
+  }, [isTopPageProp, pathname]);
   
   const [isScrolled, setIsScrolled] = useState(false);
   const [pageTitle, setPageTitle] = useState<string | null>(pageTitleProp || null);
@@ -115,16 +132,56 @@ export function AppHeader({
   const rafIdRef = useRef<number | null>(null);
   const lastScrollYRef = useRef<number>(0);
   const prevIsScrolledRef = useRef<boolean>(false);
+  const prevTitleRef = useRef<string | null>(pageTitleProp || null);
+  const prevIconRef = useRef<React.ReactNode | null>(pageTitleIconProp || null);
   
   // モバイルヘッダーの展開/縮小状態（トップページ以外のみ）
-  const [isHeaderExpanded, setIsHeaderExpanded] = useState(true);
-  const [scrollDirection, setScrollDirection] = useState<"up" | "down" | null>(null);
+  // カスタムフックを使用して完全に分離
+  const isHeaderExpanded = useHeaderCollapse(isTopPage, collapsibleOnMobile);
+  
+  // ヘッダーの高さを測定してCSS変数として設定（レイアウトシフトを防止）
+  useLayoutEffect(() => {
+    if (!headerRef.current) return;
+
+    const updateHeight = () => {
+      if (headerRef.current) {
+        const currentHeight = headerRef.current.offsetHeight;
+        // CSS変数を設定（コンテンツのパディングに使用）
+        // useLayoutEffect内なので同期的に更新してレイアウトシフトを防止
+        document.documentElement.style.setProperty('--header-height', `${currentHeight}px`);
+      }
+    };
+
+    // 初回測定（レンダリング前に即座に実行）
+    updateHeight();
+
+    // ResizeObserverで高さの変化を監視
+    const resizeObserver = new ResizeObserver(() => {
+      // useLayoutEffect内なので同期的に更新
+      updateHeight();
+    });
+    resizeObserver.observe(headerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isHeaderExpanded, children]);
+  
+  // デバッグログ（開発環境のみ）
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[AppHeader] isHeaderExpanded changed:", {
+        isHeaderExpanded,
+        isTopPage,
+        collapsibleOnMobile,
+        pathname,
+      });
+      console.log("[AppHeader] Rendering:", isHeaderExpanded ? "expanded header" : "collapsed header");
+    }
+  }, [isHeaderExpanded, isTopPage, collapsibleOnMobile, pathname]);
   const scrollDirectionRef = useRef<"up" | "down" | null>(null);
   const lastScrollYForCollapseRef = useRef<number>(0);
   const collapseRafIdRef = useRef<number | null>(null);
-  const accumulatedDeltaRef = useRef<number>(0);
-  const lastUpdateTimeRef = useRef<number>(0);
-
 
   // スクロール位置を検知（TOPページ用）
   useEffect(() => {
@@ -158,113 +215,63 @@ export function AppHeader({
     };
   }, [hideBrandOnScroll, scrollThreshold, isTopPage]);
 
-  // モバイルヘッダーの展開/縮小制御（トップページ以外のみ）
-  useEffect(() => {
-    if (isTopPage || !collapsibleOnMobile) return;
-
-    // 初期スクロール位置を設定
-    lastScrollYForCollapseRef.current = window.scrollY;
-    accumulatedDeltaRef.current = 0;
-    lastUpdateTimeRef.current = 0;
-    
-    // 方向別の閾値（上スクロール時の閾値を大きくして、より安定した動作を実現）
-    const scrollThresholdDown = 15; // 下スクロール: 15px累積（すぐに縮小して画面スペースを確保）
-    const scrollThresholdUp = 30; // 上スクロール: 30px累積（より確実な上スクロール意図を検知、ちらつき防止）
-    const topThreshold = 150; // トップ付近の判定（ヒステリシス用）
-    const minUpdateInterval = 100; // 最小更新間隔（ms）
-
-    const handleScroll = () => {
-      if (collapseRafIdRef.current !== null) {
-        cancelAnimationFrame(collapseRafIdRef.current);
-      }
-      collapseRafIdRef.current = requestAnimationFrame(() => {
-        const currentScrollY = window.scrollY;
-        const scrollDelta = currentScrollY - lastScrollYForCollapseRef.current;
-        const now = Date.now();
-        
-        // 最小更新間隔をチェック
-        if (now - lastUpdateTimeRef.current < minUpdateInterval) {
-          lastScrollYForCollapseRef.current = currentScrollY;
-          return;
-        }
-        
-        // トップ付近（150px未満）では常に展開（ヒステリシス効果）
-        if (currentScrollY < topThreshold) {
-          setIsHeaderExpanded((prev) => {
-            if (!prev) {
-              setScrollDirection(null);
-              scrollDirectionRef.current = null;
-              accumulatedDeltaRef.current = 0;
-              lastUpdateTimeRef.current = now;
-              return true;
-            }
-            return prev;
-          });
-          lastScrollYForCollapseRef.current = currentScrollY;
-          return;
-        }
-        
-        // スクロール方向を累積して判定（より安定した検知）
-        accumulatedDeltaRef.current += scrollDelta;
-        
-        // 方向に応じて適切な閾値を選択
-        const currentThreshold = accumulatedDeltaRef.current > 0 
-          ? scrollThresholdDown  // 下スクロール時
-          : scrollThresholdUp;   // 上スクロール時
-        
-        // 累積デルタが閾値を超えた場合のみ方向を判定
-        if (Math.abs(accumulatedDeltaRef.current) >= currentThreshold) {
-          const newDirection = accumulatedDeltaRef.current > 0 ? "down" : "up";
-          
-          // 方向が変わった時のみ状態を更新
-          if (newDirection !== scrollDirectionRef.current) {
-            scrollDirectionRef.current = newDirection;
-            setScrollDirection(newDirection);
-            
-            // 下スクロール: 縮小、上スクロール: 展開
-            const shouldExpand = newDirection === "up";
-            setIsHeaderExpanded((prev) => {
-              if (prev !== shouldExpand) {
-                accumulatedDeltaRef.current = 0; // リセット
-                lastUpdateTimeRef.current = now;
-                return shouldExpand;
-              }
-              return prev;
-            });
-          } else {
-            // 同じ方向の場合は累積デルタをリセット（連続スクロールを検知）
-            accumulatedDeltaRef.current = 0;
-          }
-        }
-        
-        lastScrollYForCollapseRef.current = currentScrollY;
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (collapseRafIdRef.current !== null) {
-        cancelAnimationFrame(collapseRafIdRef.current);
-      }
-    };
-  }, [isTopPage, collapsibleOnMobile]);
+  // モバイルヘッダーの展開/縮小制御は useHeaderCollapse フックで処理
 
   // childrenからページタイトル（h1要素）とアイコンを抽出（TOPページ以外でも使用）
   // propsでpageTitleが指定されている場合はそれを使用
   useEffect(() => {
+    // propsでpageTitleが指定されている場合は優先
     if (pageTitleProp) {
-      // 次のレンダリングサイクルで状態を更新
-      const updateTimer = setTimeout(() => {
+      // 値が実際に変更された場合のみ更新（無限ループを防ぐ）
+      if (prevTitleRef.current !== pageTitleProp) {
+        prevTitleRef.current = pageTitleProp;
         setPageTitle(pageTitleProp);
-        setPageTitleIcon(pageTitleIconProp || null);
-      }, 0);
-      return () => clearTimeout(updateTimer);
+      }
+      const newIcon = pageTitleIconProp || null;
+      // アイコンの比較を改善（React要素の場合は型とキーで比較）
+      const iconChanged = (() => {
+        const prevIcon = prevIconRef.current;
+        const currentIcon = newIcon;
+        
+        // 両方nullの場合は変更なし
+        if (!prevIcon && !currentIcon) return false;
+        
+        // 片方だけnullの場合は変更あり
+        if (!prevIcon || !currentIcon) return true;
+        
+        // React要素の場合は型とキーで比較
+        if (isValidElement(prevIcon) && isValidElement(currentIcon)) {
+          // 型が異なる場合は変更あり
+          if (prevIcon.type !== currentIcon.type) return true;
+          
+          // キーが異なる場合は変更あり
+          if (prevIcon.key !== currentIcon.key) return true;
+          
+          // 型とキーが同じ場合は変更なし（同じアイコンとみなす）
+          return false;
+        }
+        
+        // その他の場合は参照比較
+        return prevIcon !== currentIcon;
+      })();
+      
+      if (iconChanged) {
+        prevIconRef.current = newIcon;
+        setPageTitleIcon(newIcon);
+      }
+      return;
     }
     
     if (!children) {
-      setPageTitle(null);
-      setPageTitleIcon(null);
+      // 値が実際に変更された場合のみ更新（無限ループを防ぐ）
+      if (prevTitleRef.current !== null) {
+        prevTitleRef.current = null;
+        setPageTitle(null);
+      }
+      if (prevIconRef.current !== null) {
+        prevIconRef.current = null;
+        setPageTitleIcon(null);
+      }
       return;
     }
 
@@ -394,28 +401,65 @@ export function AppHeader({
     };
 
     const { title, icon } = extractTitleAndIcon(children);
-    setPageTitle(title);
-    setPageTitleIcon(icon);
+    
+    // 値が実際に変更された場合のみ更新（無限ループを防ぐ）
+    if (prevTitleRef.current !== title) {
+      prevTitleRef.current = title;
+      setPageTitle(title);
+    }
+    
+    // アイコンの比較を改善（React要素の場合は型とキーで比較）
+    const iconChanged = (() => {
+      const prevIcon = prevIconRef.current;
+      const currentIcon = icon;
+      
+      // 両方nullの場合は変更なし
+      if (!prevIcon && !currentIcon) return false;
+      
+      // 片方だけnullの場合は変更あり
+      if (!prevIcon || !currentIcon) return true;
+      
+      // React要素の場合は型とキーで比較
+      if (isValidElement(prevIcon) && isValidElement(currentIcon)) {
+        // 型が異なる場合は変更あり
+        if (prevIcon.type !== currentIcon.type) return true;
+        
+        // キーが異なる場合は変更あり
+        if (prevIcon.key !== currentIcon.key) return true;
+        
+        // 型とキーが同じ場合は変更なし（同じアイコンとみなす）
+        return false;
+      }
+      
+      // その他の場合は参照比較
+      return prevIcon !== currentIcon;
+    })();
+    
+    if (iconChanged) {
+      prevIconRef.current = icon;
+      setPageTitleIcon(icon);
+    }
   }, [children, pageTitleProp, pageTitleIconProp]);
+
+  const { isOpen: isSidebarOpen } = useSidebar();
 
   return (
     <header
       ref={headerRef}
       className={cn(
-        "sticky z-[40] bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300",
-        // お知らせバナーの有無に応じてtop位置を調整
-        "top-0",
-        // TOPページ以外では常にコンパクトな高さ
-        !isTopPage && "py-2",
-        isTopPage && isScrolled && hideBrandOnScroll && "py-1"
+        "fixed top-0 left-0 right-0 z-[40] bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300 dark:bg-slate-900/90 dark:border-slate-700",
+        // サイドバーが開いている場合は左側にマージンを追加
+        isSidebarOpen && "ml-64",
+        // スクロール時のみパディングを縮小（TOPページ以外、またはhideBrandOnScroll=trueの場合）
+        isScrolled && hideBrandOnScroll && !isTopPage && "py-1"
       )}
     >
       <div
         className={cn(
           "mx-auto px-4 transition-all duration-300",
           maxWidthClassName,
-          // TOPページ以外では常にコンパクト
-          !isTopPage ? "py-0" : isScrolled && hideBrandOnScroll ? "py-1" : "py-2"
+          // スクロール時のみパディングを縮小（hideBrandOnScroll=trueの場合）
+          isScrolled && hideBrandOnScroll ? "py-1" : "py-2"
         )}
       >
         {/* TOPページ: 通常のロゴ + ブランド名 + 日時表示 */}
@@ -452,7 +496,7 @@ export function AppHeader({
                       />
                     </div>
                     {/* テキスト（モバイル・PC両方で表示） */}
-                    <span className="text-base font-semibold text-slate-900 tracking-tight leading-tight whitespace-nowrap shrink-0">
+                    <span className="text-base font-semibold text-slate-900 tracking-tight leading-tight whitespace-nowrap shrink-0 dark:text-white">
                       デジタルガレージ
                     </span>
                   </Link>
@@ -473,7 +517,7 @@ export function AppHeader({
                   </div>
                 )}
 
-                {/* 右側エリア: rightArea */}
+                {/* 右側エリア: テーマ切り替え + rightArea */}
                 <div className="flex items-center gap-2 sm:gap-4 ml-auto">
                   {/* モバイル: 検索バー（TOPページのみ） */}
                   {isTopPage && onSearchChange && (
@@ -488,6 +532,9 @@ export function AppHeader({
                       />
                     </div>
                   )}
+
+                  {/* テーマ切り替えボタン */}
+                  <ThemeToggleButton />
 
                   {rightArea && (
                     <div className="flex items-center gap-2 shrink-0">
@@ -505,7 +552,7 @@ export function AppHeader({
                   scrollContent
                 ) : pageTitle ? (
                   <div className="flex items-center justify-between gap-4">
-                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">
+                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate dark:text-white">
                       {pageTitle}
                     </h1>
                     <div className="flex items-center gap-4">
@@ -537,6 +584,9 @@ export function AppHeader({
                         </div>
                       )}
                       
+                      {/* テーマ切り替えボタン */}
+                      <ThemeToggleButton />
+                      
                       {rightArea && (
                         <div className="flex items-center gap-2 shrink-0">
                           {rightArea}
@@ -559,37 +609,76 @@ export function AppHeader({
 
         {/* TOPページ以外: コンパクトなヘッダー（戻るボタン + children） */}
         {!isTopPage && (
-          <div className="relative transition-all duration-300 ease-in-out">
+          <div className="relative">
+            {/* デバッグログ（開発環境のみ） */}
+            {process.env.NODE_ENV === "development" && (
+              <div className="sr-only" aria-live="polite">
+                {isHeaderExpanded ? "ヘッダー展開中" : "ヘッダー縮小中"}
+              </div>
+            )}
             {isHeaderExpanded ? (
-              /* 展開時: フル情報 */
-              <div className="py-2">
+              /* 展開時: フル情報（CompactJobHeaderを含む） */
+              <div className="space-y-2" data-header-state="expanded">
                 {/* 左上に戻るボタンを表示 */}
-                <div className="mb-2">
+                <div className="flex items-center justify-between gap-4">
                   <BackButton href={backHref} hasUnsavedChanges={hasUnsavedChanges} />
+                  {/* 展開時にもテーマ切り替え + rightAreaを表示 */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <ThemeToggleButton />
+                    {rightArea && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {rightArea}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {children && <div>{children}</div>}
               </div>
             ) : (
-              /* 最小化時: 戻るボタン + ページタイトル（アイコン付き） + ステータスバッジ */
-              <div className="py-2 flex items-center justify-between gap-2">
+              /* 最小化時: 戻るボタン + ページタイトル（アイコン付き） + 顧客名 + 車両情報 + rightArea */
+              <div 
+                className="flex items-center gap-2 py-1 min-h-[48px] w-full" 
+                data-header-state="collapsed"
+              >
+                <BackButton href={backHref} hasUnsavedChanges={hasUnsavedChanges} />
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <BackButton href={backHref} hasUnsavedChanges={hasUnsavedChanges} />
-                  {pageTitle && (
-                    <h1 className="text-base font-semibold text-slate-900 truncate flex items-center gap-2">
-                      {pageTitleIcon && (
-                        <span className="shrink-0 text-slate-700">
-                          {pageTitleIcon}
+                  {(pageTitle || pageTitleProp) ? (
+                    <h1 className="text-base font-semibold text-slate-900 truncate flex items-center gap-1.5 shrink-0 dark:text-white">
+                      {(pageTitleIcon || pageTitleIconProp) && (
+                        <span className="shrink-0 text-slate-700 dark:text-white">
+                          {pageTitleIcon || pageTitleIconProp}
                         </span>
                       )}
-                      <span className="truncate">{pageTitle}</span>
+                      <span className="truncate">{pageTitle || pageTitleProp}</span>
                     </h1>
+                  ) : (
+                    <span className="text-base font-semibold text-slate-900 shrink-0 dark:text-white">ページ</span>
+                  )}
+                  {collapsedCustomerName && (
+                    <>
+                      <span className="text-slate-400 shrink-0 dark:text-slate-400">/</span>
+                      <span className="text-base text-slate-700 truncate dark:text-white">{collapsedCustomerName}</span>
+                    </>
+                  )}
+                  {collapsedVehicleName && (
+                    <>
+                      <span className="text-slate-400 shrink-0 dark:text-slate-400">/</span>
+                      <span className="text-base text-slate-700 truncate dark:text-white">
+                        {collapsedVehicleName}
+                        {collapsedLicensePlate && <span className="text-slate-600 ml-1 dark:text-slate-400">/ {collapsedLicensePlate}</span>}
+                      </span>
+                    </>
                   )}
                 </div>
-                {statusBadge && (
-                  <div className="shrink-0">
-                    {statusBadge}
-                  </div>
-                )}
+                {/* 折りたたみ時にもテーマ切り替え + rightAreaを表示 */}
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                  <ThemeToggleButton />
+                  {rightArea && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {rightArea}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -598,3 +687,4 @@ export function AppHeader({
     </header>
   );
 }
+

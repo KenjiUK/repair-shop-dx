@@ -12,7 +12,8 @@ import {
   FolderKanban, 
   Image, 
   Settings, 
-  Bell 
+  Bell,
+  BarChart3
 } from "lucide-react";
 
 const menuItems = [
@@ -23,6 +24,8 @@ const menuItems = [
 ] as const;
 
 const adminItems = [
+  { label: "作業指示・進捗管理", href: "/manager/kanban", icon: FolderKanban },
+  { label: "レポート・分析", href: "/manager/analytics", icon: BarChart3 },
   { label: "ブログ写真管理", href: "/admin/blog-photos", icon: Image },
   { label: "数値マスター管理", href: "/admin/settings/numerical-masters", icon: Settings },
   { label: "お知らせ管理", href: "/admin/announcements", icon: Bell },

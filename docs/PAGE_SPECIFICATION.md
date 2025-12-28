@@ -1,6 +1,6 @@
 # 整備工場DXプラットフォーム：ページ単位詳細設計仕様書
 
-**Version:** 1.0  
+**Version:** 1.3  
 **最終更新日:** 2025年1月  
 **対象:** Repair Shop DX Platform (YM Works Edition)
 
@@ -8,8 +8,27 @@
 
 1. [概要](#概要)
 2. [スタッフ向けページ](#スタッフ向けページ)
+   - 1. 受付画面（トップページ）
+   - 2. 診断画面
+   - 3. 作業画面
+   - 4. 見積作成画面
+   - 5. プレゼン画面
+   - 6. 長期プロジェクト画面
+   - 7. 履歴検索ページ
+   - 8. 業務分析ページ
+   - 9. カンバンボード画面
+   - 10. 代車管理画面
+   - 11. ログイン画面
 3. [顧客向けページ](#顧客向けページ)
+   - 12. 顧客ダッシュボード
+   - 13. 顧客承認画面
+   - 14. 顧客報告画面
+   - 15. 顧客事前チェックイン
 4. [管理画面](#管理画面)
+   - 16. 事前見積画面
+   - 17. お知らせ管理画面
+   - 18. ブログ写真管理画面
+   - 19. 数値マスタ管理画面
 5. [共通機能・コンポーネント](#共通機能コンポーネント)
 6. [機能コンポーネント詳細](#機能コンポーネント詳細)
 7. [ライブラリ関数詳細](#ライブラリ関数詳細)
@@ -175,16 +194,53 @@
 
 ##### 2.2.2 入庫区分別診断ビュー
 
-**車検 (`車検`):**
-- `InspectionDiagnosisView` コンポーネント
-- 点検項目カテゴリ（エンジンルーム、室内、シャシー、アンダーボディ、外観、日常点検、その他）
-- 各項目の状態（OK / Warning / Critical / Adjust / Clean / Skip / Not Applicable）
-- 測定値入力（必要に応じて）
-- コメント入力
+**24ヶ月点検（車検） (`車検`):**
+- **再設計版UI**: `InspectionRedesignTabs` + `InspectionBottomSheetList` コンポーネント
+- **カテゴリ構成（6カテゴリ）:**
+  1. エンジン・ルーム点検
+  2. 室内点検
+  3. 足廻り点検
+  4. 下廻り点検
+  5. 外廻り点検
+  6. 日常点検
+- **検査項目**: `getInspectionItems("24month")` で取得（`InspectionItemRedesign[]`型）
+- **ステータス記号（信号機方式）**: レ（良好）、×（交換）、A（調整）、C（清掃）、T（締付）、△（修理）、/（該当なし）、P（省略）
+- **測定値入力**: `InspectionMeasurements`型で管理、CO・HC濃度、ブレーキパッド厚さ（4輪）、タイヤ溝深さ（4輪）
+- **交換部品入力**: `InspectionParts`型で管理、エンジンオイル、オイルフィルター、LLC、ブレーキフルード、ワイパーゴム、エアフィルター
+- **完成検査時のテスター数値入力**: ブレーキ制動力、サイドスリップ、スピードメーター誤差、排ガス（CO・HC濃度）、ヘッドライト（上向き・下向き）
+- **追加見積内容入力**: `DiagnosisAdditionalEstimateSection`で必須・推奨・任意の3分類で入力
+  - `additionalEstimateRequired`: 必須整備項目（`EstimateLineItem[]`）
+  - `additionalEstimateRecommended`: 推奨整備項目（`EstimateLineItem[]`）
+  - `additionalEstimateOptional`: 任意整備項目（`EstimateLineItem[]`）
+- **OBD診断結果**: `OBDDiagnosticUnifiedSection` でPDFアップロードと詳細入力を統合
+  - PDFアップロード: `obdPdfResult`（`OBDDiagnosticResult`型）
+  - 詳細入力: `enhancedOBDDiagnosticResult`（`EnhancedOBDDiagnosticResult`型）
+- **品質検査**: `InspectionQualityCheckSection` で品質検査項目の入力（Phase 5に移動予定）
+- **チェックリスト**: 入庫時・出庫時チェックリスト（`InspectionChecklistDialog`）
+- **走行距離入力**: ページの最初に独立したセクションとして表示（`Card`コンポーネント）
+- **自動進捗機能**: `InspectionBottomSheetList`の`onNextSection`で判定ボタン押下時に次の項目へ自動スクロール
+- **完了カテゴリの自動閉じ**: カテゴリ完了時に自動で閉じる
+- **診断データ保存**: `WorkOrder.diagnosis`に以下のデータを保存
+  - `items`: `InspectionItemRedesign[]`（検査項目の状態）
+  - `inspectionMeasurements`: `InspectionMeasurements`（測定値）
+  - `inspectionParts`: `InspectionParts`（交換部品）
+  - `additionalEstimateRequired`: `EstimateLineItem[]`（必須整備）
+  - `additionalEstimateRecommended`: `EstimateLineItem[]`（推奨整備）
+  - `additionalEstimateOptional`: `EstimateLineItem[]`（任意整備）
+  - `obdPdfResult`: `OBDDiagnosticResult`（OBD診断結果PDF）
+  - `enhancedOBDDiagnosticResult`: `EnhancedOBDDiagnosticResult`（OBD診断詳細）
 
 **12ヵ月点検 (`12ヵ月点検`):**
-- `InspectionDiagnosisView` コンポーネント（車検と同様）
-- 法定点検項目のチェック
+- **従来版UI**: `InspectionDiagnosisView` コンポーネント（実装に基づく）
+- **検査項目**: `VEHICLE_INSPECTION_ITEMS` から取得
+- **ステータス記号（信号機方式）**: 緑（良好）、黄（注意）、赤（交換）
+- **測定値入力**: CO・HC濃度、ブレーキパッド厚さ、タイヤ溝深さ
+- **交換部品入力**: エンジンオイル、オイルフィルター、ワイパーゴム、エアフィルター
+- **OBD診断結果**: 別システムで実施、診断結果PDFをアップロード（`OBDDiagnosticResultSection`）
+- **追加見積内容入力**: 必須・推奨・任意の3分類で入力（`DiagnosisAdditionalEstimateSection`）
+- **走行距離入力**: ページの最初に独立したセクションとして表示
+- **PDF生成**: `public/12カ月点検テンプレート.pdf` を使用
+- **追加見積もりがない場合**: 診断データから作業データに引き継ぎ、直接作業画面へ遷移
 
 **エンジンオイル交換 (`エンジンオイル交換`):**
 - `EngineOilInspectionView` コンポーネント
@@ -242,17 +298,14 @@
 - 診断項目の追加・削除
 - 各項目の詳細（名称、状態、写真、コメント）
 
-##### 2.2.3 OBD診断結果
+##### 2.2.3 OBD診断結果（統合セクション）
 
-**基本OBD診断結果:**
-- `OBDDiagnosticResultSection` コンポーネント
-- PDFアップロード・ダウンロード
-
-**拡張OBD診断結果:**
-- `EnhancedOBDDiagnosticSection` コンポーネント
-- エラーコード入力（複数）
-- 診断ツール名入力
-- メモ入力
+**OBD診断結果統合 (`OBDDiagnosticUnifiedSection`):**
+- **24ヶ月点検（車検）**: PDFアップロードと詳細入力の両方をサポート
+- **12ヶ月点検**: 別システムで実施、診断結果PDFをアップロード（決まったフォーマット）
+- **PDFアップロード**: 診断結果PDFのアップロード・ダウンロード
+- **詳細入力**: エラーコード入力（複数）、診断ツール名入力、メモ入力
+- **統合表示**: PDFと詳細入力結果を1つのセクションで管理
 
 ##### 2.2.4 診断担当者選択
 
@@ -275,10 +328,23 @@
 ##### 2.2.6 その他の機能
 
 - **診断料金入力:** `DiagnosisFeeDialog`
+  - 診断料金、診断時間（概算・分）、診断料金が事前に決まっているかのフラグ
 - **一時帰宅:** `TemporaryReturnDialog`
+  - 一時帰宅日時、再入庫予定日時、理由・備考
+  - 一時帰宅時は `field5` を「再入庫待ち」に更新
 - **作業メモ:** `JobMemoDialog`
+  - メモ内容、作成者名、作成日時
+  - `field26` にJSON形式で保存
 - **診断プレビュー:** `DiagnosisPreviewDialog`
+  - 診断結果のプレビュー表示
+  - 診断項目、写真、動画、コメントの確認
 - **ブログ写真撮影:** `BlogPhotoCaptureDialog`
+  - ブログ用写真の撮影、カテゴリ選択、公開可否設定
+- **品質検査:** `InspectionQualityCheckSection`（24ヶ月点検・12ヶ月点検）
+  - 品質検査項目の入力、検査結果（合格、不合格、保留、該当なし）、検査者名、検査日時
+- **追加見積内容入力:** `DiagnosisAdditionalEstimateSection`（24ヶ月点検・12ヶ月点検）
+  - 必須・推奨・任意の3分類で追加見積内容を入力
+  - 追加見積もりがない場合、診断データから作業データに引き継ぎ、直接作業画面へ遷移
 
 #### 2.3 データフロー
 
@@ -344,6 +410,21 @@
 - 完了チェックボックス
 
 **入庫区分別の特殊表示:**
+
+**24ヶ月点検（車検） (`車検`):**
+- **受入点検データ**: Phase 2（診断画面）からの引き継ぎデータを表示
+- **完成検査データ入力**: テスター数値入力（ブレーキ制動力、サイドスリップ、スピードメーター誤差、排ガス、ヘッドライト）
+- **品質管理・最終検査**: `InspectionQualityCheckSection` で品質検査項目の入力
+- **交換部品等**: 診断画面で入力した交換部品の確認・編集
+- **整備アドバイス**: 診断画面で入力した整備アドバイスの確認・編集
+- **分解整備記録簿生成**: 完成検査後にPDF生成（`public/24か月点検用テンプレート.pdf`）
+
+**12ヶ月点検 (`12ヵ月点検`):**
+- **受入点検データ**: Phase 2（診断画面）からの引き継ぎデータを表示
+- **交換部品等**: 診断画面で入力した交換部品の確認・編集
+- **整備アドバイス**: 診断画面で入力した整備アドバイスの確認・編集
+- **測定値**: 診断画面で入力した測定値の確認（CO・HC濃度、ブレーキパッド厚さ、タイヤ溝深さ）
+- **12ヶ月点検記録簿生成**: 完成検査後にPDF生成（`public/12カ月点検テンプレート.pdf`）
 
 **板金・塗装 (`板金・塗装`):**
 - `BodyPaintOutsourcingView` コンポーネント
@@ -427,19 +508,52 @@
 
 **入庫区分別の自動項目追加:**
 
-**車検:**
-- `addDiagnosisItemsToEstimate()` - 法定費用の自動追加
+**24ヶ月点検（車検） (`車検`):**
+- **法定費用の自動追加**: `LegalFeesCard` コンポーネントで法定費用を自動計算・表示
+  - `getLegalFees(vehicleId)` で車両IDから法定費用を取得
+  - 車検費用、自賠責保険料、自動車税を自動計算
+  - Google Sheets「【DB】車両マスタ」から車両重量を取得して法定費用を算出
+  - 法定費用は税込なので、合計にそのまま加算
+  - `legalFees`状態で管理（`LegalFees`型）
+- **診断結果からの自動項目追加**: `convertInspectionRedesignToEstimateItems()` - 診断画面で「×（交換）」「A（調整）」「△（修理）」と判定された項目を自動追加
+  - 24ヶ月点検リデザイン版の判定: `diagnosis.items`の`status`が`'good'`, `'exchange'`, `'repair'`, `'adjust'`の場合
+  - 問題があった項目（`exchange`, `repair`, `adjust`）のみを見積項目に変換
+  - 既存の見積項目と重複チェックして追加
+  - 工賃マスタ（`searchLaborCostByName()`）から技術量を自動設定
+- **追加見積内容**: 診断画面で入力した追加見積内容（必須・推奨・任意）を自動表示
+  - `diagnosis.additionalEstimateRequired`から必須整備項目を読み込み
+  - `diagnosis.additionalEstimateRecommended`から推奨整備項目を読み込み
+  - `diagnosis.additionalEstimateOptional`から任意整備項目を読み込み
+  - 既存の見積項目と重複チェックして追加
 
-**タイヤ交換:**
+**12ヵ月点検 (`12ヵ月点検`):**
+- **オプションメニュー**: `OptionMenuSelector` コンポーネントで12ヶ月点検と同時実施で10%割引のオプションメニューを表示
+  - `optionMenus`配列で8種類のメニューを定義（`OptionMenuItem[]`型）
+  - エンジンオイル交換、クーラント交換、バッテリー交換、タイヤ交換作業、ブレーキフルード交換、ブレーキパッド交換、ミッションオイル交換、ATフルード交換作業
+  - 各オプションに「12ヶ月点検と同時実施で10%割引」のバッジを表示
+  - 割引前価格（`originalPrice`）と割引後価格（`discountedPrice`）を併記
+  - `selectedOptionMenuIds`状態で選択されたメニューIDを管理
+  - メニュー選択時に見積項目に自動追加（`handleOptionMenuSelectionChange`）
+  - 同時実施サービス: `simultaneousService`プロパティで「車検」または「12ヶ月点検」を指定
+- **法定費用**: 車両重量に応じて自動計算（1500kg以下: ¥26,400、5000kg以下: ¥13,200 または ¥30,800）
+  - `getLegalFees(vehicleId)` で車両IDから法定費用を取得（12ヵ月点検の場合も使用）
+- **診断結果からの自動項目追加**: 診断画面で「×（交換）」「A（調整）」と判定された項目を自動追加
+  - 従来版の`InspectionDiagnosisView`を使用しているため、従来の処理ロジックを使用
+- **追加見積内容**: 診断画面で入力した追加見積内容（必須・推奨・任意）を自動表示
+  - `diagnosis.additionalEstimateRequired`から必須整備項目を読み込み
+  - `diagnosis.additionalEstimateRecommended`から推奨整備項目を読み込み
+  - `diagnosis.additionalEstimateOptional`から任意整備項目を読み込み
+
+**タイヤ交換・ローテーション (`タイヤ交換・ローテーション`):**
 - `addTireDiagnosisItemsToEstimate()` - タイヤ交換項目の自動追加
 
-**メンテナンス:**
+**メンテナンス (`その他のメンテナンス`):**
 - `addMaintenanceDiagnosisItemsToEstimate()` - メンテナンス項目の自動追加
 
-**チューニング・パーツ取付:**
+**チューニング・パーツ取付 (`チューニング`, `パーツ取付`):**
 - `addTuningPartsDiagnosisItemsToEstimate()` - チューニング項目の自動追加
 
-**コーティング:**
+**コーティング (`コーティング`):**
 - `addCoatingDiagnosisItemsToEstimate()` - コーティング項目の自動追加
 
 ##### 4.2.4 見積送信
@@ -690,19 +804,83 @@
 
 ---
 
-### 9. 代車管理画面
+### 9. カンバンボード画面
+
+**パス:** `/manager/kanban`  
+**ファイル:** `src/app/manager/kanban/page.tsx`  
+**アクセス権限:** 管理者・スタッフ（ログイン不要）
+
+#### 9.1 目的
+
+作業指示・進捗を視覚的に管理するカンバンボード形式の画面。案件を列に分けて表示し、ドラッグ&ドロップで移動できる。
+
+#### 9.2 主要機能
+
+##### 9.2.1 カンバン列
+
+**列構成:**
+- **入庫待ち:** `field5 = '入庫待ち'` の案件
+- **作業中:** `field5 = '入庫済み' | '見積作成待ち' | '見積提示済み' | '作業待ち'` の案件
+- **出庫待ち:** `field5 = '出庫待ち'` の案件
+- **完了:** `field5 = '出庫済み'` の案件
+
+**表示内容:**
+- 各列のタイトルと案件数
+- `KanbanCard` コンポーネントで案件をカード形式で表示
+- ドラッグ&ドロップによる列間の移動（UIのみ、ステータス更新は今後実装予定）
+
+##### 9.2.2 技術者稼働状況
+
+**表示内容:**
+- 各技術者の稼働率（%）
+- 空き時間（時間・分）
+- 担当案件数
+- 作業中案件数
+
+**計算方法:**
+- `calculateMechanicWorkload()` 関数で計算
+- 稼働率は担当案件数と作業時間から算出
+
+##### 9.2.3 ドラッグ&ドロップ機能
+
+**機能:**
+- `@dnd-kit/core` を使用したドラッグ&ドロップ
+- `DragOverlay` でドラッグ中のカードを表示
+- 列間の移動検知（現在はステータス更新機能は未実装）
+
+#### 9.3 データフロー
+
+```
+1. ページロード
+   → fetchTodayJobs() → Zoho CRM API
+   → groupJobsByColumn() → 列ごとに分類
+   → calculateMechanicWorkload() → 技術者稼働状況を計算
+
+2. ドラッグ&ドロップ
+   → handleDragEnd() → 列間の移動を検知
+   → TODO: ステータス更新機能を実装
+```
+
+#### 9.4 状態管理
+
+- **SWR:** `useSWR('kanban-jobs', fetchTodayJobs)`
+- **Local State:** ドラッグ中のアクティブID
+
+---
+
+### 10. 代車管理画面
 
 **パス:** `/inventory/courtesy-cars`  
 **ファイル:** `src/app/inventory/courtesy-cars/page.tsx`  
 **アクセス権限:** スタッフ（ログイン不要）
 
-#### 9.1 目的
+#### 10.1 目的
 
 代車の在庫状況、使用状況を管理する。
 
-#### 9.2 主要機能
+#### 10.2 主要機能
 
-##### 9.2.1 サマリーカード
+##### 10.2.1 サマリーカード
 
 **表示内容:**
 - 総数
@@ -710,7 +888,7 @@
 - 使用中（`status = 'in_use'`）
 - 点検中（`status = 'inspection'`）
 
-##### 9.2.2 代車一覧
+##### 10.2.2 代車一覧
 
 **表示内容:**
 - 代車ID（`carId`）
@@ -719,12 +897,12 @@
 - ステータス（`status`）
 - 現在の利用者（`jobId` から取得）
 
-##### 9.2.3 フィルター機能
+##### 10.2.3 フィルター機能
 
 **フィルター項目:**
 - ステータス（すべて、空き、使用中、点検中）
 
-##### 9.2.4 代車詳細ダイアログ
+##### 10.2.4 代車詳細ダイアログ
 
 **表示内容:**
 - 代車基本情報
@@ -732,7 +910,7 @@
 - 車両マスタ情報（Google Sheetsから取得）
 - 過去の利用履歴（今後実装予定）
 
-#### 9.3 データフロー
+#### 10.3 データフロー
 
 ```
 1. ページロード
@@ -748,7 +926,7 @@
 
 ---
 
-### 10. ログイン画面
+### 11. ログイン画面
 
 **パス:** `/login`  
 **ファイル:** `src/app/login/page.tsx`  
@@ -785,7 +963,7 @@ Google OAuth認証によるログインを行う。
 
 ## 顧客向けページ
 
-### 11. 顧客ダッシュボード
+### 12. 顧客ダッシュボード
 
 **パス:** `/customer/dashboard`  
 **ファイル:** `src/app/customer/dashboard/page.tsx`  
@@ -832,7 +1010,7 @@ Google OAuth認証によるログインを行う。
 
 ---
 
-### 12. 顧客承認画面
+### 13. 顧客承認画面
 
 **パス:** `/customer/approval/[id]`  
 **ファイル:** `src/app/customer/approval/[id]/page.tsx`  
@@ -896,7 +1074,7 @@ Google OAuth認証によるログインを行う。
 
 ---
 
-### 13. 顧客報告画面
+### 14. 顧客報告画面
 
 **パス:** `/customer/report/[id]`  
 **ファイル:** `src/app/customer/report/[id]/page.tsx`  
@@ -958,7 +1136,7 @@ Google OAuth認証によるログインを行う。
 
 ---
 
-### 14. 顧客事前チェックイン
+### 15. 顧客事前チェックイン
 
 **パス:** `/customer/pre-checkin/[id]`  
 **ファイル:** `src/app/customer/pre-checkin/[id]/page.tsx`  
@@ -1024,7 +1202,7 @@ Google OAuth認証によるログインを行う。
 
 ## 管理画面
 
-### 15. 事前見積画面
+### 16. 事前見積画面
 
 **パス:** `/admin/pre-estimate/[id]`  
 **ファイル:** `src/app/admin/pre-estimate/[id]/page.tsx`  
@@ -1067,7 +1245,7 @@ Google OAuth認証によるログインを行う。
 
 ---
 
-### 16. お知らせ管理画面
+### 17. お知らせ管理画面
 
 **パス:** `/admin/announcements`  
 **ファイル:** `src/app/admin/announcements/page.tsx`  
@@ -1121,7 +1299,7 @@ Google OAuth認証によるログインを行う。
 
 ---
 
-### 17. ブログ写真管理画面
+### 18. ブログ写真管理画面
 
 **パス:** `/admin/blog-photos`  
 **ファイル:** `src/app/admin/blog-photos/page.tsx`  
@@ -1179,7 +1357,7 @@ Google OAuth認証によるログインを行う。
 
 ---
 
-### 18. 数値マスタ管理画面
+### 19. 数値マスタ管理画面
 
 **パス:** `/admin/settings/numerical-masters`  
 **ファイル:** `src/app/admin/settings/numerical-masters/page.tsx`  
@@ -3274,16 +3452,16 @@ type ServiceKind =
 #### JobStage
 ```typescript
 type JobStage =
-  | '入庫待ち'
+  | '入庫待ち'       // 初期状態
   | '入庫済み'
   | '見積作成待ち'
-  | '見積提示済み'
+  | '見積提示済み'   // 見積送信後の状態
   | '作業待ち'
   | '出庫待ち'
   | '出庫済み'
-  | '部品調達待ち'
-  | '部品発注待ち'
-  | '再入庫待ち';
+  | '部品調達待ち'   // 部品調達待ち案件の管理機能
+  | '部品発注待ち'   // 部品発注待ち案件の管理機能
+  | '再入庫待ち';    // 一時帰宅中の再入庫待ち状態
 ```
 
 ### ワークオーダー関連
@@ -4002,6 +4180,23 @@ type PhotoPosition =
 - **2025-01:** 初版作成
 - **2025-01:** 抜け漏れ補完（機能コンポーネント、ライブラリ関数、APIルート、特殊機能、型定義の詳細を追加）
 - **2025-01:** 診断から見積への自動変換機能、工賃マスタ機能、点検項目定義、見積行の詳細仕様、お知らせ設定、写真位置の定義を追加
+- **2025-01:** カンバンボード画面（`/manager/kanban`）を追加、JobStage型定義を最新化、ページ番号を再整理
+- **2025-01:** 車検・12ヶ月点検のフローと内容を大幅更新
+  - 再設計版UI（`InspectionRedesignTabs`, `InspectionBottomSheetList`）の詳細を追加
+  - 24ヶ月点検と12ヶ月点検のカテゴリ構成の違いを明確化
+  - 走行距離入力（独立セクション）、追加見積内容入力、OBD診断結果統合セクション、品質検査セクションを追加
+  - 12ヶ月点検特有機能（オプションメニュー、法定費用、OBD診断結果PDFアップロード）を追加
+  - 24ヶ月点検特有機能（完成検査時のテスター数値入力、チェックリスト）を追加
+- **2025-01:** 実装に基づく詳細更新（Version 1.3）
+  - **診断画面（24ヶ月点検）**: リデザイン版UIの詳細実装を反映
+    - `InspectionItemRedesign[]`型、`InspectionMeasurements`型、`InspectionParts`型の使用を明記
+    - 診断データ保存時のデータ構造を詳細化（`WorkOrder.diagnosis`の各フィールド）
+    - `convertInspectionRedesignToEstimateItems()`の動作を詳細化
+  - **診断画面（12ヵ月点検）**: 実装に基づき従来版UI（`InspectionDiagnosisView`）を使用することを明記
+  - **見積作成画面（24ヶ月点検）**: 法定費用取得処理（`getLegalFees()`）の詳細を追加
+  - **見積作成画面（12ヵ月点検）**: オプションメニューセレクター（`OptionMenuSelector`）の実装詳細を追加
+    - `optionMenus`配列、`selectedOptionMenuIds`状態管理、`handleOptionMenuSelectionChange`ハンドラの詳細
+    - 同時実施サービス（`simultaneousService`）の指定方法を明記
 
 ---
 

@@ -30,7 +30,40 @@ const TodayScheduleCard = dynamic(
   () => import("@/components/features/today-schedule-card").then(mod => mod.TodayScheduleCard),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-[400px] w-full" />
+    loading: () => (
+      <div className="h-full flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="p-4 lg:p-5 pb-3 border-b border-slate-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5" />
+              <Skeleton className="h-6 w-40" />
+            </div>
+            <Skeleton className="h-6 w-12 rounded-full" />
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col p-4 lg:p-5 pt-4">
+          <div className="space-y-2.5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-3 lg:p-4 rounded-lg border border-slate-200 bg-slate-50">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-5 w-12 rounded-full" />
+                      </div>
+                      <Skeleton className="h-5 w-24" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 );
 const LongTermProjectCard = dynamic(
@@ -195,6 +228,52 @@ function HomeContent() {
     revalidateOnMount: true, // 初回のみ再検証
     // その他の設定はグローバル設定を継承
   });
+
+  // 開発環境用：車検と12ヶ月点検のサンプルJOBカードを追加
+  const jobsWithSamples = useMemo(() => {
+    if (process.env.NODE_ENV !== "development" || !jobs) return jobs;
+    
+    const sampleJobs: ZohoJob[] = [
+      {
+        id: "sample-shaken-001",
+        field4: { id: "customer-001", name: "山田太郎" },
+        field6: { id: "vehicle-001", name: "トヨタ プリウス / 品川 300 あ 1234" },
+        field5: "作業待ち",
+        stage: "作業待ち",
+        field22: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2時間前に入庫
+        arrivalDateTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        serviceKind: "車検",
+        field_service_kinds: ["車検"],
+        tagId: "T01",
+        field: JSON.stringify([{
+          id: "wo-001",
+          serviceKind: "車検",
+          status: "作業待ち",
+          createdAt: new Date().toISOString(),
+        }]),
+      },
+      {
+        id: "sample-12month-001",
+        field4: { id: "customer-002", name: "佐藤花子" },
+        field6: { id: "vehicle-002", name: "ホンダ N-BOX / 世田谷 500 さ 5678" },
+        field5: "出庫待ち",
+        stage: "出庫待ち",
+        field22: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4時間前に入庫
+        arrivalDateTime: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        serviceKind: "12ヵ月点検",
+        field_service_kinds: ["12ヵ月点検"],
+        tagId: "T02",
+        field: JSON.stringify([{
+          id: "wo-002",
+          serviceKind: "12ヵ月点検",
+          status: "完了",
+          createdAt: new Date().toISOString(),
+        }]),
+      },
+    ];
+    
+    return [...sampleJobs, ...jobs];
+  }, [jobs]);
 
   // リアルタイム更新（Server-Sent Events方式）
   useRealtime({
@@ -758,11 +837,12 @@ function HomeContent() {
    * 2. 検索フィルター（debouncedSearchQuery）- 改善提案 #2で強化
    */
   const filteredJobs = useMemo(() => {
-    if (!jobs) return [];
+    const sourceJobs = jobsWithSamples || jobs;
+    if (!sourceJobs) return [];
 
     // TOPページ（入庫車両管理）では、デフォルトで出庫済みを除外
     // フィルターで「出庫済み」が選択されている場合のみ表示
-    let filtered = jobs;
+    let filtered = sourceJobs;
     if (filters.status.length === 0 || !filters.status.includes("出庫済み")) {
       filtered = filtered.filter(job => job.field5 !== "出庫済み");
     }
@@ -777,7 +857,7 @@ function HomeContent() {
     }
 
     return filtered;
-  }, [jobs, filters, debouncedSearchQuery]);
+  }, [jobsWithSamples, jobs, filters, debouncedSearchQuery]);
 
   // 長期プロジェクトを抽出（フィルタリング後のジョブから）
   const longTermProjects = useMemo(() => {
@@ -927,7 +1007,7 @@ function HomeContent() {
 
 
   return (
-    <div className="flex-1 bg-slate-50 flex flex-col overflow-auto">
+    <div className="flex-1 bg-slate-50 flex flex-col overflow-x-hidden">
       {/* スキップリンク（アクセシビリティ） */}
       <a
         href="#main-content"
@@ -976,7 +1056,7 @@ function HomeContent() {
       />
 
       {/* メインコンテンツ */}
-      <main id="main-content" className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full" role="main" aria-label="メインコンテンツ">
+      <main id="main-content" className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full" style={{ paddingTop: 'calc(var(--header-height, 80px) + 1.5rem)' }} role="main" aria-label="メインコンテンツ">
         {/* 同期インジケーター（問題がある時だけ表示） */}
         {(isSyncing || pendingCount > 0) && (
           <div className="flex items-center justify-end gap-2 mb-4">

@@ -15,19 +15,25 @@ import {
 import { cn } from "@/lib/utils";
 import { ZohoJob, CourtesyCar, ZohoCustomer, ZohoVehicle } from "@/types";
 import {
-  Car, Clock, User, FileText, Tag, Wrench, Edit, Plus, NotebookPen,
+  Car, Clock, User, FileText, Tag, Wrench, Edit, Plus, NotebookPen, UserCog,
   Activity, Key, CheckCircle2, Droplet, Circle, Sparkles, Zap,
   Package, Shield, CarFront, Loader2, Paintbrush, MessageSquare,
   Bell, Heart, Gauge, Star, ChevronDown, Info, Phone, ExternalLink, Folder, Mail,
-  ShieldCheck, CalendarCheck, UserCheck, Settings, Camera, AlertTriangle
+  ShieldCheck, CalendarCheck, UserCheck, Settings, Camera, AlertTriangle, Printer, Notebook
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { WorkOrderDialog } from "@/components/features/work-order-dialog";
 import { VehicleDetailDialog } from "@/components/features/vehicle-detail-dialog";
 import { CustomerDetailDialog } from "@/components/features/customer-detail-dialog";
-import { BlogPhotoCaptureDialog } from "@/components/features/blog-photo-capture-dialog";
 import { CourtesyCarSelectDialog } from "@/components/features/courtesy-car-select-dialog";
+import { ManufacturerIcon } from "@/components/features/manufacturer-icon";
+import { ChangeRequestDetailDialog } from "@/components/features/change-request-detail-dialog";
+import { JobPhotoGalleryDialog } from "@/components/features/job-photo-gallery-dialog";
+import { BlogPhotoCaptureDialog } from "@/components/features/blog-photo-capture-dialog";
+import { listBlogPhotosFromJobFolder, BlogPhotoInfo } from "@/lib/blog-photo-manager";
+import { MechanicSelectDialog } from "@/components/features/mechanic-select-dialog";
+import { assignMechanic } from "@/lib/api";
 import { fetchCustomerById, fetchVehicleById, updateJobTag, fetchAllTags, updateJobCourtesyCar, fetchAllCourtesyCars } from "@/lib/api";
 import { SmartTag } from "@/types";
 import { hasChangeRequests } from "@/lib/customer-description-append";
@@ -36,6 +42,9 @@ import { triggerHapticFeedback } from "@/lib/haptic-feedback";
 import { toast } from "sonner";
 import { isImportantCustomer, toggleImportantCustomer } from "@/lib/important-customer-flag";
 import { useWorkOrders } from "@/hooks/use-work-orders";
+import { generateWorkOrderPDF, createWorkOrderPDFDataFromJob } from "@/lib/work-order-pdf-generator";
+import { parseJobMemosFromField26 } from "@/lib/job-memo-parser";
+import { generateMagicLink } from "@/lib/line-api";
 
 // =============================================================================
 // Helper Functions
@@ -132,8 +141,10 @@ function getActionConfig(job: ZohoJob, onCheckIn: () => void) {
         priority: "high" as const,
       };
     case "入庫済み":
+      // 車検・12ヵ月点検の場合は「受入点検を開始」、その他は「診断を開始」
+      const isInspection = job.serviceKind === "車検" || job.serviceKind === "12ヵ月点検";
       return {
-        label: "診断を開始",
+        label: isInspection ? "受入点検を開始" : "診断を開始",
         icon: Activity,
         iconColor: "text-white",
         buttonBgColor: "bg-primary", // bg-blue-600 → bg-primary (40歳以上ユーザー向け、統一)
@@ -271,6 +282,45 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
 
   // ワークオーダーを取得（写真数の計算用）
   const { workOrders } = useWorkOrders(job.id);
+  
+  // 見積があるワークオーダーを特定（マジックリンク生成用）
+  const workOrderWithEstimate = useMemo(() => {
+    if (!workOrders || workOrders.length === 0) return null;
+    // 見積がある最初のワークオーダーを返す
+    return workOrders.find((wo) => wo.estimate && wo.estimate.items && wo.estimate.items.length > 0) || null;
+  }, [workOrders]);
+  
+  // 見積承認リンクのクリックハンドラ（マジックリンク生成）
+  const [isGeneratingMagicLink, setIsGeneratingMagicLink] = useState(false);
+  const handleEstimateApprovalClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerHapticFeedback("light");
+    
+    if (isGeneratingMagicLink) return;
+    
+    setIsGeneratingMagicLink(true);
+    try {
+      const result = await generateMagicLink({
+        jobId: job.id,
+        workOrderId: workOrderWithEstimate?.id,
+        expiresIn: 7 * 24 * 60 * 60, // 7日間
+      });
+      
+      if (result.success && result.url) {
+        window.open(result.url, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("マジックリンクの生成に失敗しました", {
+          description: result.error?.message || "見積承認ページにアクセスできません",
+        });
+      }
+    } catch (error) {
+      console.error("マジックリンク生成エラー:", error);
+      toast.error("マジックリンクの生成に失敗しました");
+    } finally {
+      setIsGeneratingMagicLink(false);
+    }
+  };
 
   // 変更申請があるかチェック
   const hasChangeRequest = customerData ? hasChangeRequests(customerData.Description) : false;
@@ -322,24 +372,86 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
     return null;
   };
 
-  // 最初の写真を取得（診断写真または作業写真の最初の1枚、なければサンプル画像）
+  // ブログ用写真を取得
+  const { data: blogPhotos = [] } = useSWR(
+    job.id ? `blog-photos-card-${job.id}` : null,
+    async () => {
+      if (!job.id) return [];
+      return await listBlogPhotosFromJobFolder(job.id);
+    },
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+
+  // ブログ用写真から位置情報を抽出（ファイル名から）
+  const blogPhotosWithPosition = useMemo(() => {
+    return blogPhotos.map((photo) => {
+      // ファイル名から位置情報を抽出
+      const fileName = photo.fileName.toLowerCase();
+      let position: string | undefined;
+      
+      // ファイル名に位置情報が含まれているか確認
+      if (fileName.includes("front") || fileName.includes("前面") || fileName.includes("00_")) {
+        position = "front";
+      } else if (fileName.includes("rear") || fileName.includes("後面") || fileName.includes("01_")) {
+        position = "rear";
+      } else if (fileName.includes("left") || fileName.includes("左側面") || fileName.includes("02_")) {
+        position = "left";
+      } else if (fileName.includes("right") || fileName.includes("右側面") || fileName.includes("03_")) {
+        position = "right";
+      } else if (fileName.includes("engine") || fileName.includes("エンジン") || fileName.includes("04_")) {
+        position = "engine";
+      } else if (fileName.includes("interior") || fileName.includes("内装") || fileName.includes("05_")) {
+        position = "interior";
+      }
+      
+      return {
+        ...photo,
+        position,
+      };
+    });
+  }, [blogPhotos]);
+
+  // 最初の写真を取得（ブログ用写真を優先、優先順位: 前面 > 後面 > 左側面 > 右側面 > その他）
   const firstPhoto = useMemo(() => {
+    // 優先順位1: ブログ用写真（前面を最優先）
+    if (blogPhotosWithPosition.length > 0) {
+      const frontPhoto = blogPhotosWithPosition.find((p) => p.position === "front");
+      if (frontPhoto) return frontPhoto.url;
+      
+      const rearPhoto = blogPhotosWithPosition.find((p) => p.position === "rear");
+      if (rearPhoto) return rearPhoto.url;
+      
+      const leftPhoto = blogPhotosWithPosition.find((p) => p.position === "left");
+      if (leftPhoto) return leftPhoto.url;
+      
+      const rightPhoto = blogPhotosWithPosition.find((p) => p.position === "right");
+      if (rightPhoto) return rightPhoto.url;
+      
+      // 位置情報がない場合は最初の写真
+      return blogPhotosWithPosition[0].url;
+    }
+    
+    // 優先順位2: 社内用写真（診断写真、作業写真）
     if (workOrders && workOrders.length > 0) {
-      // 診断写真を優先して探す
+      // 診断写真
       for (const wo of workOrders) {
         if (wo.diagnosis?.photos && Array.isArray(wo.diagnosis.photos) && wo.diagnosis.photos.length > 0) {
           return wo.diagnosis.photos[0].url;
         }
       }
       
-      // 作業写真を探す
+      // 作業写真（before > after > general）
       for (const wo of workOrders) {
         if (wo.work?.records && Array.isArray(wo.work.records)) {
           for (const record of wo.work.records) {
             if (record.photos && Array.isArray(record.photos) && record.photos.length > 0) {
-              // before写真を優先、なければ最初の写真
               const beforePhoto = record.photos.find((p: any) => p.type === "before");
               if (beforePhoto) return beforePhoto.url;
+              const afterPhoto = record.photos.find((p: any) => p.type === "after");
+              if (afterPhoto) return afterPhoto.url;
               return record.photos[0].url;
             }
           }
@@ -349,18 +461,24 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
     
     // 写真がない場合、サンプル画像を返す（開発環境のみ）
     return getSamplePhotoUrl(vehicleName);
-  }, [workOrders, vehicleName]);
+  }, [blogPhotosWithPosition, workOrders, vehicleName]);
 
-  // 写真の総数を計算（診断写真と作業写真の合計）
+
+  // 写真の総数を計算（ブログ用写真 + 社内用写真の合計）
   const photoCount = useMemo(() => {
     let count = 0;
+    
+    // ブログ用写真
+    count += blogPhotosWithPosition.length;
+    
+    // 社内用写真（診断写真と作業写真）
     if (workOrders && workOrders.length > 0) {
       workOrders.forEach((wo) => {
         // 診断写真
         if (wo.diagnosis?.photos && Array.isArray(wo.diagnosis.photos)) {
           count += wo.diagnosis.photos.length;
         }
-        // 作業写真（work.recordsから）
+        // 作業写真
         if (wo.work?.records && Array.isArray(wo.work.records)) {
           wo.work.records.forEach((record: any) => {
             if (record.photos && Array.isArray(record.photos)) {
@@ -370,8 +488,9 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         }
       });
     }
+    
     return count;
-  }, [workOrders]);
+  }, [blogPhotosWithPosition, workOrders]);
 
   // 重要な顧客フラグ
   const [isImportant, setIsImportant] = useState(false);
@@ -395,8 +514,14 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
   // 変更対応完了処理中フラグ
   const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
 
+  // PDF生成中フラグ
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
   // 受付メモダイアログの状態
   const [isWorkOrderDialogOpen, setIsWorkOrderDialogOpen] = useState(false);
+
+  // 作業メモモーダルの状態
+  const [isWorkMemoModalOpen, setIsWorkMemoModalOpen] = useState(false);
 
   // タグ変更ダイアログの状態
   const [isTagChangeDialogOpen, setIsTagChangeDialogOpen] = useState(false);
@@ -409,8 +534,13 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
   // 顧客詳細ダイアログの状態
   const [isCustomerDetailDialogOpen, setIsCustomerDetailDialogOpen] = useState(false);
 
+  // 写真ギャラリーダイアログの状態
+  const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
   // ブログ用写真撮影ダイアログの状態
   const [isBlogPhotoCaptureDialogOpen, setIsBlogPhotoCaptureDialogOpen] = useState(false);
+  // 整備士選択ダイアログの状態
+  const [isMechanicSelectDialogOpen, setIsMechanicSelectDialogOpen] = useState(false);
+  const [isAssigningMechanic, setIsAssigningMechanic] = useState(false);
 
   // 代車変更ダイアログの状態
   const [isCourtesyCarChangeDialogOpen, setIsCourtesyCarChangeDialogOpen] = useState(false);
@@ -462,6 +592,64 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
 
   const handleOpenWorkOrderDialog = () => {
     setIsWorkOrderDialogOpen(true);
+  };
+
+  /**
+   * 作業指示書PDF出力
+   */
+  const handlePrintWorkOrder = async () => {
+    if (!job) return;
+
+    setIsGeneratingPDF(true);
+    triggerHapticFeedback("medium");
+
+    try {
+      // 代車情報を取得（配列チェックを追加）
+      const courtesyCar = safeCourtesyCars.find(car => car.jobId === job.id);
+
+      // ジョブ情報からPDFデータを生成（新しい情報を含める）
+      const pdfData = await createWorkOrderPDFDataFromJob({
+        ...job,
+        field10: job.field10 || null,
+        tagId: job.tagId || null,
+        field13: job.field13 || null,
+        courtesyCar: courtesyCar ? {
+          name: courtesyCar.name,
+          licensePlate: courtesyCar.licensePlate || undefined,
+        } : null,
+      });
+      if (!pdfData) {
+        toast.error("PDFデータの生成に失敗しました");
+        return;
+      }
+
+      // PDFを生成
+      const result = await generateWorkOrderPDF(pdfData);
+      if (!result.success || !result.data) {
+        throw new Error(result.error?.message || "PDF生成に失敗しました");
+      }
+
+      // PDFをプレビュー表示（新しいタブで開く）
+      const url = URL.createObjectURL(result.data);
+      window.open(url, "_blank");
+      
+      // URLは自動的にクリーンアップされる（ブラウザがタブを閉じた時）
+      // 念のため、少し遅延してからrevoke（タブが開くのを待つ）
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+
+      triggerHapticFeedback("success");
+      toast.success("作業指示書PDFをプレビュー表示しました");
+    } catch (error) {
+      console.error("PDF生成エラー:", error);
+      triggerHapticFeedback("error");
+      toast.error("PDF生成に失敗しました", {
+        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   const handleWorkOrderSuccess = async () => {
@@ -519,7 +707,10 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
    * 変更対応完了処理
    */
   const handleMarkChangeRequestCompleted = async () => {
-    if (!customerId || !customerData) return;
+    if (!customerId) {
+      toast.error("顧客IDが見つかりません");
+      return;
+    }
 
     setIsMarkingCompleted(true);
     triggerHapticFeedback("medium");
@@ -528,22 +719,28 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
       const result = await markChangeRequestCompleted(customerId);
       if (result.success) {
         triggerHapticFeedback("success");
-        toast.success("変更申請を対応完了としてマークしました");
+        toast.success("変更申請を対応完了としてマークしました", {
+          description: "基幹システムを更新してください",
+        });
         // SWRキャッシュを再検証（ページ全体のリロードを避ける）
         await mutate(`customer-${customerId}`);
         await mutate("today-jobs");
         await mutate("all-jobs");
         await mutate(`job-${job.id}`);
+        // モーダルを閉じる
+        setIsChangeRequestDetailOpen(false);
       } else {
         triggerHapticFeedback("error");
         toast.error("対応完了処理に失敗しました", {
           description: result.error?.message,
         });
+        // エラー時はモーダルを開いたままにする
       }
     } catch (error) {
       console.error("変更対応完了エラー:", error);
       triggerHapticFeedback("error");
       toast.error("対応完了処理に失敗しました");
+      // エラー時はモーダルを開いたままにする
     } finally {
       setIsMarkingCompleted(false);
     }
@@ -555,8 +752,13 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
   // 承認済み作業内容があるかチェック
   const hasApprovedWorkItems = job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み");
 
+  // 作業メモがあるかチェック
+  const jobMemos = parseJobMemosFromField26(job.field26);
+  const hasWorkMemo = jobMemos.length > 0;
+  const latestWorkMemo = jobMemos.length > 0 ? jobMemos[0] : null;
+
   // 詳細情報があるかチェック
-  const hasDetails = hasPreInput || hasWorkOrder || hasChangeRequest || hasApprovedWorkItems;
+  const hasDetails = hasPreInput || hasWorkOrder || hasChangeRequest || hasApprovedWorkItems || hasWorkMemo;
 
   // 入庫区分アイコンを取得
   const getServiceKindIcon = () => {
@@ -596,6 +798,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
   const [isApprovedWorkItemsModalOpen, setIsApprovedWorkItemsModalOpen] = useState(false);
   const [isWorkOrderMemoModalOpen, setIsWorkOrderMemoModalOpen] = useState(false);
   const [isPreInputModalOpen, setIsPreInputModalOpen] = useState(false);
+  const [isChangeRequestDetailOpen, setIsChangeRequestDetailOpen] = useState(false);
 
   return (
     <>
@@ -609,68 +812,67 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         <div className="w-full lg:w-[240px] flex-shrink-0 relative bg-slate-200 aspect-[16/9]">
           {firstPhoto ? (
             <>
-              {/* 写真がある場合：写真を表示（クリック可能） */}
-              <button
-                onClick={() => {
-                  triggerHapticFeedback("light");
-                  // 診断画面に遷移（写真を追加・確認できる）
-                  if (job.field5 === "入庫済み") {
-                    window.location.href = `/mechanic/diagnosis/${job.id}`;
-                  } else {
-                    // その他のステータスの場合は診断画面に遷移できないので、ブログ用写真撮影ダイアログを開く
+              {/* 写真がある場合：写真を表示（クリック可能：ブログ用写真撮影ダイアログを開く） */}
+              <div className="relative w-full h-full group">
+                <button
+                  onClick={() => {
+                    triggerHapticFeedback("light");
                     setIsBlogPhotoCaptureDialogOpen(true);
-                  }
-                }}
-                className="w-full h-full relative cursor-pointer group"
-                aria-label="写真を確認・追加"
-                title="写真を確認・追加する（クリック）"
-              >
-                <Image
-                  src={firstPhoto}
-                  alt="車両写真"
-                  fill
-                  className="object-cover group-hover:opacity-90 transition-opacity"
-                  unoptimized
-                />
-                {/* 写真枚数バッジ */}
-                {photoCount > 0 && (
-                  <div className="absolute top-2.5 left-2.5 bg-black/50 text-white px-2 py-1 rounded text-base font-medium flex items-center gap-1 z-10">
-                    <Camera className="h-4 w-4" />
-                    {photoCount}枚
+                  }}
+                  className="relative w-full h-full cursor-pointer"
+                  aria-label="ブログ用写真を撮影"
+                  title="ブログ用写真を撮影"
+                >
+                  <Image
+                    src={firstPhoto}
+                    alt="車両写真"
+                    fill
+                    className="object-cover transition-opacity"
+                    unoptimized
+                  />
+                  {/* 写真枚数バッジ */}
+                  {photoCount > 0 && (
+                    <div className="absolute top-2.5 left-2.5 bg-black/50 text-white px-2 py-1 rounded text-base font-medium flex items-center gap-1 z-10">
+                      <Camera className="h-4 w-4" />
+                      {photoCount}枚
+                    </div>
+                  )}
+                </button>
+                {/* ホバー時のオーバーレイ（写真を追加することを示す） */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-slate-700" />
+                    <span className="text-base font-medium text-slate-700">写真を追加</span>
                   </div>
-                )}
-                {/* ホバー時のオーバーレイ */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                  <Camera className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-              </button>
+              </div>
             </>
           ) : (
             <>
-              {/* 写真がない場合：グレー背景に車両名を表示（クリック可能） */}
-              <button
-                onClick={() => {
-                  triggerHapticFeedback("light");
-                  // 診断画面に遷移（写真を追加できる）
-                  if (job.field5 === "入庫済み") {
-                    window.location.href = `/mechanic/diagnosis/${job.id}`;
-                  } else {
-                    // その他のステータスの場合は診断画面に遷移できないので、ブログ用写真撮影ダイアログを開く
+              {/* 写真がない場合：グレー背景に車両名を表示（クリック可能：ブログ用写真撮影ダイアログを開く） */}
+              <div className="relative w-full h-full group">
+                <button
+                  onClick={() => {
+                    triggerHapticFeedback("light");
                     setIsBlogPhotoCaptureDialogOpen(true);
-                  }
-                }}
-                className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-300 hover:bg-slate-400 transition-colors cursor-pointer group"
-                aria-label="写真を追加"
-                title="写真を追加する（クリック）"
-              >
-                <Car className="h-10 w-10 text-slate-600 mb-2 group-hover:text-slate-800 transition-colors" strokeWidth={1.5} />
-                <span className="text-base font-medium text-center text-slate-700 leading-snug group-hover:text-slate-900 transition-colors">
-                  {vehicleName}
-                </span>
-                <span className="text-sm text-slate-600 mt-1 group-hover:text-slate-800 transition-colors">
-                  ＋写真を追加する
-                </span>
-              </button>
+                  }}
+                  className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-300 hover:bg-slate-400 transition-colors cursor-pointer"
+                  aria-label="ブログ用写真を撮影"
+                  title="ブログ用写真を撮影"
+                >
+                  <ManufacturerIcon vehicleName={vehicleName} className="h-10 w-10 mb-2" fallbackClassName="h-10 w-10" />
+                  <span className="text-base font-medium text-center text-slate-700 leading-snug group-hover:text-slate-900 transition-colors">
+                    {vehicleName}
+                  </span>
+                </button>
+                {/* ホバー時のオーバーレイ（写真を追加することを示す） */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-slate-700" />
+                    <span className="text-base font-medium text-slate-700">写真を追加</span>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -687,7 +889,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
                 }
               }}
               className={cn(
-                "text-lg font-semibold text-slate-900 text-left truncate",
+                "text-lg font-semibold text-slate-900 text-left truncate transition-all",
                 customerId ? "cursor-pointer" : "cursor-default"
               )}
               title={customerId ? "顧客詳細を表示" : undefined}
@@ -718,6 +920,25 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
                   <Folder className="h-4.5 w-4.5" />
                 </a>
               )}
+              {/* 作業指示書印刷ボタン（作業指示または申し送り事項がある場合のみ表示） */}
+              {(hasWorkOrder || hasPreInput) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrintWorkOrder();
+                  }}
+                  disabled={isGeneratingPDF}
+                  className="p-1.5 rounded-md transition-all hover:bg-slate-100 text-slate-400 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="作業指示書を印刷"
+                  title="作業指示書を印刷"
+                >
+                  {isGeneratingPDF ? (
+                    <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                  ) : (
+                    <Printer className="h-4.5 w-4.5" />
+                  )}
+                </button>
+              )}
             </div>
             {/* ステータスバッジ（右寄せ） */}
             <div className="ml-auto">
@@ -739,11 +960,11 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
               triggerHapticFeedback("light");
               setIsVehicleDetailDialogOpen(true);
             }}
-            className="flex items-center gap-2 text-base font-medium text-slate-900 min-w-0 cursor-pointer text-left"
+            className="flex items-center gap-2 text-base font-medium text-slate-900 min-w-0 cursor-pointer text-left transition-all"
             title="車両詳細を表示"
             aria-label="車両詳細を表示"
           >
-            <Car className="h-5 w-5 text-slate-700 shrink-0" strokeWidth={2.5} />
+            <ManufacturerIcon vehicleName={vehicleName} className="h-5 w-5" fallbackClassName="h-5 w-5" />
             <span className="break-words min-w-0">{vehicleInfo}</span>
           </button>
 
@@ -770,7 +991,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
             {job.tagId && (
               <button
                 onClick={() => setIsTagChangeDialogOpen(true)}
-                className="flex items-center gap-1.5 text-base text-slate-700 cursor-pointer"
+                className="flex items-center gap-1.5 text-base text-slate-700 cursor-pointer transition-all"
                 title="タグを変更"
                 aria-label="タグを変更"
               >
@@ -779,12 +1000,35 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
               </button>
             )}
 
-            {/* 担当整備士（クリック不可） */}
+            {/* 担当整備士（クリック可能：変更可能） */}
             {job.assignedMechanic && (
-              <div className="flex items-center gap-1.5 text-base text-slate-700 cursor-default">
-                <User className="h-4 w-4 text-slate-500" />
+              <button
+                onClick={() => {
+                  triggerHapticFeedback("light");
+                  setIsMechanicSelectDialogOpen(true);
+                }}
+                className="flex items-center gap-1.5 text-base text-slate-700 cursor-pointer transition-all"
+                title="整備士を変更"
+                aria-label="整備士を変更"
+              >
+                <UserCog className="h-4 w-4 text-slate-500" />
                 {job.assignedMechanic}
-              </div>
+              </button>
+            )}
+            {/* 整備士が未割り当ての場合もクリック可能 */}
+            {!job.assignedMechanic && (
+              <button
+                onClick={() => {
+                  triggerHapticFeedback("light");
+                  setIsMechanicSelectDialogOpen(true);
+                }}
+                className="flex items-center gap-1.5 text-base text-slate-500 cursor-pointer transition-all hover:text-slate-700"
+                title="整備士を割り当て"
+                aria-label="整備士を割り当て"
+              >
+                <UserCog className="h-4 w-4 text-slate-400" />
+                <span>未割り当て</span>
+              </button>
             )}
 
             {/* 代車（クリック可能：変更可能） */}
@@ -794,7 +1038,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
                   triggerHapticFeedback("light");
                   setIsCourtesyCarChangeDialogOpen(true);
                 }}
-                className="flex items-center gap-1.5 text-base text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-base text-slate-700 hover:text-slate-900 transition-all cursor-pointer"
                 aria-label="代車を変更"
                 title="代車を変更する（クリック）"
               >
@@ -834,11 +1078,23 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
             {hasWorkOrder && (
               <button
                 onClick={() => setIsWorkOrderMemoModalOpen(true)}
-                className="bg-amber-50 text-amber-900 border border-amber-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                className="bg-amber-50 text-amber-900 border border-amber-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer shrink-0 dark:bg-slate-800 dark:text-white dark:border-amber-400 dark:hover:bg-slate-700"
                 title="受付メモ"
               >
                 <NotebookPen className="h-5 w-5 shrink-0 text-amber-600" />
                 <span className="whitespace-nowrap">受付メモ</span>
+              </button>
+            )}
+
+            {/* 作業メモボタン */}
+            {hasWorkMemo && latestWorkMemo && (
+              <button
+                onClick={() => setIsWorkMemoModalOpen(true)}
+                className="bg-purple-50 text-purple-900 border border-purple-400 text-base font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 hover:bg-purple-100 transition-colors cursor-pointer shrink-0"
+                title="作業メモ"
+              >
+                <Notebook className="h-5 w-5 shrink-0 text-purple-600" />
+                <span className="whitespace-nowrap">作業メモ</span>
               </button>
             )}
 
@@ -854,6 +1110,44 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
                 受付メモを追加する
               </button>
             )}
+          </div>
+
+          {/* 顧客向けリンク（小さいテキストリンク） */}
+          <div className="flex items-center gap-3 text-xs text-slate-500 pt-1.5 border-t border-slate-100">
+            <span className="text-slate-400">顧客向け:</span>
+            <a
+              href={`/customer/pre-checkin/${job.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-600 hover:underline inline-flex items-center gap-0.5 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerHapticFeedback("light");
+              }}
+            >
+              事前問診
+              <ExternalLink className="h-3 w-3" />
+            </a>
+            <a
+              href="#"
+              onClick={handleEstimateApprovalClick}
+              className={cn(
+                "hover:text-blue-600 hover:underline inline-flex items-center gap-0.5 transition-colors",
+                isGeneratingMagicLink && "opacity-50 cursor-wait"
+              )}
+            >
+              {isGeneratingMagicLink ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                <>
+                  見積承認
+                  <ExternalLink className="h-3 w-3" />
+                </>
+              )}
+            </a>
           </div>
         </div>
 
@@ -903,28 +1197,24 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
 
           {/* 変更申請アラート */}
           {hasChangeRequest && (
-            <div className="p-2.5 bg-orange-50 border border-orange-200 rounded-md">
-              <div className="flex items-center gap-1.5 text-base font-semibold text-orange-700 mb-1">
+            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md">
+              <div className="flex items-center gap-1.5 text-base font-semibold text-rose-700 mb-1">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span className="leading-tight">変更申請あり</span>
               </div>
-              <p className="text-sm text-orange-700 leading-snug mb-2">
+              <p className="text-sm text-rose-700 leading-snug mb-2">
                 顧客情報の変更申請があります
               </p>
               <Button
-                onClick={handleMarkChangeRequestCompleted}
-                disabled={isMarkingCompleted}
+                onClick={() => {
+                  triggerHapticFeedback("light");
+                  setIsChangeRequestDetailOpen(true);
+                }}
                 variant="outline"
-                className="w-full h-10 bg-white border-orange-200 text-orange-700 hover:bg-orange-50 text-base font-medium"
+                className="w-full h-10 bg-white border-rose-200 text-rose-700 hover:bg-rose-50 text-base font-medium"
               >
-                {isMarkingCompleted ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    処理中...
-                  </>
-                ) : (
-                  "対応完了"
-                )}
+                <FileText className="h-4 w-4 mr-1.5 shrink-0" />
+                詳細を見る
               </Button>
             </div>
           )}
@@ -1048,7 +1338,57 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         </DialogContent>
       </Dialog>
 
-      {/* 既存のダイアログ（WorkOrderDialog、VehicleDetailDialog、CustomerDetailDialog、BlogPhotoCaptureDialog、TagChangeDialog） */}
+      {/* 作業メモモーダル */}
+      <Dialog open={isWorkMemoModalOpen} onOpenChange={setIsWorkMemoModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-semibold text-purple-700">
+              <Notebook className="h-5 w-5" strokeWidth={2.5} />
+              作業メモ
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6">
+            {jobMemos.length > 0 ? (
+              <div className="space-y-4">
+                {jobMemos.map((memo) => (
+                  <div key={memo.id} className="border-b border-slate-200 last:border-b-0 pb-4 last:pb-0">
+                    <div className="flex items-center gap-2 text-base text-slate-700 mb-2">
+                      <span className="font-medium">{memo.author}</span>
+                      <span>•</span>
+                      <span>
+                        {new Date(memo.createdAt).toLocaleString("ja-JP", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          timeZone: "Asia/Tokyo",
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-base text-slate-800 leading-relaxed whitespace-pre-wrap">
+                      {memo.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-base text-slate-700">作業メモがありません</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <Button
+              variant="outline"
+              onClick={() => setIsWorkMemoModalOpen(false)}
+              className="h-12 text-base font-medium"
+            >
+              閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 既存のダイアログ（WorkOrderDialog、VehicleDetailDialog、CustomerDetailDialog、TagChangeDialog） */}
       <WorkOrderDialog
         open={isWorkOrderDialogOpen}
         onOpenChange={setIsWorkOrderDialogOpen}
@@ -1074,18 +1414,49 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         customerName={customerName}
       />
 
-      {/* ブログ用写真撮影ダイアログ */}
-      <BlogPhotoCaptureDialog
-        open={isBlogPhotoCaptureDialogOpen}
-        onOpenChange={setIsBlogPhotoCaptureDialogOpen}
-        jobId={job.id}
-        onComplete={() => {
-          // 撮影完了後の処理（必要に応じてデータを再取得）
-          mutate(`job-${job.id}`);
+
+      {/* 整備士選択ダイアログ */}
+      <MechanicSelectDialog
+        open={isMechanicSelectDialogOpen}
+        onOpenChange={setIsMechanicSelectDialogOpen}
+        isLoading={false}
+        isProcessing={isAssigningMechanic}
+        onSelect={async (mechanicName) => {
+          setIsAssigningMechanic(true);
+          try {
+            const result = await assignMechanic(job.id, mechanicName);
+            if (result.success) {
+              toast.success("整備士を変更しました");
+              // データを再取得
+              mutate(`job-${job.id}`);
+              mutate("today-jobs");
+              mutate("all-jobs");
+              setIsMechanicSelectDialogOpen(false);
+            } else {
+              toast.error("整備士の変更に失敗しました", {
+                description: result.error?.message,
+              });
+            }
+          } catch (error) {
+            console.error("整備士変更エラー:", error);
+            toast.error("エラーが発生しました");
+          } finally {
+            setIsAssigningMechanic(false);
+          }
         }}
       />
 
       {/* 代車変更ダイアログ */}
+      {/* 変更申請詳細モーダル */}
+      <ChangeRequestDetailDialog
+        open={isChangeRequestDetailOpen}
+        onOpenChange={setIsChangeRequestDetailOpen}
+        customerId={customerId}
+        customerName={customerName}
+        onMarkCompleted={handleMarkChangeRequestCompleted}
+        isMarkingCompleted={isMarkingCompleted}
+      />
+
       <CourtesyCarSelectDialog
         open={isCourtesyCarChangeDialogOpen}
         onOpenChange={setIsCourtesyCarChangeDialogOpen}
@@ -1094,6 +1465,28 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         isProcessing={isChangingCourtesyCar}
         onSelect={handleCourtesyCarChange}
         onSkip={handleSkipCourtesyCar}
+      />
+
+      {/* ブログ用写真撮影ダイアログ */}
+      <BlogPhotoCaptureDialog
+        open={isBlogPhotoCaptureDialogOpen}
+        onOpenChange={setIsBlogPhotoCaptureDialogOpen}
+        jobId={job.id}
+        onComplete={() => {
+          // 撮影完了後の処理（必要に応じてデータを再取得）
+          mutate(`job-${job.id}`);
+          mutate(`blog-photos-card-${job.id}`);
+        }}
+      />
+
+      {/* 写真ギャラリーダイアログ */}
+      <JobPhotoGalleryDialog
+        open={isPhotoGalleryOpen}
+        onOpenChange={setIsPhotoGalleryOpen}
+        jobId={job.id}
+        workOrders={workOrders}
+        customerName={customerName}
+        vehicleName={vehicleName}
       />
 
       {/* タグ変更ダイアログ */}
