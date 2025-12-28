@@ -73,7 +73,7 @@ MenuItem.displayName = "MenuItem";
 function AppSidebarComponent() {
   const router = useRouter();
   const pathname = usePathname();
-  const { isOpen, close } = useSidebar();
+  const { isOpen, close, isMobile } = useSidebar();
 
   // ナビゲーション処理をメモ化
   const handleNavigation = useCallback((href: string) => {
@@ -84,8 +84,9 @@ function AppSidebarComponent() {
 
   return (
     <>
-      {/* オーバーレイ（開いている時は常に表示） */}
-      {isOpen && (
+      {/* オーバーレイ（デスクトップのみ: 開いている時は常に表示） */}
+      {/* モバイルではオーバーレイを表示せず、メインコンテンツをスライドさせる方式 */}
+      {isOpen && !isMobile && (
         <div
           className="fixed inset-0 bg-black/50 z-[39]"
           onClick={close}

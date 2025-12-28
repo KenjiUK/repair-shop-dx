@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileText, X, Loader2, CheckCircle2 } from "lucide-react";
 import { uploadVehicleRegistration } from "@/lib/vehicle-registration-upload";
 import { validateFile, formatFileSize } from "@/lib/file-validation";
@@ -125,42 +124,24 @@ export function VehicleRegistrationUpload({
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-          <FileText className="h-5 w-5 shrink-0" />
-          車検証
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-4">
         {/* ファイル選択 */}
         {!file && !uploadedFileId && (
           <div className="space-y-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="vehicle-registration-upload"
-            />
-            <label htmlFor="vehicle-registration-upload">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                asChild
-              >
-                <span className="flex items-center gap-2 cursor-pointer">
-                  <Upload className="h-4 w-4" />
-                  車検証を選択
-                </span>
-              </Button>
+            <label className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+              <Upload className="h-6 w-6 text-slate-700 mb-1 shrink-0" />
+              <span className="text-base text-slate-800">ファイルを選択</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="vehicle-registration-upload"
+              />
             </label>
-            <p className="text-base text-slate-700">
-              対応形式: 画像（JPG, PNG, WebP）、PDF
-              <br />
-              最大サイズ: 10MB
+            <p className="text-base text-slate-600">
+              対応形式: 画像（JPG, PNG, WebP）、PDF / 最大サイズ: 10MB
             </p>
           </div>
         )}
@@ -212,16 +193,16 @@ export function VehicleRegistrationUpload({
             <Button
               onClick={handleUpload}
               disabled={isUploading}
-              className="w-full"
+              className="w-full h-12 text-base font-medium"
             >
               {isUploading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin shrink-0" />
                   アップロード中...
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="h-5 w-5 mr-2 shrink-0" />
                   アップロード
                 </>
               )}
@@ -250,8 +231,7 @@ export function VehicleRegistrationUpload({
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 

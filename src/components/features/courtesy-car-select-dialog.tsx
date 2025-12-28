@@ -70,7 +70,7 @@ export function CourtesyCarSelectDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
@@ -102,7 +102,7 @@ export function CourtesyCarSelectDialog({
                       key={car.carId}
                       variant="outline"
                       className={cn(
-                        "w-full h-auto min-h-[80px] flex flex-col items-center justify-center gap-1 px-3 py-3 transition-all overflow-hidden",
+                        "w-full h-auto min-h-[88px] flex flex-col items-center justify-center gap-1.5 px-2 py-3 transition-all",
                         isProcessingThis
                           ? "bg-primary/10 border-primary cursor-wait"
                           : "hover:bg-primary hover:text-primary-foreground",
@@ -119,11 +119,14 @@ export function CourtesyCarSelectDialog({
                       ) : (
                         <>
                           <Car className="h-5 w-5 shrink-0" />
-                          <span className="w-full text-base font-semibold text-center line-clamp-2 break-words min-w-0 px-1">
+                          <span
+                            className="w-full text-base font-semibold text-center overflow-hidden text-ellipsis whitespace-nowrap px-1"
+                            title={car.name}
+                          >
                             {car.name}
                           </span>
                           {car.licensePlate && (
-                            <span className="w-full text-sm text-slate-700 text-center line-clamp-1 break-words min-w-0 px-1">
+                            <span className="w-full text-sm text-slate-700 text-center overflow-hidden text-ellipsis whitespace-nowrap px-1">
                               {car.licensePlate}
                             </span>
                           )}

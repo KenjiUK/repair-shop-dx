@@ -79,7 +79,6 @@ import { CompactJobHeader } from "@/components/layout/compact-job-header";
 import { User, Printer } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WorkflowStepIndicator } from "@/components/features/workflow-step-indicator";
 import { VoiceInputButton } from "@/components/features/voice-input-button";
 
 // ダイアログコンポーネントを動的インポート（コード分割）
@@ -109,7 +108,7 @@ import {
   ReplacementPartItem,
 } from "@/components/features/inspection-work-view";
 import { getOrCreateWorkOrderFolder, uploadFile } from "@/lib/google-drive";
-import { setNavigationHistory, getBackHref, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
+import { setNavigationHistory, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
 
 // =============================================================================
 // Helper Functions
@@ -2171,26 +2170,6 @@ function MechanicWorkPageContent() {
     return phases;
   }, [job]);
 
-  // スキップフェーズの判定（追加見積もりがない場合）
-  const skippedPhases = useMemo(() => {
-    if (!job) return [];
-    // 24ヶ月点検・12ヶ月点検で追加見積もりがない場合、Phase 3-4（見積・承認）をスキップ
-    const isInspection = serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
-    if (isInspection) {
-      // 診断データから追加見積もりの有無を判定
-      const diagnosis = selectedWorkOrder?.diagnosis as any;
-      const hasAdditionalEstimate =
-        (diagnosis?.additionalEstimateRequired?.length || 0) > 0 ||
-        (diagnosis?.additionalEstimateRecommended?.length || 0) > 0 ||
-        (diagnosis?.additionalEstimateOptional?.length || 0) > 0;
-      
-      if (!hasAdditionalEstimate) {
-        return [3, 4]; // 見積・承認をスキップ
-      }
-    }
-    return [];
-  }, [job, serviceKinds, selectedWorkOrder]);
-
   // エラー状態のチェック（すべてのHooksの後に配置）
   if (jobError) {
     return (
@@ -2242,7 +2221,7 @@ function MechanicWorkPageContent() {
       {/* ヘッダー */}
       <AppHeader
         maxWidthClassName="max-w-4xl"
-        backHref={getBackHref(jobId)}
+        backHref="/"
         hideBrandOnScroll={true}
         scrollThreshold={30}
         collapsibleOnMobile={true}
@@ -2251,37 +2230,14 @@ function MechanicWorkPageContent() {
         collapsedVehicleName={vehicleName}
         collapsedLicensePlate={licensePlate}
         rightArea={
-          <div className="flex items-center gap-3">
-            <WorkflowStepIndicator
-              currentPhase={5}
-              job={job}
-              skippedPhases={skippedPhases}
-              excludePhases={[0, 4]} // Phase 0（事前問診）とPhase 4（見積承認）を除外（JOBカードに表示）
-              userRole="mechanic" // 作業ページは整備士向け
-              jobId={jobId}
-              hasAdditionalEstimate={
-                (() => {
-                  const diagnosis = selectedWorkOrder?.diagnosis as any;
-                  return (
-                    (diagnosis?.additionalEstimateRequired?.length || 0) > 0 ||
-                    (diagnosis?.additionalEstimateRecommended?.length || 0) > 0 ||
-                    (diagnosis?.additionalEstimateOptional?.length || 0) > 0
-                  );
-                })()
-              }
-              mobileMode={false}
-              enableNavigation={true}
-              serviceKind={primaryServiceKind} // 入庫区分を渡す
+          selectedWorkOrder?.id && (
+            <SaveStatusIndicator
+              status={saveStatus}
+              hasUnsavedChanges={hasUnsavedChanges}
+              onSave={saveManually}
+              showSaveButton={true}
             />
-            {selectedWorkOrder?.id && (
-              <SaveStatusIndicator
-                status={saveStatus}
-                hasUnsavedChanges={hasUnsavedChanges}
-                onSave={saveManually}
-                showSaveButton={true}
-              />
-            )}
-          </div>
+          )
         }
       >
         {/* ページタイトル */}

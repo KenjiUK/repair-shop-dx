@@ -20,6 +20,7 @@ export const READ_ONLY_FIELDS = [
   "field6", // 住所 - 建物名等
   "Phone", // 電話番号
   "Mobile", // 携帯番号
+  "Email", // メールアドレス
 ] as const;
 
 export type ReadOnlyField = (typeof READ_ONLY_FIELDS)[number];
@@ -33,6 +34,7 @@ export const FIELD_DISPLAY_NAMES = {
   field6: "住所（建物名等）",
   Phone: "電話番号",
   Mobile: "携帯番号",
+  Email: "メールアドレス",
 } as const satisfies Record<ReadOnlyField, string>;
 
 // =============================================================================

@@ -150,6 +150,7 @@ export async function getGoogleDriveClient() {
 
 /**
  * Google Sheets API クライアントを取得（googleapisライブラリを使用）
+ * 読み取り専用スコープ
  * 
  * @returns Google Sheets API クライアント
  */
@@ -178,6 +179,41 @@ export async function getGoogleSheetsClient() {
     console.error("[Google Auth] Sheets クライアント作成エラー:", error);
     throw new Error(
       `Google Sheets クライアントの作成に失敗しました: ${error instanceof Error ? error.message : "不明なエラー"}`
+    );
+  }
+}
+
+/**
+ * Google Sheets API クライアントを取得（書き込み可能）
+ * 読み書き可能スコープ - 変更申請ログへの書き込み用
+ * 
+ * @returns Google Sheets API クライアント（書き込み可能）
+ */
+export async function getGoogleSheetsWriteClient() {
+  try {
+    // Service Account JSONが設定されている場合はService Account認証を使用
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      const serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      
+      const auth = new google.auth.JWT({
+        email: serviceAccount.client_email,
+        key: serviceAccount.private_key,
+        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      });
+
+      return google.sheets({ version: "v4", auth });
+    }
+
+    // フォールバック: 環境変数からアクセストークンを取得
+    const accessToken = getAccessTokenFromEnv();
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: accessToken });
+
+    return google.sheets({ version: "v4", auth });
+  } catch (error) {
+    console.error("[Google Auth] Sheets Write クライアント作成エラー:", error);
+    throw new Error(
+      `Google Sheets Write クライアントの作成に失敗しました: ${error instanceof Error ? error.message : "不明なエラー"}`
     );
   }
 }

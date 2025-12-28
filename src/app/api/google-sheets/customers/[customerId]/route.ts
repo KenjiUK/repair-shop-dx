@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MasterCustomer } from "@/types";
 import { getGoogleSheetsClient } from "@/lib/google-auth";
+import { customers as zohoCustomers } from "@/lib/mock-db";
 
 // =============================================================================
 // 設定
@@ -131,6 +132,25 @@ export async function GET(
     const customer = customers.find((c) => c.顧客ID === customerId);
 
     if (!customer) {
+      // 404エラーの場合もモックデータから検索を試行
+      const mockCustomer = zohoCustomers.find((c) => c.ID1 === customerId);
+      if (mockCustomer) {
+        // ZohoCustomerをMasterCustomer形式に変換
+        const masterCustomer: MasterCustomer = {
+          顧客ID: mockCustomer.ID1 || "",
+          顧客名: `${mockCustomer.Last_Name || ""} ${mockCustomer.First_Name || ""}`.trim() || "",
+          住所連結: `${mockCustomer.mailingStreet || ""}${mockCustomer.addressNumber ? ` ${mockCustomer.addressNumber}` : ""}${mockCustomer.buildingName ? ` ${mockCustomer.buildingName}` : ""}`.trim(),
+          電話番号: mockCustomer.phone || "",
+          携帯番号: mockCustomer.mobile || "",
+        };
+        
+        console.log("[API] モックデータから顧客マスタを返却（404時）:", customerId);
+        return NextResponse.json({
+          success: true,
+          data: masterCustomer,
+        });
+      }
+      
       return NextResponse.json(
         {
           success: false,
@@ -149,6 +169,34 @@ export async function GET(
     });
   } catch (error) {
     console.error("[API] Google Sheets 顧客マスタ検索エラー:", error);
+    
+    // フォールバック: モックデータから検索
+    try {
+      const { customerId } = await params;
+      if (customerId) {
+        // ID1で検索（顧客IDで検索）
+        const mockCustomer = zohoCustomers.find((c) => c.ID1 === customerId);
+        if (mockCustomer) {
+          // ZohoCustomerをMasterCustomer形式に変換
+          const masterCustomer: MasterCustomer = {
+            顧客ID: mockCustomer.ID1 || "",
+            顧客名: `${mockCustomer.Last_Name || ""} ${mockCustomer.First_Name || ""}`.trim() || "",
+            住所連結: `${mockCustomer.mailingStreet || ""}${mockCustomer.addressNumber ? ` ${mockCustomer.addressNumber}` : ""}${mockCustomer.buildingName ? ` ${mockCustomer.buildingName}` : ""}`.trim(),
+            電話番号: mockCustomer.phone || "",
+            携帯番号: mockCustomer.mobile || "",
+          };
+          
+          console.log("[API] モックデータから顧客マスタを返却:", customerId);
+          return NextResponse.json({
+            success: true,
+            data: masterCustomer,
+          });
+        }
+      }
+    } catch (fallbackError) {
+      console.error("[API] フォールバック処理エラー:", fallbackError);
+    }
+    
     return errorResponse(
       error instanceof Error ? error.message : "顧客マスタの検索に失敗しました",
       "GOOGLE_SHEETS_ERROR",

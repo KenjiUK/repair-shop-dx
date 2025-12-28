@@ -589,12 +589,34 @@ export const vehicles: ZohoVehicle[] = [
     id: "veh-006",
     Name: "V006",
     vehicleId: "V006",
-    field44: "品川 500 は 1111",
+    field44: "ポルシェ 911",
     licensePlate: "品川 500 は 1111",
     ID1: "K1006",
     customerId: "K1006",
     field7: "2025-09-20",
     inspectionExpiry: "2025-09-20",
+  },
+  {
+    id: "veh-006b",
+    Name: "V006B",
+    vehicleId: "V006B",
+    field44: "メルセデス・ベンツ Sクラス",
+    licensePlate: "港 500 み 2222",
+    ID1: "K1006",
+    customerId: "K1006",
+    field7: "2025-11-15",
+    inspectionExpiry: "2025-11-15",
+  },
+  {
+    id: "veh-006c",
+    Name: "V006C",
+    vehicleId: "V006C",
+    field44: "BMW 7シリーズ",
+    licensePlate: "世田谷 500 む 3333",
+    ID1: "K1006",
+    customerId: "K1006",
+    field7: "2026-01-10",
+    inspectionExpiry: "2026-01-10",
   },
   {
     id: "veh-007",
@@ -899,7 +921,7 @@ export const jobs: ZohoJob[] = [
         id: "wo-003-001",
         jobId: "job-003",
         serviceKind: "車検" as ServiceKind,
-        status: "診断完了" as WorkOrderStatus,
+        status: "見積作成待ち" as WorkOrderStatus,
         diagnosis: {
           items: [
             { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: ["https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400&h=300&fit=crop"], evidenceVideoUrl: null },
@@ -1040,7 +1062,7 @@ export const jobs: ZohoJob[] = [
         id: "wo-005-001",
         jobId: "job-005",
         serviceKind: "タイヤ交換・ローテーション" as ServiceKind,
-        status: "作業完了" as WorkOrderStatus,
+        status: "作業中" as WorkOrderStatus,
         diagnosis: {
           items: [
             { id: "tire-1", name: "タイヤ（前輪左）", category: "足回り", status: "green", comment: "溝残り良好", evidencePhotoUrls: ["https://example.com/tire-fl.jpg"], evidenceVideoUrl: null },
@@ -1632,6 +1654,801 @@ export const jobs: ZohoJob[] = [
     serviceKind: "12ヵ月点検" as ServiceKind,
     assignedMechanic: "谷口",
   },
+
+  // =============================================================================
+  // テスト用サンプルデータ: 車検と12ヵ月点検の各フェーズ
+  // =============================================================================
+
+  // === 車検: Phase 0 - 入庫待ち ===
+  {
+    id: "test-shaken-01",
+    field22: todayISO.replace(/T.*/, "T08:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T08:00:00+09:00"),
+    field5: "入庫待ち",
+    stage: "入庫待ち",
+    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
+    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
+    field6: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
+    vehicle: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "車検希望。特に気になる点はなし。",
+    details: "車検希望。特に気になる点はなし。",
+    field10: 45000,
+    mileage: 45000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: null,
+    customerFolderUrl: null,
+    ID_BookingId: "booking-test-shaken-01",
+    bookingId: "booking-test-shaken-01",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-01",
+        jobId: "test-shaken-01",
+        serviceKind: "車検" as ServiceKind,
+        status: "未開始" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 車検: Phase 1 - 入庫済み ===
+  {
+    id: "test-shaken-02",
+    field22: todayISO.replace(/T.*/, "T08:30:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T08:30:00+09:00"),
+    field5: "入庫済み",
+    stage: "入庫済み",
+    field4: { id: "cust-002", name: "佐藤 花子" } as ZohoLookup,
+    customer: { id: "cust-002", name: "佐藤 花子" } as ZohoLookup,
+    field6: { id: "veh-002", name: "メルセデス・ベンツ Eクラス / 港 500 さ 5678" } as ZohoLookup,
+    vehicle: { id: "veh-002", name: "メルセデス・ベンツ Eクラス / 港 500 さ 5678" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "車検希望。ブレーキの音が気になる。",
+    details: "車検希望。ブレーキの音が気になる。",
+    field10: 52000,
+    mileage: 52000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: null,
+    customerFolderUrl: null,
+    ID_BookingId: "booking-test-shaken-02",
+    bookingId: "booking-test-shaken-02",
+    field12: null,
+    attachments: null,
+    tagId: "01",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-02",
+        jobId: "test-shaken-02",
+        serviceKind: "車検" as ServiceKind,
+        status: "診断中" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 車検: Phase 2 - 見積作成待ち（診断完了） ===
+  {
+    id: "test-shaken-03",
+    field22: todayISO.replace(/T.*/, "T09:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T09:00:00+09:00"),
+    field5: "見積作成待ち",
+    stage: "見積作成待ち",
+    field4: { id: "cust-003", name: "鈴木 一郎" } as ZohoLookup,
+    customer: { id: "cust-003", name: "鈴木 一郎" } as ZohoLookup,
+    field6: { id: "veh-003", name: "アウディ A4 / 世田谷 580 た 9012" } as ZohoLookup,
+    vehicle: { id: "veh-003", name: "アウディ A4 / 世田谷 580 た 9012" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: "車検のため代車必要。",
+    workOrder: "車検のため代車必要。",
+    field7: "エアコンの効きが悪い気がする。",
+    details: "エアコンの効きが悪い気がする。",
+    field10: 78500,
+    mileage: 78500,
+    field13: null,
+    approvedWorkItems: null,
+    field19: "https://drive.google.com/drive/folders/test-shaken-03",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-03",
+    ID_BookingId: "booking-test-shaken-03",
+    bookingId: "booking-test-shaken-03",
+    field12: null,
+    attachments: null,
+    tagId: "02",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-03",
+        jobId: "test-shaken-03",
+        serviceKind: "車検" as ServiceKind,
+        status: "見積作成待ち" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "タイヤ溝残り4mm。次回交換推奨。", evidencePhotoUrls: ["https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=400&h=300&fit=crop"], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-6", name: "エアコンフィルター", category: "その他", status: "yellow", comment: "やや汚れあり。交換推奨。", evidencePhotoUrls: ["https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400&h=300&fit=crop"], evidenceVideoUrl: null },
+          ],
+          photos: [
+            { position: "tire", url: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=400&h=300&fit=crop" },
+            { position: "air-filter", url: "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400&h=300&fit=crop" },
+          ],
+          mileage: 78500,
+        },
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 車検: Phase 3 - 見積提示済み（見積作成完了） ===
+  {
+    id: "test-shaken-04",
+    field22: todayISO.replace(/T.*/, "T09:30:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T09:30:00+09:00"),
+    field5: "見積提示済み",
+    stage: "見積提示済み",
+    field4: { id: "cust-004", name: "高橋 美咲" } as ZohoLookup,
+    customer: { id: "cust-004", name: "高橋 美咲" } as ZohoLookup,
+    field6: { id: "veh-004", name: "メルセデス・ベンツ Cクラス / 港 330 な 3456" } as ZohoLookup,
+    vehicle: { id: "veh-004", name: "メルセデス・ベンツ Cクラス / 港 330 な 3456" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "車検希望。",
+    details: "車検希望。",
+    field10: 65000,
+    mileage: 65000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: "https://drive.google.com/drive/folders/test-shaken-04",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-04",
+    ID_BookingId: "booking-test-shaken-04",
+    bookingId: "booking-test-shaken-04",
+    field12: null,
+    attachments: null,
+    tagId: "03",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-04",
+        jobId: "test-shaken-04",
+        serviceKind: "車検" as ServiceKind,
+        status: "顧客承認待ち" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "タイヤ溝残り4mm。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-6", name: "エアコンフィルター", category: "その他", status: "yellow", comment: "やや汚れあり。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 65000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定24ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "タイヤ交換（4本）", price: 88000, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "タイヤ溝残り4mm。次回交換推奨。" },
+            { id: "est-3", name: "エアコンフィルター交換", price: 5500, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "やや汚れあり。交換推奨。" },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: null,
+        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 車検: Phase 4 - 作業待ち（顧客承認完了） ===
+  {
+    id: "test-shaken-05",
+    field22: todayISO.replace(/T.*/, "T10:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T10:00:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-005", name: "伊藤 健太" } as ZohoLookup,
+    customer: { id: "cust-005", name: "伊藤 健太" } as ZohoLookup,
+    field6: { id: "veh-005", name: "BMW 5シリーズ / 新宿 500 ま 7890" } as ZohoLookup,
+    vehicle: { id: "veh-005", name: "BMW 5シリーズ / 新宿 500 ま 7890" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "車検希望。",
+    details: "車検希望。",
+    field10: 55000,
+    mileage: 55000,
+    field13: "法定24ヶ月点検: ¥15,000\nタイヤ交換（4本）: ¥88,000\nエアコンフィルター交換: ¥5,500",
+    approvedWorkItems: "法定24ヶ月点検: ¥15,000\nタイヤ交換（4本）: ¥88,000\nエアコンフィルター交換: ¥5,500",
+    field19: "https://drive.google.com/drive/folders/test-shaken-05",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-05",
+    ID_BookingId: "booking-test-shaken-05",
+    bookingId: "booking-test-shaken-05",
+    field12: null,
+    attachments: null,
+    tagId: "04",
+    assignedMechanic: "中村",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-05",
+        jobId: "test-shaken-05",
+        serviceKind: "車検" as ServiceKind,
+        status: "承認済み" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "タイヤ溝残り4mm。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-6", name: "エアコンフィルター", category: "その他", status: "yellow", comment: "やや汚れあり。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 55000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定24ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "タイヤ交換（4本）", price: 88000, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "タイヤ溝残り4mm。" },
+            { id: "est-3", name: "エアコンフィルター交換", price: 5500, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "やや汚れあり。" },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: null,
+        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 車検: Phase 5 - 出庫待ち（作業完了） ===
+  {
+    id: "test-shaken-06",
+    field22: todayISO.replace(/T.*/, "T10:30:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T10:30:00+09:00"),
+    field5: "出庫待ち",
+    stage: "出庫待ち",
+    field4: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
+    customer: { id: "cust-006", name: "山田 雄一" } as ZohoLookup,
+    field6: { id: "veh-006", name: "ポルシェ 911 / 品川 500 は 1111" } as ZohoLookup,
+    vehicle: { id: "veh-006", name: "ポルシェ 911 / 品川 500 は 1111" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "車検希望。",
+    details: "車検希望。",
+    field10: 120000,
+    mileage: 120000,
+    field13: "法定24ヶ月点検: ¥15,000\nタイヤ交換（4本）: ¥88,000",
+    approvedWorkItems: "法定24ヶ月点検: ¥15,000\nタイヤ交換（4本）: ¥88,000",
+    field19: "https://drive.google.com/drive/folders/test-shaken-06",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-06",
+    ID_BookingId: "booking-test-shaken-06",
+    bookingId: "booking-test-shaken-06",
+    field12: null,
+    attachments: null,
+    tagId: "05",
+    assignedMechanic: "中村",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-06",
+        jobId: "test-shaken-06",
+        serviceKind: "車検" as ServiceKind,
+        status: "作業中" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "green", comment: "タイヤ交換完了", evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 120000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定24ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "タイヤ交換（4本）", price: 88000, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: {
+          mechanicName: "中村",
+          completedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+          records: [
+            { time: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), content: "車検完了。タイヤ交換完了。" },
+          ],
+        },
+        createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 車検: Phase 6 - 出庫済み（引渡完了） ===
+  {
+    id: "test-shaken-07",
+    field22: todayISO.replace(/T.*/, "T11:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T11:00:00+09:00"),
+    field5: "出庫済み",
+    stage: "出庫済み",
+    field4: { id: "cust-007", name: "中村 由美" } as ZohoLookup,
+    customer: { id: "cust-007", name: "中村 由美" } as ZohoLookup,
+    field6: { id: "veh-007", name: "BMW M3 / 港 300 ひ 2222" } as ZohoLookup,
+    vehicle: { id: "veh-007", name: "BMW M3 / 港 300 ひ 2222" } as ZohoLookup,
+    serviceKind: "車検" as ServiceKind,
+    field_service_kinds: ["車検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "車検希望。",
+    details: "車検希望。",
+    field10: 35000,
+    mileage: 35000,
+    field13: "法定24ヶ月点検: ¥15,000",
+    approvedWorkItems: "法定24ヶ月点検: ¥15,000",
+    field19: "https://drive.google.com/drive/folders/test-shaken-07",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-07",
+    ID_BookingId: "booking-test-shaken-07",
+    bookingId: "booking-test-shaken-07",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    assignedMechanic: "中村",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-shaken-07",
+        jobId: "test-shaken-07",
+        serviceKind: "車検" as ServiceKind,
+        status: "完了" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 35000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定24ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: {
+          mechanicName: "中村",
+          completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          records: [
+            { time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), content: "車検完了。" },
+          ],
+        },
+        createdAt: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 0 - 入庫待ち ===
+  {
+    id: "test-12month-01",
+    field22: todayISO.replace(/T.*/, "T08:15:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T08:15:00+09:00"),
+    field5: "入庫待ち",
+    stage: "入庫待ち",
+    field4: { id: "cust-008", name: "小林 大輔" } as ZohoLookup,
+    customer: { id: "cust-008", name: "小林 大輔" } as ZohoLookup,
+    field6: { id: "veh-008", name: "アウディ RS4 / 渋谷 500 ふ 3333" } as ZohoLookup,
+    vehicle: { id: "veh-008", name: "アウディ RS4 / 渋谷 500 ふ 3333" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。特に気になる点はなし。",
+    details: "12ヵ月点検希望。特に気になる点はなし。",
+    field10: 28000,
+    mileage: 28000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: null,
+    customerFolderUrl: null,
+    ID_BookingId: "booking-test-12month-01",
+    bookingId: "booking-test-12month-01",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-01",
+        jobId: "test-12month-01",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "未開始" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 1 - 入庫済み ===
+  {
+    id: "test-12month-02",
+    field22: todayISO.replace(/T.*/, "T08:45:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T08:45:00+09:00"),
+    field5: "入庫済み",
+    stage: "入庫済み",
+    field4: { id: "cust-009", name: "ケラー イザベル" } as ZohoLookup,
+    customer: { id: "cust-009", name: "ケラー イザベル" } as ZohoLookup,
+    field6: { id: "veh-009", name: "メルセデス・ベンツ Sクラス / 新宿 300 へ 4444" } as ZohoLookup,
+    vehicle: { id: "veh-009", name: "メルセデス・ベンツ Sクラス / 新宿 300 へ 4444" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。",
+    details: "12ヵ月点検希望。",
+    field10: 15000,
+    mileage: 15000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: null,
+    customerFolderUrl: null,
+    ID_BookingId: "booking-test-12month-02",
+    bookingId: "booking-test-12month-02",
+    field12: null,
+    attachments: null,
+    tagId: "06",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-02",
+        jobId: "test-12month-02",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "診断中" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 2 - 見積作成待ち（診断完了） ===
+  {
+    id: "test-12month-03",
+    field22: todayISO.replace(/T.*/, "T09:15:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T09:15:00+09:00"),
+    field5: "見積作成待ち",
+    stage: "見積作成待ち",
+    field4: { id: "cust-010", name: "吉田 誠" } as ZohoLookup,
+    customer: { id: "cust-010", name: "吉田 誠" } as ZohoLookup,
+    field6: { id: "veh-010", name: "BMW X5 / 港 500 ほ 5555" } as ZohoLookup,
+    vehicle: { id: "veh-010", name: "BMW X5 / 港 500 ほ 5555" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。",
+    details: "12ヵ月点検希望。",
+    field10: 65000,
+    mileage: 65000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: "https://drive.google.com/drive/folders/test-12month-03",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-03",
+    ID_BookingId: "booking-test-12month-03",
+    bookingId: "booking-test-12month-03",
+    field12: null,
+    attachments: null,
+    tagId: "07",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-03",
+        jobId: "test-12month-03",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "見積作成待ち" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "ブレーキパッド残量3mm。次回交換推奨。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 65000,
+        },
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 3 - 見積提示済み（見積作成完了） ===
+  {
+    id: "test-12month-04",
+    field22: todayISO.replace(/T.*/, "T09:45:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T09:45:00+09:00"),
+    field5: "見積提示済み",
+    stage: "見積提示済み",
+    field4: { id: "cust-011", name: "渡辺 翔太" } as ZohoLookup,
+    customer: { id: "cust-011", name: "渡辺 翔太" } as ZohoLookup,
+    field6: { id: "veh-011", name: "アウディ Q7 / 品川 300 ま 6666" } as ZohoLookup,
+    vehicle: { id: "veh-011", name: "アウディ Q7 / 品川 300 ま 6666" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。",
+    details: "12ヵ月点検希望。",
+    field10: 42000,
+    mileage: 42000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: "https://drive.google.com/drive/folders/test-12month-04",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-04",
+    ID_BookingId: "booking-test-12month-04",
+    bookingId: "booking-test-12month-04",
+    field12: null,
+    attachments: null,
+    tagId: "08",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-04",
+        jobId: "test-12month-04",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "顧客承認待ち" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "ブレーキパッド残量3mm。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 42000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定12ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "エンジンオイル交換", price: 5500, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "前回交換から5,000km経過" },
+            { id: "est-3", name: "オイルフィルター交換", price: 2200, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "オイル交換と同時実施" },
+            { id: "est-4", name: "ブレーキパッド交換（前輪）", price: 33000, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "残量3mm。次回交換推奨。" },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: null,
+        createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 4 - 作業待ち（顧客承認完了） ===
+  {
+    id: "test-12month-05",
+    field22: todayISO.replace(/T.*/, "T10:15:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T10:15:00+09:00"),
+    field5: "作業待ち",
+    stage: "作業待ち",
+    field4: { id: "cust-012", name: "加藤 さくら" } as ZohoLookup,
+    customer: { id: "cust-012", name: "加藤 さくら" } as ZohoLookup,
+    field6: { id: "veh-012", name: "BMW M5 / 港 500 て 7777" } as ZohoLookup,
+    vehicle: { id: "veh-012", name: "BMW M5 / 港 500 て 7777" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。",
+    details: "12ヵ月点検希望。",
+    field10: 42000,
+    mileage: 42000,
+    field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nブレーキパッド交換（前輪）: ¥33,000",
+    approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nブレーキパッド交換（前輪）: ¥33,000",
+    field19: "https://drive.google.com/drive/folders/test-12month-05",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-05",
+    ID_BookingId: "booking-test-12month-05",
+    bookingId: "booking-test-12month-05",
+    field12: null,
+    attachments: null,
+    tagId: "09",
+    assignedMechanic: "谷口",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-05",
+        jobId: "test-12month-05",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "承認済み" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "yellow", comment: "ブレーキパッド残量3mm。", evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 42000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定12ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "エンジンオイル交換", price: 5500, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "前回交換から5,000km経過" },
+            { id: "est-3", name: "オイルフィルター交換", price: 2200, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "オイル交換と同時実施" },
+            { id: "est-4", name: "ブレーキパッド交換（前輪）", price: 33000, priority: "recommended", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: "残量3mm。次回交換推奨。" },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: null,
+        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 5 - 出庫待ち（作業完了） ===
+  {
+    id: "test-12month-06",
+    field22: todayISO.replace(/T.*/, "T10:45:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T10:45:00+09:00"),
+    field5: "出庫待ち",
+    stage: "出庫待ち",
+    field4: { id: "cust-013", name: "斎藤 雅人" } as ZohoLookup,
+    customer: { id: "cust-013", name: "斎藤 雅人" } as ZohoLookup,
+    field6: { id: "veh-014", name: "メルセデス・ベンツ Gクラス / 新宿 300 つ 9999" } as ZohoLookup,
+    vehicle: { id: "veh-014", name: "メルセデス・ベンツ Gクラス / 新宿 300 つ 9999" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。",
+    details: "12ヵ月点検希望。",
+    field10: 78000,
+    mileage: 78000,
+    field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
+    approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
+    field19: "https://drive.google.com/drive/folders/test-12month-06",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-06",
+    ID_BookingId: "booking-test-12month-06",
+    bookingId: "booking-test-12month-06",
+    field12: null,
+    attachments: null,
+    tagId: "10",
+    assignedMechanic: "谷口",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-06",
+        jobId: "test-12month-06",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "作業中" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 78000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定12ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-2", name: "エンジンオイル交換", price: 5500, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+            { id: "est-3", name: "オイルフィルター交換", price: 2200, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: {
+          mechanicName: "谷口",
+          completedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+          records: [
+            { time: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), content: "12ヵ月点検完了。オイル交換完了。" },
+          ],
+        },
+        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 12ヵ月点検: Phase 6 - 出庫済み（引渡完了） ===
+  {
+    id: "test-12month-07",
+    field22: todayISO.replace(/T.*/, "T11:15:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T11:15:00+09:00"),
+    field5: "出庫済み",
+    stage: "出庫済み",
+    field4: { id: "cust-014", name: "井上 麻衣" } as ZohoLookup,
+    customer: { id: "cust-014", name: "井上 麻衣" } as ZohoLookup,
+    field6: { id: "veh-015", name: "アウディ TT / 品川 300 ね 0000" } as ZohoLookup,
+    vehicle: { id: "veh-015", name: "アウディ TT / 品川 300 ね 0000" } as ZohoLookup,
+    serviceKind: "12ヵ月点検" as ServiceKind,
+    field_service_kinds: ["12ヵ月点検"] as ServiceKind[],
+    field: null,
+    workOrder: null,
+    field7: "12ヵ月点検希望。",
+    details: "12ヵ月点検希望。",
+    field10: 65000,
+    mileage: 65000,
+    field13: "法定12ヶ月点検: ¥15,000",
+    approvedWorkItems: "法定12ヶ月点検: ¥15,000",
+    field19: "https://drive.google.com/drive/folders/test-12month-07",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-07",
+    ID_BookingId: "booking-test-12month-07",
+    bookingId: "booking-test-12month-07",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    assignedMechanic: "谷口",
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-test-12month-07",
+        jobId: "test-12month-07",
+        serviceKind: "12ヵ月点検" as ServiceKind,
+        status: "完了" as WorkOrderStatus,
+        diagnosis: {
+          items: [
+            { id: "inspection-1", name: "エンジンルーム", category: "エンジンルーム", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-2", name: "室内", category: "室内", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-3", name: "足回り", category: "足回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-4", name: "下回り", category: "下回り", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+            { id: "inspection-5", name: "外装", category: "外装", status: "green", comment: null, evidencePhotoUrls: [], evidenceVideoUrl: null },
+          ],
+          photos: [],
+          mileage: 65000,
+        },
+        estimate: {
+          items: [
+            { id: "est-1", name: "法定12ヶ月点検", price: 15000, priority: "required", selected: true, linkedPhotoUrls: [], linkedVideoUrl: null, note: null },
+          ],
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        work: {
+          mechanicName: "谷口",
+          completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          records: [
+            { time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), content: "12ヵ月点検完了。" },
+          ],
+        },
+        createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
 ];
 
 // =============================================================================
@@ -1639,16 +2456,18 @@ export const jobs: ZohoJob[] = [
 // =============================================================================
 
 export const smartTags: SmartTag[] = [
-  { tagId: "01", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "02", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "03", jobId: "job-003", linkedAt: todayISO, status: "in_use" },
-  { tagId: "04", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "05", jobId: "job-004", linkedAt: todayISO, status: "in_use" },
-  { tagId: "06", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "07", jobId: "job-005", linkedAt: todayISO, status: "in_use" },
-  { tagId: "08", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "09", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "10", jobId: null, linkedAt: null, status: "available" },
+  // テスト用サンプルデータで使用中のタグ
+  { tagId: "01", jobId: "test-shaken-02", linkedAt: todayISO, status: "in_use" }, // 車検: 入庫済み
+  { tagId: "02", jobId: "test-shaken-03", linkedAt: todayISO, status: "in_use" }, // 車検: 見積作成待ち
+  { tagId: "03", jobId: "test-shaken-04", linkedAt: todayISO, status: "in_use" }, // 車検: 見積提示済み
+  { tagId: "04", jobId: "test-shaken-05", linkedAt: todayISO, status: "in_use" }, // 車検: 作業待ち
+  { tagId: "05", jobId: "test-shaken-06", linkedAt: todayISO, status: "in_use" }, // 車検: 出庫待ち
+  { tagId: "06", jobId: "test-12month-02", linkedAt: todayISO, status: "in_use" }, // 12ヵ月点検: 入庫済み
+  { tagId: "07", jobId: "test-12month-03", linkedAt: todayISO, status: "in_use" }, // 12ヵ月点検: 見積作成待ち
+  { tagId: "08", jobId: "test-12month-04", linkedAt: todayISO, status: "in_use" }, // 12ヵ月点検: 見積提示済み
+  { tagId: "09", jobId: "test-12month-05", linkedAt: todayISO, status: "in_use" }, // 12ヵ月点検: 作業待ち
+  { tagId: "10", jobId: "test-12month-06", linkedAt: todayISO, status: "in_use" }, // 12ヵ月点検: 出庫待ち
+  // 利用可能なタグ
   { tagId: "11", jobId: null, linkedAt: null, status: "available" },
   { tagId: "12", jobId: null, linkedAt: null, status: "available" },
   { tagId: "13", jobId: null, linkedAt: null, status: "available" },
@@ -1659,7 +2478,7 @@ export const smartTags: SmartTag[] = [
   { tagId: "18", jobId: null, linkedAt: null, status: "available" },
   { tagId: "19", jobId: null, linkedAt: null, status: "available" },
   { tagId: "20", jobId: null, linkedAt: null, status: "available" },
-  { tagId: "21", jobId: "job-021", linkedAt: todayISO, status: "in_use" },
+  { tagId: "21", jobId: null, linkedAt: null, status: "available" },
 ];
 
 // =============================================================================
@@ -1763,10 +2582,32 @@ export function getAvailableTags(): SmartTag[] {
 
 /**
  * 今日の案件を取得
+ * 
+ * 【一時的な変更】車検と12ヵ月点検のサンプルデータのみを返す
+ * 各フェーズのサンプルデータを表示するため
  */
 export function getTodayJobs(): ZohoJob[] {
-  const todayStr = new Date().toISOString().split("T")[0];
-  return jobs.filter((j) => j.field22.startsWith(todayStr));
+  // 車検と12ヵ月点検の各フェーズのサンプルデータID
+  const testJobIds = [
+    // 車検（各フェーズ）
+    "test-shaken-01", // 入庫待ち
+    "test-shaken-02", // 入庫済み
+    "test-shaken-03", // 見積作成待ち
+    "test-shaken-04", // 見積提示済み
+    "test-shaken-05", // 作業待ち
+    "test-shaken-06", // 出庫待ち
+    "test-shaken-07", // 出庫済み
+    // 12ヵ月点検（各フェーズ）
+    "test-12month-01", // 入庫待ち
+    "test-12month-02", // 入庫済み
+    "test-12month-03", // 見積作成待ち
+    "test-12month-04", // 見積提示済み
+    "test-12month-05", // 作業待ち
+    "test-12month-06", // 出庫待ち
+    "test-12month-07", // 出庫済み
+  ];
+  
+  return jobs.filter((j) => testJobIds.includes(j.id));
 }
 
 /**

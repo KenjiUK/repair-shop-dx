@@ -116,11 +116,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ vehicleId: string }> }
 ) {
-  const { vehicleId } = await params;
+  const { vehicleId: paramVehicleId } = await params;
   
   try {
 
-    if (!vehicleId) {
+    if (!paramVehicleId) {
       return errorResponse("車両IDが指定されていません", "INVALID_REQUEST", 400);
     }
 
@@ -132,15 +132,36 @@ export async function GET(
     const vehicles = parseVehicleMaster(rows);
 
     // 車両IDで検索
-    const vehicle = vehicles.find((v) => v.車両ID === vehicleId);
+    const vehicle = vehicles.find((v) => v.車両ID === paramVehicleId);
 
     if (!vehicle) {
+      // 404エラーの場合もモックデータから検索を試行
+      const mockVehicle = getVehicleById(paramVehicleId);
+      if (mockVehicle) {
+        // ZohoVehicleをMasterVehicle形式に変換
+        const masterVehicle: MasterVehicle = {
+          車両ID: mockVehicle.vehicleId || mockVehicle.Name,
+          顧客ID: mockVehicle.customerId || mockVehicle.ID1 || "",
+          登録番号連結: mockVehicle.licensePlate || "",
+          車名: mockVehicle.field44 || "",
+          型式: "F25", // サンプルデータ（実際のデータがある場合はそれを使用）
+          車検有効期限: mockVehicle.inspectionExpiry || mockVehicle.field7 || "",
+          次回点検日: "",
+        };
+        
+        console.log("[API] モックデータから車両マスタを返却（404時）:", paramVehicleId);
+        return NextResponse.json({
+          success: true,
+          data: masterVehicle,
+        });
+      }
+      
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "NOT_FOUND",
-            message: `車両ID "${vehicleId}" が見つかりません`,
+            message: `車両ID "${paramVehicleId}" が見つかりません`,
           },
         },
         { status: 404 }
@@ -156,22 +177,21 @@ export async function GET(
     
     // フォールバック: モックデータから検索
     try {
-      const { vehicleId } = await params;
-      if (vehicleId) {
-        const mockVehicle = getVehicleById(vehicleId);
+      if (paramVehicleId) {
+        const mockVehicle = getVehicleById(paramVehicleId);
         if (mockVehicle) {
           // ZohoVehicleをMasterVehicle形式に変換
           const masterVehicle: MasterVehicle = {
             車両ID: mockVehicle.vehicleId || mockVehicle.Name,
             顧客ID: mockVehicle.customerId || mockVehicle.ID1 || "",
-            登録番号連結: mockVehicle.licensePlate || mockVehicle.field44 || "",
-            車名: mockVehicle.vehicleId || mockVehicle.Name || "",
-            型式: "",
+            登録番号連結: mockVehicle.licensePlate || "",
+            車名: mockVehicle.field44 || "",
+            型式: "F25", // サンプルデータ（実際のデータがある場合はそれを使用）
             車検有効期限: mockVehicle.inspectionExpiry || mockVehicle.field7 || "",
             次回点検日: "",
           };
           
-          console.log("[API] モックデータから車両マスタを返却:", vehicleId);
+          console.log("[API] モックデータから車両マスタを返却（エラー時）:", paramVehicleId);
           return NextResponse.json({
             success: true,
             data: masterVehicle,

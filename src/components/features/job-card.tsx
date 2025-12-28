@@ -36,8 +36,7 @@ import { MechanicSelectDialog } from "@/components/features/mechanic-select-dial
 import { assignMechanic } from "@/lib/api";
 import { fetchCustomerById, fetchVehicleById, updateJobTag, fetchAllTags, updateJobCourtesyCar, fetchAllCourtesyCars } from "@/lib/api";
 import { SmartTag } from "@/types";
-import { hasChangeRequests } from "@/lib/customer-description-append";
-import { markChangeRequestCompleted } from "@/lib/customer-update";
+import { fetchPendingChangeRequests } from "@/lib/change-request-api";
 import { triggerHapticFeedback } from "@/lib/haptic-feedback";
 import { toast } from "sonner";
 import { isImportantCustomer, toggleImportantCustomer } from "@/lib/important-customer-flag";
@@ -322,8 +321,21 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
     }
   };
 
-  // 変更申請があるかチェック
-  const hasChangeRequest = customerData ? hasChangeRequests(customerData.Description) : false;
+  // 変更申請があるかチェック（スプレッドシートから取得）
+  const smartCarDealerCustomerId = customerData?.ID1 || customerId;
+  const { data: changeRequestsData } = useSWR(
+    smartCarDealerCustomerId ? `change-requests-check-${smartCarDealerCustomerId}` : null,
+    async () => {
+      if (!smartCarDealerCustomerId) return null;
+      const result = await fetchPendingChangeRequests(smartCarDealerCustomerId);
+      return result.success ? result.data : null;
+    },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1分間は重複リクエストを防止
+    }
+  );
+  const hasChangeRequest = changeRequestsData && changeRequestsData.length > 0;
 
   // 車両名とナンバープレートを抽出
   const { vehicleName, licensePlate } = useMemo(() => {
@@ -511,9 +523,6 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
     toast.success(newState ? "重要な顧客としてマークしました" : "重要な顧客マークを解除しました");
   };
 
-  // 変更対応完了処理中フラグ
-  const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
-
   // PDF生成中フラグ
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
@@ -700,49 +709,6 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
       });
     } finally {
       setIsUpdatingTag(false);
-    }
-  };
-
-  /**
-   * 変更対応完了処理
-   */
-  const handleMarkChangeRequestCompleted = async () => {
-    if (!customerId) {
-      toast.error("顧客IDが見つかりません");
-      return;
-    }
-
-    setIsMarkingCompleted(true);
-    triggerHapticFeedback("medium");
-
-    try {
-      const result = await markChangeRequestCompleted(customerId);
-      if (result.success) {
-        triggerHapticFeedback("success");
-        toast.success("変更申請を対応完了としてマークしました", {
-          description: "基幹システムを更新してください",
-        });
-        // SWRキャッシュを再検証（ページ全体のリロードを避ける）
-        await mutate(`customer-${customerId}`);
-        await mutate("today-jobs");
-        await mutate("all-jobs");
-        await mutate(`job-${job.id}`);
-        // モーダルを閉じる
-        setIsChangeRequestDetailOpen(false);
-      } else {
-        triggerHapticFeedback("error");
-        toast.error("対応完了処理に失敗しました", {
-          description: result.error?.message,
-        });
-        // エラー時はモーダルを開いたままにする
-      }
-    } catch (error) {
-      console.error("変更対応完了エラー:", error);
-      triggerHapticFeedback("error");
-      toast.error("対応完了処理に失敗しました");
-      // エラー時はモーダルを開いたままにする
-    } finally {
-      setIsMarkingCompleted(false);
     }
   };
 
@@ -1453,8 +1419,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         onOpenChange={setIsChangeRequestDetailOpen}
         customerId={customerId}
         customerName={customerName}
-        onMarkCompleted={handleMarkChangeRequestCompleted}
-        isMarkingCompleted={isMarkingCompleted}
+        smartCarDealerCustomerId={customerData?.ID1 || customerId}
       />
 
       <CourtesyCarSelectDialog

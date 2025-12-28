@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { cn } from "@/lib/utils";
 
 const LayoutContent = memo(({ children }: { children: React.ReactNode }) => {
-  const { isOpen } = useSidebar();
+  const { isOpen, isMobile } = useSidebar();
   const pathname = usePathname();
   
   // 診断ページや作業ページではwindowのスクロールを使用するため、overflow-autoを無効化
@@ -28,8 +28,10 @@ const LayoutContent = memo(({ children }: { children: React.ReactNode }) => {
           // その他のページでは縦スクロールのみ許可（横スクロールを防ぐ）
           // 2025年ベストプラクティス: すべてのページで横スクロールを防ぐ
           isDiagnosisOrWorkPage ? "overflow-visible overflow-x-hidden" : "overflow-y-auto overflow-x-hidden",
-          // サイドバーが開いている時は常にマージンを追加（コンテンツが隠れないように）
-          isOpen && "ml-64"
+          // モバイル: サイドバーが開いている時は右にスライド（translateXを使用）
+          // デスクトップ: サイドバーが開いている時はマージンを追加（ml-64を使用）
+          isMobile && isOpen && "translate-x-[256px]",
+          !isMobile && isOpen && "ml-64"
         )}
         style={{ touchAction: 'pan-y' }}
       >

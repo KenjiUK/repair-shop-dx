@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, ReactElement, isValidElement, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, isValidElement, memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -10,7 +10,6 @@ import { useSidebar } from "@/components/providers/sidebar-provider";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JobSearchBar } from "@/components/features/job-search-bar";
-import { ThemeToggleButton } from "@/components/features/theme-toggle-button";
 import { ZohoJob } from "@/types";
 import { useHeaderCollapseV2 as useHeaderCollapse } from "./app-header-collapse-v2";
 
@@ -517,11 +516,11 @@ export function AppHeader({
                   </div>
                 )}
 
-                {/* 右側エリア: テーマ切り替え + rightArea */}
-                <div className="flex items-center gap-2 sm:gap-4 ml-auto">
+                {/* 右側エリア: 検索バー + rightArea */}
+                <div className="flex items-center gap-2 sm:gap-4 ml-auto min-w-0">
                   {/* モバイル: 検索バー（TOPページのみ） */}
                   {isTopPage && onSearchChange && (
-                    <div className="sm:hidden flex-1 min-w-0 max-w-[200px]">
+                    <div className="sm:hidden flex-1 min-w-0 max-w-[160px]">
                       <JobSearchBar
                         value={searchQuery}
                         onChange={onSearchChange}
@@ -533,9 +532,7 @@ export function AppHeader({
                     </div>
                   )}
 
-                  {/* テーマ切り替えボタン */}
-                  <ThemeToggleButton />
-
+                  {/* rightArea（お知らせアイコンなど）は常に表示されるようにshrink-0を適用 */}
                   {rightArea && (
                     <div className="flex items-center gap-2 shrink-0">
                       {rightArea}
@@ -572,7 +569,7 @@ export function AppHeader({
                       
                       {/* モバイル: 検索バー（TOPページのみ） */}
                       {isTopPage && onSearchChange && (
-                        <div className="sm:hidden flex-1 min-w-0 max-w-[200px]">
+                        <div className="sm:hidden flex-1 min-w-0 max-w-[160px]">
                           <JobSearchBar
                             value={searchQuery}
                             onChange={onSearchChange}
@@ -584,9 +581,7 @@ export function AppHeader({
                         </div>
                       )}
                       
-                      {/* テーマ切り替えボタン */}
-                      <ThemeToggleButton />
-                      
+                      {/* rightArea（お知らせアイコンなど）は常に表示されるようにshrink-0を適用 */}
                       {rightArea && (
                         <div className="flex items-center gap-2 shrink-0">
                           {rightArea}
@@ -622,9 +617,8 @@ export function AppHeader({
                 {/* 左上に戻るボタンを表示 */}
                 <div className="flex items-center justify-between gap-4">
                   <BackButton href={backHref} hasUnsavedChanges={hasUnsavedChanges} />
-                  {/* 展開時にもテーマ切り替え + rightAreaを表示 */}
+                  {/* 展開時にもrightAreaを表示 */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <ThemeToggleButton />
                     {rightArea && (
                       <div className="flex items-center gap-2 shrink-0">
                         {rightArea}
@@ -670,9 +664,8 @@ export function AppHeader({
                     </>
                   )}
                 </div>
-                {/* 折りたたみ時にもテーマ切り替え + rightAreaを表示 */}
+                {/* 折りたたみ時にもrightAreaを表示 */}
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
-                  <ThemeToggleButton />
                   {rightArea && (
                     <div className="flex items-center gap-2 shrink-0">
                       {rightArea}

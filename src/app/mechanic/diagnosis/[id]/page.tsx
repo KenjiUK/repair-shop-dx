@@ -31,12 +31,10 @@ import { fetchJobById, saveDiagnosis, updateJobStatus, assignMechanic, fetchCust
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { saveToIndexedDB, addToSyncQueue, STORE_NAMES } from "@/lib/offline-storage";
 import { uploadFile, getOrCreateWorkOrderFolder } from "@/lib/google-drive";
-import { markChangeRequestCompleted } from "@/lib/customer-update";
 import { getCurrentMechanicName } from "@/lib/auth";
-import { setNavigationHistory, getBackHref, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
+import { setNavigationHistory, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
 import { PhotoManager, PhotoItem } from "@/components/features/photo-manager";
 import { ConflictResolutionDialog } from "@/components/features/conflict-resolution-dialog";
-import { ChangeRequestDetailDialog } from "@/components/features/change-request-detail-dialog";
 
 // ダイアログコンポーネントを動的インポート（コード分割）
 const MechanicSelectDialog = dynamic(
@@ -97,7 +95,6 @@ import {
   MessageSquare,
   Notebook,
   NotebookPen,
-  Bell,
   Eye,
   Search,
   Home,
@@ -116,7 +113,6 @@ import { CompactJobHeader } from "@/components/layout/compact-job-header";
 import { OfflineBanner, OnlineBanner } from "@/components/features/offline-banner";
 import { User, FileText, Printer, Activity } from "lucide-react";
 import { generateWorkOrderPDF, createWorkOrderPDFDataFromJob } from "@/lib/work-order-pdf-generator";
-import { WorkflowStepIndicator } from "@/components/features/workflow-step-indicator";
 
 // 24ヶ月点検（車検）用コンポーネント
 import { InspectionRedesignTabs } from "@/components/features/inspection-redesign-tabs";
@@ -216,7 +212,6 @@ import { AudioInputButton, AudioData } from "@/components/features/audio-input-b
 import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
 import { WorkOrderSelector } from "@/components/features/work-order-selector";
 import { AddWorkOrderDialog } from "@/components/features/add-work-order-dialog";
-import { hasChangeRequests } from "@/lib/customer-description-append";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { SaveStatusIndicator } from "@/components/features/save-status-indicator";
 import { TireInspectionView } from "@/components/features/tire-inspection-view";
@@ -698,16 +693,8 @@ function DiagnosisPageContent() {
   // オンライン状態を監視
   const isOnline = useOnlineStatus();
 
-  // 変更申請があるかチェック
-  const hasChangeRequest = customerData ? hasChangeRequests(customerData.Description) : false;
-
   // 常連顧客かどうか（簡易判定：顧客データが存在する場合は常連とみなす）
   const isRegularCustomer = !!customerData;
-
-  // 変更対応完了処理中フラグ
-  const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
-  const [isChangeRequestDetailOpen, setIsChangeRequestDetailOpen] = useState(false);
-
 
   // PDF生成中フラグ
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -770,44 +757,6 @@ function DiagnosisPageContent() {
     }
   };
 
-  /**
-   * 変更対応完了処理
-   */
-  const handleMarkChangeRequestCompleted = async () => {
-    if (!customerId) {
-      toast.error("顧客IDが見つかりません");
-      return;
-    }
-
-    setIsMarkingCompleted(true);
-    try {
-      const result = await markChangeRequestCompleted(customerId);
-      if (result.success) {
-        toast.success("変更申請を対応完了としてマークしました", {
-          description: "基幹システムを更新してください",
-        });
-        // モーダルを閉じる
-        setIsChangeRequestDetailOpen(false);
-        // 顧客データを再取得（SWRキャッシュをクリア）
-        if (customerId) {
-          await mutate(`customer-${customerId}`);
-        }
-        // 必要に応じてページをリロード
-        window.location.reload();
-      } else {
-        toast.error("対応完了処理に失敗しました", {
-          description: result.error?.message,
-        });
-        // エラー時はモーダルを開いたままにする
-      }
-    } catch (error) {
-      console.error("変更対応完了エラー:", error);
-      toast.error("対応完了処理に失敗しました");
-      // エラー時はモーダルを開いたままにする
-    } finally {
-      setIsMarkingCompleted(false);
-    }
-  };
 
   // 選択中のワークオーダーを取得
   const selectedWorkOrder = useMemo(() => {
@@ -4061,23 +4010,6 @@ function DiagnosisPageContent() {
     return phases;
   }, [job]);
 
-  // スキップフェーズの判定（追加見積もりがない場合）
-  const skippedPhases = useMemo(() => {
-    if (!job) return [];
-    // 24ヶ月点検・12ヶ月点検で追加見積もりがない場合、Phase 3-4（見積・承認）をスキップ
-    if (is24MonthInspection || is12MonthInspection) {
-      const hasAdditionalEstimate =
-        (additionalEstimateRequired?.length || 0) > 0 ||
-        (additionalEstimateRecommended?.length || 0) > 0 ||
-        (additionalEstimateOptional?.length || 0) > 0;
-      
-      if (!hasAdditionalEstimate) {
-        return [3, 4]; // 見積・承認をスキップ
-      }
-    }
-    return [];
-  }, [is24MonthInspection, is12MonthInspection, additionalEstimateRequired, additionalEstimateRecommended, additionalEstimateOptional, job]);
-
   // エラー状態（すべてのHooksの後に配置）
   if (jobError) {
     return (
@@ -4209,31 +4141,13 @@ function DiagnosisPageContent() {
       <AppHeader
         maxWidthClassName="max-w-4xl"
         collapsibleOnMobile={true}
-        backHref={getBackHref(jobId)}
+        backHref="/"
         hasUnsavedChanges={autoSaveHasUnsavedChanges}
         collapsedCustomerName={job.field4?.name || "未登録"}
         collapsedVehicleName={vehicleName}
         collapsedLicensePlate={licensePlate}
         pageTitle={diagnosisTitle}
         pageTitleIcon={<Activity className="h-5 w-5 text-slate-700 shrink-0" />}
-        rightArea={
-          <WorkflowStepIndicator
-            currentPhase={2}
-            job={job}
-            skippedPhases={skippedPhases || []}
-            excludePhases={[0, 4]} // Phase 0（事前問診）とPhase 4（見積承認）を除外（JOBカードに表示）
-            userRole="mechanic" // 診断ページは整備士向け
-            jobId={jobId}
-            hasAdditionalEstimate={
-              (additionalEstimateRequired?.length || 0) > 0 ||
-              (additionalEstimateRecommended?.length || 0) > 0 ||
-              (additionalEstimateOptional?.length || 0) > 0
-            }
-            mobileMode={false}
-            enableNavigation={true}
-            serviceKind={primaryServiceKind} // 入庫区分を渡す
-          />
-        }
       >
         {/* ページタイトル */}
         <div className="mb-3">
@@ -4289,26 +4203,6 @@ function DiagnosisPageContent() {
                 <p className="font-medium text-blue-900 dark:text-white">お客様入力情報（事前チェックイン）</p>
               </div>
               <p className="text-blue-900 whitespace-pre-wrap break-words dark:text-white">{preInputDetails}</p>
-            </div>
-          )}
-          {/* 変更申請ありアイコン（Phase 3: マスタデータ同期） */}
-          {hasChangeRequest && (
-            <div className="bg-rose-50 border border-rose-200 rounded-md p-3 text-base dark:bg-slate-800 dark:border-rose-400 dark:text-white">
-              <div className="flex items-center gap-2 mb-2">
-                <Bell className="h-5 w-5 text-rose-600 shrink-0" />
-                <span className="font-medium text-rose-700 dark:text-white">変更申請あり</span>
-              </div>
-              <p className="text-rose-700 mb-2 dark:text-white">
-                顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
-              </p>
-              <Button
-                onClick={() => setIsChangeRequestDetailOpen(true)}
-                variant="outline"
-                className="w-full h-12 text-base font-medium bg-white border-rose-200 text-rose-700 hover:bg-rose-50 dark:bg-slate-700 dark:border-rose-400 dark:text-white dark:hover:bg-slate-600"
-              >
-                <FileText className="h-5 w-5 mr-1.5 shrink-0" />
-                詳細を見る
-              </Button>
             </div>
           )}
           {workOrder && (
@@ -5435,16 +5329,6 @@ function DiagnosisPageContent() {
           submittedVersion={conflictInfo.submittedVersion}
         />
       )}
-
-      {/* 変更申請詳細モーダル */}
-      <ChangeRequestDetailDialog
-        open={isChangeRequestDetailOpen}
-        onOpenChange={setIsChangeRequestDetailOpen}
-        customerId={customerId}
-        customerName={customerName}
-        onMarkCompleted={handleMarkChangeRequestCompleted}
-        isMarkingCompleted={isMarkingCompleted}
-      />
 
     </div>
   );

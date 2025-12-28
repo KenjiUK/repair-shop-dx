@@ -240,20 +240,20 @@
 **⚠️ 重要制約**: 
 - **マスタデータ（顧客・車両）の追加・編集・削除は絶対にしない**
 - アプリからZoho CRMのContactsモジュールへの直接更新は、許可されたフィールドのみ（LINE ID、メール同意、誕生日など）
-- 住所・電話番号などの直接更新NGフィールドは、`Description`への追記のみ
+- 住所・電話番号などの直接更新NGフィールドは、**Google Sheetsの「変更申請ログ」タブに記録**
 
 - **Key ID:** `id` (Record ID), `ID1` (顧客ID - 基幹連携用)
 
 | **項目名** | **API名** | **データ型** | **用途・ロジック** | **更新権限** |
 | --- | --- | --- | --- | --- |
 | 顧客ID | ID1 | Text | 最重要キー。スプレッドシート（マスタ）との突合に使用。基幹ID（例: K1001）が格納されている前提 | Read Only |
-| 氏名 | Last_Name, First_Name | Text | 表示用 | Read Only |
+| 氏名 | Last_Name, First_Name | Text | 表示用 | Read Only（変更申請ログに記録） |
 | LINE ID | Business_Messaging_Line_Id | Text | LINE連携時にアプリから書き込む | **直接更新OK** |
 | メール同意 | Email_Opt_Out | Boolean | 事前チェックインで同意なら `false` に更新 | **直接更新OK** |
 | 誕生日 | Date_of_Birth | Date | 入力があれば更新 | **直接更新OK** |
-| 住所 | Mailing_Street, field4, field6 | Text | Mailing_Street(町名・番地), field4(番地), field6(建物名等) | **直接更新NG** → `Description`へ追記のみ |
-| 電話番号 | Phone, Mobile | Text | 電話番号、携帯番号 | **直接更新NG** → `Description`へ追記のみ |
-| 備考 | Description | Multi-Line | アプリからの「住所・電話変更依頼」をここに追記 | **追記のみ** |
+| 住所 | Mailing_Street, field4, field6 | Text | Mailing_Street(町名・番地), field4(番地), field6(建物名等) | **直接更新NG** → 変更申請ログに記録 |
+| 電話番号 | Phone, Mobile | Text | 電話番号、携帯番号 | **直接更新NG** → 変更申請ログに記録 |
+| 備考 | Description | Multi-Line | （変更申請用途では使用しない） | - |
 | 予約時連絡先 | Booking_Phone_Temp | Text | Bookingsからの電話番号一時保存用（上書き防止） | **直接更新OK** |
 
 **更新制約の実装**:
@@ -261,7 +261,8 @@
 // 直接更新NGフィールドのバリデーション
 const FORBIDDEN_UPDATE_FIELDS = [
   'Mailing_Street', 'field4', 'field6', // 住所関連（Mailing_Street: 町名・番地, field4: 番地, field6: 建物名等）
-  'Phone', 'Mobile' // 電話番号
+  'Phone', 'Mobile', // 電話番号
+  'Last_Name', 'First_Name' // 氏名
 ];
 
 // 更新時のチェック
@@ -270,26 +271,24 @@ function validateCustomerUpdate(updates: Partial<ZohoCustomer>): ValidationResul
     if (field in updates) {
       return {
         valid: false,
-        error: `${field}は直接更新できません。Descriptionへ追記してください。`
+        error: `${field}は直接更新できません。変更申請ログに記録してください。`
       };
     }
   }
   return { valid: true };
 }
 
-// 住所・電話変更時の処理
-function requestCustomerInfoChange(
+// 住所・電話変更時の処理（変更申請ログに記録）
+async function requestCustomerInfoChange(
   customerId: string,
-  changes: { address?: string; phone?: string; mobile?: string }
-): void {
-  // Descriptionへ追記
-  const changeRequest = `【アプリ変更届】${new Date().toISOString()}\n`;
-  if (changes.address) changeRequest += `新住所: ${changes.address}\n`;
-  if (changes.phone) changeRequest += `新電話番号: ${changes.phone}\n`;
-  if (changes.mobile) changeRequest += `新携帯番号: ${changes.mobile}\n`;
-  
-  // Zoho CRM API: Descriptionフィールドに追記
-  appendToDescription(customerId, changeRequest);
+  customerName: string,
+  changes: ChangeRequestData[]
+): Promise<void> {
+  // Google Sheetsの「変更申請ログ」タブに記録
+  await fetch('/api/change-requests', {
+    method: 'POST',
+    body: JSON.stringify({ requests: changes })
+  });
 }
 ```
 
@@ -467,13 +466,50 @@ Zoho内の簡易車両データ。
 - **検証方法**: Google Sheetsの`顧客ID`カラムとZoho CRMの`ID1`フィールドを突合し、不一致がないか確認
 
 **更新データの流れ（上り：App → Smart Car Dealer）**:
-1. Input: 顧客が Webアプリで情報を入力（住所変更、新規車両など）
-2. Pool: WebアプリはZoho CRM (Contacts) の `Description` (詳細情報) にデータを書き込む
-   - 形式: 「【アプリ変更届】新住所：...」「【新規車両】車種名：...、車検証画像：...」など
-3. Update: 事務員がZohoの変更通知を見て、**手動で**スマートカーディーラーの登録情報を修正する
-   - 事務員がZoho CRMのDescriptionを確認
+1. Input: 顧客が Webアプリで情報を入力（住所変更、電話番号変更など）
+2. Pool: WebアプリはGoogle Sheetsの「変更申請ログ」タブにデータを書き込む
+   - 形式: 構造化データ（申請ID、顧客ID、変更項目、変更前、変更後など）
+   - スマートカーディーラーの項目名でマッピング済み
+3. Update: 事務員がアプリの「変更申請あり」通知を見て、**手動で**スマートカーディーラーの登録情報を修正する
+   - アプリの変更申請ダイアログで変更内容を確認
    - スマートカーディーラーで顧客・車両情報を手動で修正・登録
-   - 新アプリの管理画面で「変更対応完了」ボタンを押す（Zoho CRMのDescriptionから【アプリ変更届】の文字列を削除）
+   - 「対応完了としてマーク」ボタンを押す（スプレッドシートのステータスを「対応済み」に更新）
+
+**変更申請ログ（Google Sheets）**:
+
+**シート名**: `変更申請ログ`（マスタデータスプレッドシート内のタブ）
+
+**カラム構成**:
+| カラム名 | 説明 |
+| --- | --- |
+| 申請ID | 一意の識別子（例: CR-0001） |
+| 申請日時 | 申請日時（例: 2025/01/15 10:30:00） |
+| 顧客ID | 顧客のスマートカーディーラーID（例: K2344） |
+| 顧客名 | 顧客名（例: 小泉 隆宏） |
+| 対象マスタ | customer または vehicle |
+| 車両ID | 車両ID（車両変更時のみ） |
+| 変更項目 | スマートカーディーラーの項目名（例: 顧客住所連結） |
+| 変更前 | 変更前の値 |
+| 変更後 | 変更後の値 |
+| ステータス | 未対応 / 対応済み |
+| 対応日時 | 対応完了日時 |
+| 対応者 | 対応した事務員名 |
+| 備考 | 自由記入欄 |
+| ジョブID | 関連するジョブID |
+| 申請元 | 申請元（例: 事前チェックイン） |
+
+**項目マッピング（アプリ → スマートカーディーラー）**:
+| アプリ項目 | スマートカーディーラー項目 | マスタ |
+| --- | --- | --- |
+| customerName | 顧客名 | customer |
+| postalCode | 顧客〒 | customer |
+| address | 顧客住所連結 | customer |
+| phone | 顧客TEL | customer |
+| email | メールアドレス | customer |
+| dateOfBirth | 生年月日 | customer |
+| vehicleName | 車名 | vehicle |
+| vehicleLicensePlate | 登録番号連結 | vehicle |
+| vehicleType | 型式 | vehicle |
 
 **データ不整合時の対応（Human Middleware）**:
 
@@ -482,43 +518,54 @@ Zoho内の簡易車両データ。
 **Human Middlewareの役割**:
 - **責任範囲**: アプリから基幹システムへのデータ更新を手動で実施
 - **処理タイミング**: 手が空いた時、または夕方の業務終了前
-- **処理内容**: Zoho CRMのDescription（備考欄）を確認し、基幹システムで手動修正
+- **処理内容**: アプリの変更申請ダイアログを確認し、基幹システムで手動修正
 
 **不整合の検知**:
-- 新アプリの管理画面に「📝変更申請あり」アイコンを表示
-- Zoho CRMのDescription（備考欄）に「【アプリ変更届】」の文字列が含まれる場合に表示
+- **TOPページ（ジョブカード）**: 「📝変更申請あり」バッジを表示
+- **長期プロジェクトカード**: 「📝変更申請あり」バッジを表示
+- **診断ページ・見積ページ・作業ページなど**: 表示しない（整備士は変更申請に対応しないため）
 
 **対応手順**:
-1. 事務員が新アプリの管理画面で「📝変更申請あり」アイコンを確認
-2. Zoho CRMの該当顧客レコードを開き、Description（備考欄）を確認
-   - 例: 「【アプリ変更届】新住所：大阪市...」「【新規車両】車種名：BMW X3、車検証画像：[URL]」
+1. 事務員がTOPページのジョブカードで「📝変更申請あり」バッジを確認
+2. バッジをクリックして変更申請ダイアログを開く
+   - 変更内容（項目名、変更前、変更後）がカード形式で表示される
+   - 「変更申請ログ（スプレッドシート）を開く」リンクから詳細確認可能
 3. スマートカーディーラー（基幹システム）を開き、顧客・車両情報を手動で修正・登録
-   - 住所変更: 顧客マスタの住所を更新
-   - 電話番号変更: 顧客マスタの電話番号を更新
-   - 新規車両: 車両マスタに新規登録（車検証画像は車両フォルダの`/documents/`から参照）
-4. 新アプリの管理画面で「変更対応完了」ボタンを押す
-   - Zoho CRMのDescriptionから【アプリ変更届】の文字列を削除
-   - 「📝変更申請あり」アイコンを消灯
+   - 住所変更: 顧客マスタの「顧客住所連結」を更新
+   - 電話番号変更: 顧客マスタの「顧客TEL」を更新
+   - 新規車両: 車両マスタに新規登録
+4. 「対応完了としてマーク」ボタンを押す
+   - スプレッドシートのステータスを「対応済み」に更新
+   - 対応日時・対応者を記録
+   - 「📝変更申請あり」バッジが消灯
 
-**自動消込の実装**:
+**API実装**:
+
 ```typescript
-async function markChangeRequestCompleted(customerId: string): Promise<void> {
-  // Zoho CRMのDescriptionから【アプリ変更届】の文字列を削除
-  const customer = await getZohoCustomer(customerId);
-  const updatedDescription = customer.Description?.replace(
-    /【アプリ変更届】.*?\n/g,
-    ''
-  ) || '';
-  
-  await updateZohoCustomer(customerId, {
-    Description: updatedDescription
-  });
+// POST /api/change-requests - 変更申請を記録
+async function POST(request: NextRequest) {
+  const { requests } = await request.json();
+  // Google Sheetsの「変更申請ログ」タブに追記
+}
+
+// GET /api/change-requests - 未対応の変更申請を取得
+async function GET(request: NextRequest) {
+  const { customerId, status } = request.query;
+  // Google Sheetsから変更申請を取得
+}
+
+// POST /api/change-requests/[requestId]/complete - 対応完了をマーク
+async function POST(request: NextRequest) {
+  const { requestId } = params;
+  const { completedBy } = await request.json();
+  // スプレッドシートのステータスを「対応済み」に更新
 }
 ```
 
 **注意事項**:
 - この手動処理は「リスク回避」のための設計であり、将来的な自動化は検討しない（基幹システムの整合性を最優先）
 - 事務員の負担を軽減するため、変更申請は1日1回まとめて処理する運用を推奨
+- 変更履歴はスプレッドシートに永続保存されるため、監査・追跡が可能
 
 ### 2-4. 複数作業管理の実装
 

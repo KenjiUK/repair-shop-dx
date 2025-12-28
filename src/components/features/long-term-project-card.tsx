@@ -51,8 +51,7 @@ import { JobPhotoGalleryDialog } from "@/components/features/job-photo-gallery-d
 import { VehicleDetailDialog } from "@/components/features/vehicle-detail-dialog";
 import { fetchCustomerById, updateJobTag, fetchAllTags } from "@/lib/api";
 import { BlogPhotoCaptureDialog } from "@/components/features/blog-photo-capture-dialog";
-import { hasChangeRequests } from "@/lib/customer-description-append";
-import { markChangeRequestCompleted } from "@/lib/customer-update";
+import { fetchPendingChangeRequests } from "@/lib/change-request-api";
 import { SmartTag } from "@/types";
 import { mutate } from "swr";
 import { useWorkOrders } from "@/hooks/use-work-orders";
@@ -309,17 +308,27 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
     }
   );
 
-  // 変更申請があるかチェック
-  const hasChangeRequest = customerData ? hasChangeRequests(customerData.Description) : false;
+  // 変更申請があるかチェック（スプレッドシートから取得）
+  const smartCarDealerCustomerId = customerData?.ID1 || customerId;
+  const { data: changeRequestsData } = useSWR(
+    smartCarDealerCustomerId ? `change-requests-check-${smartCarDealerCustomerId}` : null,
+    async () => {
+      if (!smartCarDealerCustomerId) return null;
+      const result = await fetchPendingChangeRequests(smartCarDealerCustomerId);
+      return result.success ? result.data : null;
+    },
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1分間は重複リクエストを防止
+    }
+  );
+  const hasChangeRequest = changeRequestsData && changeRequestsData.length > 0;
 
   // 承認済み作業内容があるかチェック
   const hasApprovedWorkItems = job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み");
 
   // 詳細情報があるかチェック
   const hasDetails = hasPreInput || hasWorkOrder || hasChangeRequest || hasApprovedWorkItems;
-
-  // 変更対応完了処理中フラグ
-  const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
 
   // 受付メモダイアログの状態
   const [isWorkOrderDialogOpen, setIsWorkOrderDialogOpen] = useState(false);
@@ -422,48 +431,6 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
       });
     } finally {
       setIsUpdatingTag(false);
-    }
-  };
-
-  /**
-   * 変更対応完了処理
-   */
-  const handleMarkChangeRequestCompleted = async () => {
-    if (!customerId) {
-      toast.error("顧客IDが見つかりません");
-      return;
-    }
-
-    setIsMarkingCompleted(true);
-    triggerHapticFeedback("medium");
-
-    try {
-      const result = await markChangeRequestCompleted(customerId);
-      if (result.success) {
-        triggerHapticFeedback("success");
-        toast.success("変更申請を対応完了としてマークしました", {
-          description: "基幹システムを更新してください",
-        });
-        // モーダルを閉じる
-        setIsChangeRequestDetailOpen(false);
-        // データを再取得（ページ全体のリロードを避ける）
-        await mutate(`customer-${customerId}`);
-        // 必要に応じて他のキャッシュも更新
-        window.location.reload();
-      } else {
-        triggerHapticFeedback("error");
-        toast.error("対応完了処理に失敗しました", {
-          description: result.error?.message,
-        });
-        // エラー時はモーダルを開いたままにする
-      }
-    } catch (error) {
-      console.error("変更対応完了エラー:", error);
-      triggerHapticFeedback("error");
-      toast.error("対応完了処理に失敗しました");
-      // エラー時はモーダルを開いたままにする
-    } finally {
-      setIsMarkingCompleted(false);
     }
   };
 
@@ -1089,8 +1056,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
         onOpenChange={setIsChangeRequestDetailOpen}
         customerId={customerId}
         customerName={project.customerName}
-        onMarkCompleted={handleMarkChangeRequestCompleted}
-        isMarkingCompleted={isMarkingCompleted}
+        smartCarDealerCustomerId={customerData?.ID1 || customerId}
       />
 
       {/* 写真ギャラリーダイアログ */}

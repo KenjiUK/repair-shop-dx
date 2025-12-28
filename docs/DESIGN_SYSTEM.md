@@ -53,9 +53,10 @@
 38. [Collapsible（折りたたみ）](#38-collapsible折りたたみ)
 39. [RadioGroup（ラジオボタン）](#39-radiogroupラジオボタン)
 40. [Slider（スライダー）](#40-sliderスライダー)
-41. [更新履歴](#41-更新履歴)
-42. [統合元ドキュメント（アーカイブ済み）](#42-統合元ドキュメントアーカイブ済み)
-43. [関連ドキュメント](#43-関連ドキュメント)
+41. [ファイルアップロード](#41-ファイルアップロード)
+42. [更新履歴](#42-更新履歴)
+43. [統合元ドキュメント（アーカイブ済み）](#43-統合元ドキュメントアーカイブ済み)
+44. [関連ドキュメント](#44-関連ドキュメント)
 
 ---
 
@@ -315,6 +316,58 @@ font-family: var(--font-geist-sans), "Noto Sans JP", "Hiragino Kaku Gothic ProN"
   12
 </span>
 ```
+
+### 2-8. テキスト省略表示（テキストオーバーフロー）
+
+**40歳以上ユーザー向け最適化**: 長いテキストを適切に省略表示し、レイアウト崩れを防止
+
+**省略表示のパターン:**
+
+| パターン | 用途 | Tailwindクラス | 説明 |
+|---------|------|----------------|------|
+| **1行省略** | 車両名、ナンバープレートなど | `overflow-hidden text-ellipsis whitespace-nowrap` | 1行で省略記号（...）付きで表示 |
+| **2行省略** | 説明文、コメントなど | `line-clamp-2` | 2行まで表示し、超過分を省略 |
+| **3行省略** | 長い説明文など | `line-clamp-3` | 3行まで表示し、超過分を省略 |
+
+**重要なルール:**
+- **`title`属性を追加**: 省略表示の要素には必ず`title`属性でフルテキストを表示
+- **ツールチップ対応**: ホバー時にフルテキストが表示されるようにする
+- **親要素の制約**: `overflow-hidden`は親要素の幅が制約されている場合にのみ機能
+- **モーダル・カード内**: 固定幅のコンテナ内で使用することを推奨
+
+**実装例:**
+
+```typescript
+// 1行省略（車両名など）
+<span
+  className="w-full text-base font-semibold text-center overflow-hidden text-ellipsis whitespace-nowrap px-1"
+  title={car.name}
+>
+  {car.name}
+</span>
+
+// 2行省略（説明文など）
+<p className="text-base text-slate-700 line-clamp-2" title={description}>
+  {description}
+</p>
+
+// 固定幅コンテナ内での省略表示
+<div className="w-[200px]">
+  <span className="block overflow-hidden text-ellipsis whitespace-nowrap">
+    メルセデス・ベンツ Cクラス AMG
+  </span>
+</div>
+```
+
+**禁止事項:**
+- `truncate`クラスのみを使用（`title`属性なしでは、ユーザーがフルテキストを確認できない）
+- 省略表示なしでレイアウトを崩す長いテキストを許容すること
+
+**適用対象コンポーネント:**
+- `CourtesyCarSelectDialog` - 代車選択ダイアログ内の車両名
+- `JobCard` - ジョブカード内の顧客名、車両名
+- `CompactJobHeader` - コンパクトヘッダー内の顧客名、車両名
+- モーダル・ダイアログ内のリスト項目
 
 ---
 
@@ -3323,7 +3376,128 @@ toast.error("エラーが発生しました", {
 
 ---
 
-## 41. 更新履歴
+## 41. ファイルアップロード
+
+### 40-1. ファイルアップロードの基本方針
+
+**プラットフォーム別の標準挙動:**
+
+`<input type="file" accept="image/*">` を使用することで、OS標準のUIが適用されます：
+
+| プラットフォーム | 挙動 |
+|--------------|------|
+| **PC** | ファイル選択ダイアログが開く |
+| **スマートフォン** | OS標準UIで選択肢が表示される（カメラで撮影、写真ライブラリから選択） |
+
+**設計方針:**
+- **1ボタン方式を採用**: 「カメラで撮影」と「ファイルから選択」を別々のボタンにしない
+- **OS標準UIを活用**: スマートフォンでは自動的にカメラ/ライブラリの選択肢が表示される
+- **シンプルなUX**: ユーザーはボタンを1回タップするだけで、OSが適切な選択肢を提示
+
+### 40-2. 実装パターン
+
+**推奨実装:**
+```typescript
+{/* ファイル選択 */}
+<div className="space-y-2">
+  <input
+    ref={fileInputRef}
+    type="file"
+    accept="image/*,.pdf"
+    onChange={handleFileSelect}
+    className="hidden"
+    id="file-upload"
+  />
+  <label htmlFor="file-upload">
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full h-12 text-base font-medium"
+      asChild
+    >
+      <span className="flex items-center justify-center gap-2 cursor-pointer">
+        <Upload className="h-5 w-5 shrink-0" />
+        ファイルを選択
+      </span>
+    </Button>
+  </label>
+  <p className="text-base text-slate-600">
+    対応形式: 画像（JPG, PNG, WebP）、PDF / 最大サイズ: 10MB
+  </p>
+</div>
+```
+
+**ドラッグ&ドロップエリア形式（代替）:**
+```typescript
+<label className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+  <Upload className="h-6 w-6 text-slate-700 mb-1 shrink-0" />
+  <span className="text-base text-slate-800">ファイルを選択</span>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={handleFileSelect}
+    className="hidden"
+  />
+</label>
+```
+
+### 40-3. 禁止事項
+
+**❌ 避けるべき実装:**
+```typescript
+{/* 禁止: カメラとファイル選択を別々のボタンにしない */}
+<div className="flex gap-3">
+  <label>
+    <Camera className="..." />
+    カメラで撮影
+    <input type="file" capture="environment" ... />
+  </label>
+  <label>
+    <Upload className="..." />
+    ファイルから選択
+    <input type="file" ... />
+  </label>
+</div>
+```
+
+**理由:**
+- スマートフォンでは、`<input type="file" accept="image/*">` だけでOSが自動的にカメラとライブラリの選択肢を提示する
+- 2つのボタンを並べると冗長で、UIが複雑になる
+- `capture="environment"` を使うと、スマホでは選択肢が表示されずカメラが直接起動するため、ファイル選択ができなくなる
+
+### 40-4. スタイル仕様
+
+| 要素 | スタイル | 説明 |
+|------|---------|------|
+| **ボタン高さ** | `h-12` (48px) | 40歳以上ユーザー向けタッチターゲットサイズ |
+| **フォントサイズ** | `text-base` (16px) | 読みやすさを重視 |
+| **アイコンサイズ** | `h-5 w-5` (20px) | 視認性確保 |
+| **input要素** | `className="hidden"` | 非表示にしてlabelでトリガー |
+| **ボーダー（ドロップエリア）** | `border-2 border-dashed border-slate-300` | ドラッグ&ドロップ可能なエリアを視覚的に示す |
+| **角丸** | `rounded-xl` | ドロップエリアの角丸 |
+| **ホバー** | `hover:bg-slate-50 transition-colors` | ホバー時のフィードバック |
+
+### 40-5. accept属性の設定
+
+| ユースケース | accept属性 | 説明 |
+|------------|-----------|------|
+| **画像のみ** | `accept="image/*"` | すべての画像形式 |
+| **画像とPDF** | `accept="image/*,.pdf"` | 画像とPDFファイル |
+| **特定の画像形式** | `accept="image/jpeg,image/png,image/webp"` | JPEG、PNG、WebP |
+
+### 40-6. 対象コンポーネント
+
+以下のコンポーネントはこの方針に従って実装されています：
+
+- `VehicleRegistrationUpload` - 車検証アップロード
+- `InspectionRecordUpload` - 自動車検査証記録事項アップロード
+- `NewVehicleInspectionRecordUpload` - 新規車両の自動車検査証記録事項アップロード
+- `InvoiceUpload` - 請求書アップロード
+- `pre-checkin/page.tsx` - 事前チェックイン画面の車検証写真アップロード
+
+---
+
+## 42. 更新履歴
 
 - **2025-01-XX**: 初版作成（統合版）
 - **2025-01-XX**: 40歳以上ユーザー向け最適化（ボタン・入力フィールドのサイズ拡大）
@@ -3377,10 +3551,15 @@ toast.error("エラーが発生しました", {
   - レスポンシブ対応ガイドラインを拡充（ブレークポイントの使用方針、フォントサイズ・スペーシングのレスポンシブ対応）（セクション11-7）
   - アクセシビリティガイドラインを拡充（ARIA属性の使用ガイドライン）（セクション13-3）
   - エラーメッセージのフォントサイズを`text-sm`から`text-base`に統一（視認性向上）
+- **2025-01-XX**: ファイルアップロードUI統一版
+  - ファイルアップロードのデザインガイドラインを追加（セクション41）
+  - 1ボタン方式を採用（OS標準UIでカメラ/ライブラリ選択を自動表示）
+  - カメラ撮影とファイル選択を別々のボタンにする実装を禁止事項として明記
+  - 対象コンポーネント: VehicleRegistrationUpload, InspectionRecordUpload, NewVehicleInspectionRecordUpload
 
 ---
 
-## 42. 統合元ドキュメント（アーカイブ済み）
+## 43. 統合元ドキュメント（アーカイブ済み）
 
 以下のドキュメントは本統合版に統合され、`docs/archive/`に移動されました：
 
@@ -3411,7 +3590,7 @@ toast.error("エラーが発生しました", {
 
 ---
 
-## 43. 関連ドキュメント
+## 44. 関連ドキュメント
 
 - [UIチェックリスト](./UIチェックリスト.md) - UIチェック用チェックリスト
 - [SPECIFICATION.md](../SPECIFICATION.md) - 機能仕様書
