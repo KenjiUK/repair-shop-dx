@@ -56,7 +56,7 @@ import { OBDDiagnosticResult } from "@/components/features/obd-diagnostic-result
 import { PartsListInput, PartsListItem, PartsArrivalStatus } from "@/components/features/parts-list-input";
 import { AudioInputButton, AudioData } from "@/components/features/audio-input-button";
 import { useWorkOrders, updateWorkOrder, createWorkOrder } from "@/hooks/use-work-orders";
-import { WorkOrderSelector } from "@/components/features/work-order-selector";
+import { WorkOrderList } from "@/components/features/work-order-list";
 import { InvoiceUpload } from "@/components/features/invoice-upload";
 import { BodyPaintEstimateView, BodyPaintEstimateData } from "@/components/features/body-paint-estimate-view";
 import { VendorEstimate } from "@/components/features/body-paint-diagnosis-view";
@@ -76,13 +76,6 @@ const PartsArrivalDialog = dynamic(
   }
 );
 
-const AddWorkOrderDialog = dynamic(
-  () => import("@/components/features/add-work-order-dialog").then(mod => ({ default: mod.AddWorkOrderDialog })),
-  {
-    loading: () => <Skeleton className="h-12 w-full" />,
-    ssr: false
-  }
-);
 
 const JobMemoDialog = dynamic(
   () => import("@/components/features/job-memo-dialog").then(mod => ({ default: mod.JobMemoDialog })),
@@ -1276,8 +1269,31 @@ function EstimatePageContent() {
     saveCurrentPath(currentPathname, window.location.search);
   }, []);
 
-  // 作業追加ダイアログの状態管理
-  const [isAddWorkOrderDialogOpen, setIsAddWorkOrderDialogOpen] = useState(false);
+  // 作業グループ追加ハンドラ
+  const handleAddWorkOrder = async (serviceKind: ServiceKind) => {
+    if (!jobId) return;
+
+    try {
+      const result = await createWorkOrder(jobId, serviceKind);
+      if (result.success && result.data) {
+        // ワークオーダーリストを再取得
+        await mutateWorkOrders();
+        // 新しいワークオーダーを選択
+        handleWorkOrderSelect(result.data.id);
+        toast.success("作業グループを追加しました", {
+          description: `${serviceKind}を追加しました`,
+        });
+      } else {
+        throw new Error(result.error?.message || "作業グループの追加に失敗しました");
+      }
+    } catch (error) {
+      console.error("Work order creation error:", error);
+      toast.error("エラーが発生しました", {
+        description: error instanceof Error ? error.message : "不明なエラー",
+      });
+      throw error;
+    }
+  };
 
   // 見積プレビューダイアログの状態管理
   const [isEstimatePreviewDialogOpen, setIsEstimatePreviewDialogOpen] = useState(false);
@@ -1805,11 +1821,11 @@ function EstimatePageContent() {
       });
     }
 
-    // 診断データから追加見積項目（必須整備・推奨整備・任意整備）を読み込む
+    // 診断データから追加見積項目（今回絶対必要・やったほうがいい・お客さん次第）を読み込む
     if (isInspection && selectedWorkOrder?.diagnosis) {
       const diagnosis = selectedWorkOrder.diagnosis as any;
       
-      // 必須整備項目を読み込む
+      // 今回絶対必要項目を読み込む
       if (diagnosis.additionalEstimateRequired && Array.isArray(diagnosis.additionalEstimateRequired)) {
         const requiredItems: EstimateLineItem[] = diagnosis.additionalEstimateRequired.map((item: EstimateLineItem) => ({
           ...item,
@@ -1826,7 +1842,7 @@ function EstimatePageContent() {
         });
       }
 
-      // 推奨整備項目を読み込む
+      // やったほうがいい項目を読み込む
       if (diagnosis.additionalEstimateRecommended && Array.isArray(diagnosis.additionalEstimateRecommended)) {
         const recommendedItems: EstimateLineItem[] = diagnosis.additionalEstimateRecommended.map((item: EstimateLineItem) => ({
           ...item,
@@ -1843,7 +1859,7 @@ function EstimatePageContent() {
         });
       }
 
-      // 任意整備項目を読み込む
+      // お客さん次第項目を読み込む
       if (diagnosis.additionalEstimateOptional && Array.isArray(diagnosis.additionalEstimateOptional)) {
         const optionalItems: EstimateLineItem[] = diagnosis.additionalEstimateOptional.map((item: EstimateLineItem) => ({
           ...item,
@@ -3846,13 +3862,6 @@ function EstimatePageContent() {
     router.push(url.pathname + url.search);
   };
 
-  /**
-   * 作業追加成功時のハンドラ
-   */
-  const handleAddWorkOrderSuccess = () => {
-    mutateWorkOrders();
-    mutateJob();
-  };
 
   return (
     <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-auto">
@@ -3899,6 +3908,19 @@ function EstimatePageContent() {
         />
 
       </AppHeader>
+
+      {/* 作業グループ一覧（複数作業がある場合のみ表示） */}
+      {workOrders && workOrders.length > 1 && (
+        <div className={cn("mx-auto px-4 mb-6", isInspection ? "max-w-4xl" : "max-w-7xl")}>
+          <WorkOrderList
+            workOrders={workOrders}
+            selectedWorkOrderId={selectedWorkOrder?.id || null}
+            onSelectWorkOrder={handleWorkOrderSelect}
+            onAddWorkOrder={handleAddWorkOrder}
+            readOnly={false}
+          />
+        </div>
+      )}
 
       {/* メインコンテンツ - 2カラムレイアウト */}
       <main className={cn("mx-auto px-4 py-6 pb-32", isInspection ? "max-w-4xl" : "max-w-7xl")} style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
@@ -4460,7 +4482,7 @@ function EstimatePageContent() {
                     </p>
                     <div className="space-y-6 mt-6">
                       <EstimateSection
-                        title="必須整備"
+                        title="今回絶対必要"
                         priority="required"
                         items={estimateItems}
                         photos={photos}
@@ -4475,7 +4497,7 @@ function EstimatePageContent() {
                       />
                       <Separator />
                       <EstimateSection
-                        title="推奨整備"
+                        title="やったほうがいい"
                         priority="recommended"
                         items={estimateItems}
                         photos={photos}
@@ -4490,7 +4512,7 @@ function EstimatePageContent() {
                       />
                       <Separator />
                       <EstimateSection
-                        title="任意整備"
+                        title="お客さん次第"
                         priority="optional"
                         items={estimateItems}
                         photos={photos}
@@ -4510,7 +4532,7 @@ function EstimatePageContent() {
                   isInspection ? (
                     <div className="space-y-6">
                       <EstimateSection
-                        title="必須整備"
+                        title="今回絶対必要"
                         priority="required"
                         items={estimateItems}
                         photos={photos}
@@ -4527,7 +4549,7 @@ function EstimatePageContent() {
                       <Separator />
 
                       <EstimateSection
-                        title="推奨整備"
+                        title="やったほうがいい"
                         priority="recommended"
                         items={estimateItems}
                         photos={photos}
@@ -4544,7 +4566,7 @@ function EstimatePageContent() {
                       <Separator />
 
                       <EstimateSection
-                        title="任意整備"
+                        title="お客さん次第"
                         priority="optional"
                         items={estimateItems}
                         photos={photos}
@@ -4562,7 +4584,7 @@ function EstimatePageContent() {
                     <ScrollArea className="h-[400px] pr-4">
                       <div className="space-y-6">
                         <EstimateSection
-                          title="必須整備"
+                          title="今回絶対必要"
                           priority="required"
                           items={estimateItems}
                           photos={photos}
@@ -4579,7 +4601,7 @@ function EstimatePageContent() {
                         <Separator />
 
                         <EstimateSection
-                          title="推奨整備"
+                          title="やったほうがいい"
                           priority="recommended"
                           items={estimateItems}
                           photos={photos}
@@ -4596,7 +4618,7 @@ function EstimatePageContent() {
                         <Separator />
 
                         <EstimateSection
-                          title="任意整備"
+                          title="お客さん次第"
                           priority="optional"
                           items={estimateItems}
                           photos={photos}
@@ -4769,15 +4791,15 @@ function EstimatePageContent() {
                 <CardContent className="py-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-base">
-                      <span className="text-slate-700">必須整備</span>
+                      <span className="text-slate-700">今回絶対必要</span>
                       <span>¥{formatPrice(requiredTotal)}</span>
                     </div>
                     <div className="flex justify-between text-base">
-                      <span className="text-slate-700">推奨整備</span>
+                      <span className="text-slate-700">やったほうがいい</span>
                       <span>¥{formatPrice(recommendedTotal)}</span>
                     </div>
                     <div className="flex justify-between text-base">
-                      <span className="text-slate-700">任意整備</span>
+                      <span className="text-slate-700">お客さん次第</span>
                       <span>¥{formatPrice(optionalTotal)}</span>
                     </div>
                     <Separator />
@@ -4971,7 +4993,7 @@ function EstimatePageContent() {
           <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-40">
             <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* 必須整備合計 */}
+                {/* 今回絶対必要合計 */}
                 <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
                   <span className="text-base text-slate-700">必須整備</span>
                   <span className="text-xl font-bold text-red-600 tabular-nums">
@@ -4979,7 +5001,7 @@ function EstimatePageContent() {
                   </span>
                 </div>
 
-                {/* 推奨整備合計 */}
+                {/* やったほうがいい合計 */}
                 <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
                   <span className="text-base text-slate-700">推奨整備</span>
                   <span className="text-xl font-bold text-primary tabular-nums">
@@ -4987,7 +5009,7 @@ function EstimatePageContent() {
                   </span>
                 </div>
 
-                {/* 任意整備合計 */}
+                {/* お客さん次第合計 */}
                 <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
                   <span className="text-base text-slate-700">任意整備</span>
                   <span className="text-xl font-bold text-slate-700 tabular-nums">
@@ -5008,14 +5030,6 @@ function EstimatePageContent() {
         );
       })()}
 
-      {/* 作業追加ダイアログ */}
-      <AddWorkOrderDialog
-        open={isAddWorkOrderDialogOpen}
-        onOpenChange={setIsAddWorkOrderDialogOpen}
-        job={job}
-        existingServiceKinds={workOrders?.map((wo) => wo.serviceKind as ServiceKind) || serviceKinds}
-        onSuccess={handleAddWorkOrderSuccess}
-      />
 
       {/* 基幹システム転記ダイアログ */}
       <Dialog open={isBaseSystemCopyDialogOpen} onOpenChange={setIsBaseSystemCopyDialogOpen}>
@@ -5236,25 +5250,25 @@ function EstimatePageContent() {
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-lg z-40">
         <div className={cn("mx-auto px-4 py-4", isInspection ? "max-w-4xl" : "max-w-7xl")}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* 必須整備合計 */}
+            {/* 今回絶対必要合計 */}
             <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
-              <span className="text-base text-slate-700 dark:text-white">必須整備</span>
+              <span className="text-base text-slate-700 dark:text-white">今回絶対必要</span>
               <span className="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">
                 ¥{formatPrice(isTaxIncluded ? calculateTax(requiredTotal).total : requiredTotal)}
               </span>
             </div>
 
-            {/* 推奨整備合計 */}
+            {/* やったほうがいい合計 */}
             <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
-              <span className="text-base text-slate-700 dark:text-white">推奨整備</span>
+              <span className="text-base text-slate-700 dark:text-white">やったほうがいい</span>
               <span className="text-xl font-bold text-primary tabular-nums">
                 ¥{formatPrice(isTaxIncluded ? calculateTax(recommendedTotal).total : recommendedTotal)}
               </span>
             </div>
 
-            {/* 任意整備合計 */}
+            {/* お客さん次第合計 */}
             <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2">
-              <span className="text-base text-slate-700 dark:text-white">任意整備</span>
+              <span className="text-base text-slate-700 dark:text-white">お客さん次第</span>
               <span className="text-xl font-bold text-slate-700 dark:text-white tabular-nums">
                 ¥{formatPrice(isTaxIncluded ? calculateTax(optionalTotal).total : optionalTotal)}
               </span>

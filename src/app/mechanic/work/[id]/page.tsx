@@ -23,11 +23,12 @@ import { toast } from "sonner";
 import { triggerHapticFeedback } from "@/lib/haptic-feedback";
 import { fetchCustomerById } from "@/lib/api";
 import { sendLineNotification } from "@/lib/line-api";
-import { ServiceKind } from "@/types";
+import { ServiceKind, WorkOrderStatus, WorkOrder } from "@/types";
 import { ApprovedWorkItemCard, ApprovedWorkItem } from "@/components/features/approved-work-item-card";
 import { WorkProgressBar } from "@/components/features/work-progress-bar";
 import { useWorkOrders, updateWorkOrder, createWorkOrder } from "@/hooks/use-work-orders";
-import { WorkOrderSelector } from "@/components/features/work-order-selector";
+import { WorkOrderList } from "@/components/features/work-order-list";
+import { VendorStatusManager } from "@/components/features/vendor-status-manager";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { SaveStatusIndicator } from "@/components/features/save-status-indicator";
 import { ReplacementPart } from "@/lib/inspection-pdf-generator";
@@ -82,13 +83,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { VoiceInputButton } from "@/components/features/voice-input-button";
 
 // ダイアログコンポーネントを動的インポート（コード分割）
-const AddWorkOrderDialog = dynamic(
-  () => import("@/components/features/add-work-order-dialog").then(mod => ({ default: mod.AddWorkOrderDialog })),
-  {
-    loading: () => <Skeleton className="h-12 w-full" />,
-    ssr: false
-  }
-);
 
 const JobMemoDialog = dynamic(
   () => import("@/components/features/job-memo-dialog").then(mod => ({ default: mod.JobMemoDialog })),
@@ -109,6 +103,7 @@ import {
 } from "@/components/features/inspection-work-view";
 import { getOrCreateWorkOrderFolder, uploadFile } from "@/lib/google-drive";
 import { setNavigationHistory, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
+import { HeaderBlogPhotoButton } from "@/components/features/header-blog-photo-button";
 
 // =============================================================================
 // Helper Functions
@@ -514,9 +509,9 @@ function MechanicWorkPageContent() {
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
 
 
-  // URLパラメータからworkOrderIdを取得
+  // URLパラメータからworkOrderIdを取得（workOrderとworkOrderIdの両方に対応）
   const workOrderId = useMemo(() => {
-    const woId = searchParams?.get("workOrderId");
+    const woId = searchParams?.get("workOrder") || searchParams?.get("workOrderId");
     return woId || null;
   }, [searchParams]);
 
@@ -560,10 +555,10 @@ function MechanicWorkPageContent() {
         const previousUrl = new URL(previousPath, window.location.origin);
         const previousPathname = previousUrl.pathname;
         const referrerType = getPageTypeFromPath(previousPathname);
-        
+
         // 履歴を記録（前の画面のパスとタイプを記録）
         setNavigationHistory(previousPath, referrerType);
-        
+
         if (process.env.NODE_ENV === "development") {
           console.log("[Work] Navigation history saved from sessionStorage:", { previousPath, referrerType });
         }
@@ -589,7 +584,7 @@ function MechanicWorkPageContent() {
           if (referrerPath !== currentPath) {
             // 履歴を記録（前の画面のパスとタイプを記録）
             setNavigationHistory(referrerPath, referrerType);
-            
+
             if (process.env.NODE_ENV === "development") {
               console.log("[Work] Navigation history saved from referrer:", { referrerPath, referrerType });
             }
@@ -609,6 +604,14 @@ function MechanicWorkPageContent() {
 
   // ワークオーダーを取得
   const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
+
+  // 複合作業の場合、workOrderパラメータがない場合は作業グループ選択画面にリダイレクト（将来実装）
+  // 現時点では作業画面の選択画面は未実装のため、コメントアウト
+  // useEffect(() => {
+  //   if (!isLoadingWorkOrders && workOrders && workOrders.length > 1 && !workOrderId) {
+  //     router.replace(`/mechanic/work/${jobId}/select`);
+  //   }
+  // }, [workOrders, isLoadingWorkOrders, workOrderId, jobId, router]);
 
   // 代車情報を取得（グローバルキャッシュを活用）
   const {
@@ -633,8 +636,31 @@ function MechanicWorkPageContent() {
     return workOrders[0]; // デフォルトは最初のワークオーダー
   }, [workOrders, workOrderId]);
 
-  // 作業追加ダイアログの状態管理
-  const [isAddWorkOrderDialogOpen, setIsAddWorkOrderDialogOpen] = useState(false);
+  // 作業グループ追加ハンドラ
+  const handleAddWorkOrder = async (serviceKind: ServiceKind) => {
+    if (!jobId) return;
+
+    try {
+      const result = await createWorkOrder(jobId, serviceKind);
+      if (result.success && result.data) {
+        // ワークオーダーリストを再取得
+        await mutateWorkOrders();
+        // 新しいワークオーダーを選択
+        handleWorkOrderSelect(result.data.id);
+        toast.success("作業グループを追加しました", {
+          description: `${serviceKind}を追加しました`,
+        });
+      } else {
+        throw new Error(result.error?.message || "作業グループの追加に失敗しました");
+      }
+    } catch (error) {
+      console.error("Work order creation error:", error);
+      toast.error("エラーが発生しました", {
+        description: error instanceof Error ? error.message : "不明なエラー",
+      });
+      throw error;
+    }
+  };
 
   // PDF生成中フラグ
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -763,7 +789,7 @@ function MechanicWorkPageContent() {
   const [finalInspectionData, setFinalInspectionData] = useState<FinalInspectionData>({});
   // 品質管理・最終検査データ
   const [inspectionQualityCheckData, setInspectionQualityCheckData] = useState<InspectionQualityCheckData>({});
-  
+
   // 交換部品等（Phase 5で入力）
   const [replacementParts, setReplacementParts] = useState<ReplacementPartItem[]>([]);
 
@@ -876,7 +902,7 @@ function MechanicWorkPageContent() {
       const exchangeItems = acceptanceData.items.filter(
         (item) => item.status === "exchange"
       );
-      
+
       if (exchangeItems.length > 0) {
         const autoGeneratedParts: ReplacementPartItem[] = exchangeItems.map((item) => ({
           id: `auto-${item.id}`,
@@ -1271,11 +1297,11 @@ function MechanicWorkPageContent() {
       }
     } else if (isInspection || isFaultDiagnosis || isRepair || isTireReplacement || isMaintenance || isTuningParts || isCoating || isOther) {
       // 24ヶ月点検（車検）で追加見積もりがない場合、作業項目がなくても完了可能
-      const is24MonthInspectionWithoutWorkItems = 
-        isInspection && 
-        selectedWorkOrder?.serviceKind === "車検" && 
+      const is24MonthInspectionWithoutWorkItems =
+        isInspection &&
+        selectedWorkOrder?.serviceKind === "車検" &&
         approvedWorkItems.length === 0;
-      
+
       if (!is24MonthInspectionWithoutWorkItems) {
         // 通常の場合は作業項目が必要
         const hasApprovedItems = approvedWorkItems.length > 0;
@@ -1399,10 +1425,10 @@ function MechanicWorkPageContent() {
                 content: i.name,
                 photos: [],
               })) : [{
-              time: new Date().toISOString(),
-              content: "分解整備記録簿を生成",
-              photos: [],
-            }],
+                time: new Date().toISOString(),
+                content: "分解整備記録簿を生成",
+                photos: [],
+              }],
             completedAt: new Date().toISOString(),
             mechanicName: job.assignedMechanic || undefined,
             // 診断画面から引き継いだデータを保存
@@ -2001,7 +2027,7 @@ function MechanicWorkPageContent() {
           item.beforePhotos.length !== existingItem.beforePhotos.length ||
           item.afterPhotos.length !== existingItem.afterPhotos.length;
       });
-    
+
     if (hasChanged) {
       approvedWorkItemsRef.current = approvedItems;
       setApprovedWorkItems(approvedItems);
@@ -2103,12 +2129,33 @@ function MechanicWorkPageContent() {
   };
 
   /**
-   * 作業追加成功時のハンドラ
+   * 外注ステータス更新ハンドラ
    */
-  const handleAddWorkOrderSuccess = () => {
-    mutateWorkOrders();
-    mutateJob();
+  const handleVendorStatusUpdate = async (
+    workOrderId: string,
+    status: WorkOrderStatus,
+    vendor?: WorkOrder["vendor"]
+  ) => {
+    if (!jobId) return;
+
+    try {
+      const result = await updateWorkOrder(jobId, workOrderId, {
+        status,
+        vendor,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "ステータスの更新に失敗しました");
+      }
+
+      // ワークオーダーリストを再取得
+      await mutateWorkOrders();
+    } catch (error) {
+      console.error("Vendor status update error:", error);
+      throw error;
+    }
   };
+
 
   // データが読み込まれるまでモックデータを使用しない
   const vehicleName = job?.field6?.name ? extractVehicleName(job.field6.name) : (isJobLoading ? "読み込み中..." : "車両未登録");
@@ -2134,39 +2181,39 @@ function MechanicWorkPageContent() {
   const completedPhases = useMemo(() => {
     if (!job) return [];
     const phases: number[] = [];
-    
+
     // Phase 0（事前チェックイン）: field7に顧客入力がある場合、またはfield22（入庫日時）が設定されている場合
     if (job.field7 || job.field22) {
       phases.push(0);
     }
-    
+
     // Phase 1（受付）: field5が「入庫済み」以上の場合
     if (job.field5 && (job.field5 === "入庫済み" || job.field5 === "見積作成待ち" || job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
       phases.push(1);
     }
-    
+
     // Phase 2（診断）: field5が「入庫済み」以上の場合（診断は入庫済みの状態で実施される）
     if (job.field5 && (job.field5 === "入庫済み" || job.field5 === "見積作成待ち" || job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
       phases.push(2);
     }
-    
+
     // Phase 3（見積）: field5が「見積作成待ち」以上の場合
     if (job.field5 && (job.field5 === "見積作成待ち" || job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
       phases.push(3);
     }
-    
+
     // Phase 4（承認）: field5が「見積提示済み」以上の場合（見積提示済みは顧客承認待ちの状態）
     if (job.field5 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
       phases.push(4);
     }
-    
+
     // Phase 5（作業）: 現在のページ（作業ページ）にいる場合、完了はしない（アクティブ）
-    
+
     // Phase 6（報告）: field5が「出庫待ち」以上の場合
     if (job.field5 && (job.field5 === "出庫待ち" || job.field5 === "出庫済み")) {
       phases.push(6);
     }
-    
+
     return phases;
   }, [job]);
 
@@ -2230,14 +2277,17 @@ function MechanicWorkPageContent() {
         collapsedVehicleName={vehicleName}
         collapsedLicensePlate={licensePlate}
         rightArea={
-          selectedWorkOrder?.id && (
-            <SaveStatusIndicator
-              status={saveStatus}
-              hasUnsavedChanges={hasUnsavedChanges}
-              onSave={saveManually}
-              showSaveButton={true}
-            />
-          )
+          <div className="flex items-center gap-2">
+            <HeaderBlogPhotoButton jobId={jobId} />
+            {selectedWorkOrder?.id && (
+              <SaveStatusIndicator
+                status={saveStatus}
+                hasUnsavedChanges={hasUnsavedChanges}
+                onSave={saveManually}
+                showSaveButton={true}
+              />
+            )}
+          </div>
         }
       >
         {/* ページタイトル */}
@@ -2305,21 +2355,36 @@ function MechanicWorkPageContent() {
         )}
       </AppHeader>
 
-      {/* ワークオーダー選択UI（複数作業がある場合のみ表示） */}
-      {workOrders && workOrders.length > 0 && (
+      {/* 作業グループ一覧（複数作業がある場合のみ表示） */}
+      {workOrders && workOrders.length > 1 && (
         <div className="max-w-4xl mx-auto px-4 mb-4">
-          <WorkOrderSelector
+          <WorkOrderList
             workOrders={workOrders}
             selectedWorkOrderId={selectedWorkOrder?.id || null}
-            onSelect={handleWorkOrderSelect}
-            onAddWorkOrder={() => setIsAddWorkOrderDialogOpen(true)}
-            showAddButton={true}
+            onSelectWorkOrder={handleWorkOrderSelect}
+            onAddWorkOrder={handleAddWorkOrder}
+            readOnly={false}
           />
         </div>
       )}
 
       {/* メインコンテンツ */}
       <main className="max-w-4xl mx-auto px-4 py-6" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
+        {/* 外注ステータス管理（外注作業の場合） */}
+        {selectedWorkOrder &&
+          (selectedWorkOrder.status === "外注調整中" ||
+            selectedWorkOrder.status === "外注見積待ち" ||
+            selectedWorkOrder.status === "外注作業中" ||
+            selectedWorkOrder.vendor) && (
+            <div className="mb-4">
+              <VendorStatusManager
+                workOrder={selectedWorkOrder}
+                onStatusUpdate={handleVendorStatusUpdate}
+                readOnly={false}
+              />
+            </div>
+          )}
+
         {/* 注意事項 */}
         {!isBodyPaint && !isRestore && (
           <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-4 flex items-start gap-2">
@@ -3156,14 +3221,6 @@ function MechanicWorkPageContent() {
         </div>
       </div>
 
-      {/* 作業追加ダイアログ */}
-      <AddWorkOrderDialog
-        open={isAddWorkOrderDialogOpen}
-        onOpenChange={setIsAddWorkOrderDialogOpen}
-        job={job || null}
-        existingServiceKinds={workOrders?.map((wo) => wo.serviceKind as ServiceKind) || serviceKinds}
-        onSuccess={handleAddWorkOrderSuccess}
-      />
 
       {/* 作業メモダイアログ */}
       <JobMemoDialog

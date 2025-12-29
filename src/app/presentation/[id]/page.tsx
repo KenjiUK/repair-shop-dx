@@ -39,6 +39,7 @@ import { parseInspectionChecklistFromField7, appendInspectionChecklistToField7 }
 import { InspectionChecklist, ServiceKind } from "@/types";
 import { setNavigationHistory, getBackHref, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
 import { useEffect } from "react";
+import { WorkOrderList, canCheckout as checkWorkOrdersCompleted } from "@/components/features/work-order-list";
 
 // =============================================================================
 // Types
@@ -314,11 +315,27 @@ export default function PresentationPage() {
     // 実際の実装ではPDFビューアーを開く
   };
 
+  // 納車可能かどうかを判定（全作業グループが完了している場合のみ）
+  const canCheckoutNow = useMemo(() => {
+    // ワークオーダーがない場合（従来の単一作業）は常に納車可能
+    if (workOrders.length === 0) return true;
+    // 複合業務の場合は全作業グループが完了している必要がある
+    return checkWorkOrdersCompleted(workOrders);
+  }, [workOrders]);
+
   /**
    * 出庫完了処理
    */
   const handleCheckout = async () => {
     if (!job) return;
+
+    // 複合業務で未完了の作業グループがある場合は警告
+    if (!canCheckoutNow) {
+      toast.error("納車できません", {
+        description: "すべての作業グループが完了していません",
+      });
+      return;
+    }
 
     // 代車が紐付けられているかどうかを確認（配列チェックを追加）
     const linkedCourtesyCar = Array.isArray(courtesyCars) ? courtesyCars.find((car) => car.jobId === jobId) : undefined;
@@ -493,6 +510,17 @@ export default function PresentationPage() {
           assignedMechanic={assignedMechanic}
           customerPhone={customerPhone}
         />
+
+        {/* 作業グループ一覧（複合業務の場合のみ表示） */}
+        {workOrders.length > 1 && (
+          <div className="mt-6">
+            <WorkOrderList
+              workOrders={workOrders}
+              readOnly={true}
+              compact={true}
+            />
+          </div>
+        )}
 
         {/* タブナビゲーション */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

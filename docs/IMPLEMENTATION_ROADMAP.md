@@ -2309,3 +2309,187 @@ body {
 
 **最終更新日**: 2025-01-20（6-3. completeWork APIの設計課題（B4）完了）
 
+---
+
+## Phase 7: 複合業務管理システム準備
+
+### 7-0. 優先度用語の統一と整備士向けUI改善 ✅
+
+**優先度**: 高  
+**実装難易度**: 低  
+**開始日**: 2025-01-28  
+**完了日**: 2025-01-28  
+**ステータス**: 完了
+
+**背景**:
+- 現在の用語「必須整備/推奨整備/任意整備」が業務の実態に合わない
+- 整備士にとって直感的でわかりやすい用語に変更する
+- 複合業務管理システムの前段階として用語を統一
+
+**実装内容**:
+
+#### Step 1: 用語のUI表示変更（後方互換性を保持）
+- 「必須整備」→「今回絶対必要」
+- 「推奨整備」→「やったほうがいい」
+- 「任意整備」→「お客さん次第」
+
+**注意**: 型定義（`EstimatePriority`）は変更しない（`required`, `recommended`, `optional`のまま維持）
+
+#### Step 2: 影響範囲
+1. **診断画面**: `diagnosis-additional-estimate-section.tsx`
+2. **見積画面**: `estimate/[id]/page.tsx`
+3. **顧客承認画面**: `customer/approval/[id]/page.tsx`
+4. **DESIGN_SYSTEM.md**: 用語統一ルールを追加
+
+#### Step 3: 実装チェックリスト
+- [x] `diagnosis-additional-estimate-section.tsx`の用語変更
+- [x] 見積画面のセクションタイトル変更
+- [x] 顧客承認画面のセクションタイトル変更
+- [x] DESIGN_SYSTEM.mdに用語ルールを追加
+- [x] Lintチェック・動作確認
+
+**変更ファイル**:
+- `src/components/features/diagnosis-additional-estimate-section.tsx`
+- `src/app/admin/estimate/[id]/page.tsx`
+- `src/app/customer/approval/[id]/page.tsx`
+- `src/app/mechanic/diagnosis/[id]/page.tsx`
+- `docs/DESIGN_SYSTEM.md`
+
+---
+
+### 7-1. 複合業務管理システム ✅
+
+**優先度**: 高  
+**実装難易度**: 高  
+**追加日**: 2025-01-28  
+**完了日**: 2025-01-28  
+**ステータス**: アプリ側実装完了（Zoho Bookingsは別途設定）
+
+**背景**:
+- 複合業務（車検+板金修理など）の頻度が高い
+- 請求は入庫単位で統合発行
+- 現在のシステムでは複合的な作業を適切に管理できない
+
+**実装内容**:
+
+#### アプリ側実装（完了）
+
+1. **WorkOrderStatus型の拡張** (`src/types/index.ts`)
+   - 内製作業ステータス: 未開始 → 受入点検中 → 診断中 → 見積作成待ち → 顧客承認待ち → 作業待ち → 作業中 → 完了
+   - 外注作業ステータス: 外注調整中、外注見積待ち、外注作業中
+
+2. **WorkOrderListコンポーネント** (`src/components/features/work-order-list.tsx`)
+   - 作業グループ一覧表示
+   - 各作業グループのステータス表示
+   - 作業グループ追加ダイアログ
+   - 全体ステータス計算（最も遅れている作業グループに依存）
+   - 納車可能判定（`canCheckout`関数）
+
+3. **出庫画面の複合業務対応** (`src/app/presentation/[id]/page.tsx`)
+   - 複合業務の場合、WorkOrderListを表示
+   - 全作業グループ完了チェック
+   - 未完了の作業グループがある場合は納車をブロック
+
+#### Zoho Bookings側設定（未実施・ユーザー側で対応）
+
+1. **複合予約スロットの追加**:
+   - 既存の単発スロット（オイル交換、修理整備、24か月点検など）は維持
+   - 複合対応スロットを1つ追加（組み合わせで選択可能）
+
+**変更ファイル**:
+- `src/types/index.ts`（WorkOrderStatus拡張）
+- `src/components/features/work-order-list.tsx`（新規作成）
+- `src/app/presentation/[id]/page.tsx`（WorkOrderList統合、納車条件）
+- `src/app/mechanic/diagnosis/[id]/page.tsx`（WorkOrderList統合、作業グループ追加機能、診断データ保存時のworkOrderId指定）
+- `src/app/mechanic/work/[id]/page.tsx`（WorkOrderList統合、作業グループ追加機能）
+- `src/app/admin/estimate/[id]/page.tsx`（WorkOrderList統合、作業グループ追加機能）
+
+**実装詳細**:
+
+#### 診断画面への統合
+- 複数のワークオーダーがある場合（`workOrders.length > 1`）のみWorkOrderListを表示
+- 単一作業の場合は従来通り表示しない（既存の動作を維持）
+- 作業グループ追加機能を統合（`handleAddWorkOrder`関数）
+- 追加成功時に新しいワークオーダーを自動選択
+- **診断データ保存時の修正**: `saveDiagnosis`呼び出し時に選択中のワークオーダーID（`selectedWorkOrder?.id`）を渡すように修正（複数作業管理対応）
+
+#### 作業画面への統合
+- 複数のワークオーダーがある場合（`workOrders.length > 1`）のみWorkOrderListを表示
+- 単一作業の場合は従来通り表示しない（既存の動作を維持）
+- 作業グループ追加機能を統合（`handleAddWorkOrder`関数）
+- 追加成功時に新しいワークオーダーを自動選択
+- **作業データ保存**: 既に`selectedWorkOrder.id`を使用して`updateWorkOrder`を呼び出している（正しい実装）
+
+#### 見積画面への統合
+- 複数のワークオーダーがある場合（`workOrders.length > 1`）のみWorkOrderListを表示
+- 単一作業の場合は従来通り表示しない（既存の動作を維持）
+- 作業グループ追加機能を統合（`handleAddWorkOrder`関数）
+- 追加成功時に新しいワークオーダーを自動選択
+- **見積データ保存**: 既に`selectedWorkOrder.estimate`を使用して見積データを管理している（正しい実装）
+
+#### 出庫画面への統合（既に実装済み）
+- 複数のワークオーダーがある場合のみWorkOrderListを表示（読み取り専用）
+- 納車条件チェック（全作業グループ完了で納車可能）
+
+---
+
+### 7-2. 外注先とのステータス連携 ✅
+
+**優先度**: 中  
+**実装難易度**: 中  
+**追加日**: 2025-01-28  
+**完了日**: 2025-01-28  
+**ステータス**: 完了
+
+**実装内容**:
+
+#### Step 1: WorkOrder型の拡張
+- `vendor`フィールドを追加（外注先名、連絡先、見積受領日時、作業完了報告日時、備考）
+
+#### Step 2: VendorStatusManagerコンポーネントの作成
+- 外注先情報の表示・編集
+- 外注ステータスの更新（「外注調整中」「外注見積待ち」「外注作業中」「完了」）
+- 外注先からの見積受領・作業完了報告の記録
+
+#### Step 3: 診断画面・作業画面への統合
+- 外注ステータスのワークオーダーに対してVendorStatusManagerを表示
+- 外注先情報の登録・編集機能
+- ステータス更新機能
+
+#### Step 4: サンプルデータの追加
+- 複合業務サンプル（車検+板金修理）を追加
+- 板金修理のワークオーダーを「外注調整中」ステータスに設定
+- 外注先情報（東京板金工業）を設定
+
+**変更ファイル**:
+- `src/types/index.ts`（WorkOrder型にvendorフィールド追加）
+- `src/components/features/vendor-status-manager.tsx`（新規作成）
+- `src/app/mechanic/diagnosis/[id]/page.tsx`（VendorStatusManager統合）
+- `src/app/mechanic/work/[id]/page.tsx`（VendorStatusManager統合）
+- `src/lib/mock-db.ts`（サンプルデータ追加）
+
+**動作確認用サンプル**:
+- ジョブID: `test-composite-01`
+- URL: `http://localhost:3000/mechanic/diagnosis/test-composite-01`
+- 内容: 車検（診断中）+ 板金修理（外注調整中）
+
+**関連機能**:
+- 7-1. 複合業務管理システム
+
+---
+
+### 7-3. 外注先への発注書機能
+
+**優先度**: 中  
+**実装難易度**: 中  
+**追加日**: 2025-01-28
+
+**実装予定内容**:
+- 外注先への発注書PDF生成
+- 発注内容の管理（部品・作業内容・納期）
+- 外注先ごとの発注履歴管理
+
+**関連機能**:
+- 7-2. 外注先とのステータス連携
+- 3-3. PDF生成エンジンの実装（G2）を拡張
+

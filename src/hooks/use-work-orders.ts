@@ -10,7 +10,7 @@ const WORK_ORDERS_API_BASE_URL = "/api/jobs";
 const swrConfig = {
   // グローバル設定を継承（revalidateOnFocus: false, revalidateOnReconnect: trueなど）
   // 詳細ページなので、キャッシュを活用
-  revalidateOnMount: false, // キャッシュがあれば再検証しない
+  revalidateOnMount: true, // 初回マウント時は必ずデータを取得
   dedupingInterval: 5 * 60 * 1000, // 5分（グローバル設定と同じ）
   errorRetryCount: 3,
   errorRetryInterval: 5000, // 5秒（グローバル設定と同じ）
@@ -23,19 +23,57 @@ export function useWorkOrders(jobId: string | null) {
   const { data, error, isLoading, mutate } = useSWR<ApiResponse<WorkOrder[]>>(
     jobId ? `${WORK_ORDERS_API_BASE_URL}/${jobId}/work-orders` : null,
     async (url: string) => {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[useWorkOrders] フェッチ開始:", url);
+      }
       const response = await fetch(url);
       if (!response.ok) {
+        const errorText = await response.text();
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useWorkOrders] フェッチエラー:", {
+            status: response.status,
+            statusText: response.statusText,
+            errorText,
+          });
+        }
+        // 404エラーの場合は空配列を返す（ジョブが存在しない場合）
+        if (response.status === 404) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[useWorkOrders] ジョブが見つかりません（404）。空配列を返します。");
+          }
+          return { success: true, data: [] };
+        }
         throw new Error(`Failed to fetch work orders: ${response.statusText}`);
       }
-      return response.json();
+      const json = await response.json();
+      if (process.env.NODE_ENV === "development") {
+        console.log("[useWorkOrders] フェッチ成功:", {
+          success: json.success,
+          dataLength: json.data?.length,
+        });
+      }
+      return json;
     },
-    swrConfig
+    {
+      ...swrConfig,
+      // 404エラーは再試行しない
+      shouldRetryOnError: (error) => {
+        if (error instanceof Error && error.message.includes("404")) {
+          return false;
+        }
+        return true;
+      },
+    }
   );
+
+  if (process.env.NODE_ENV === "development" && error) {
+    console.error("[useWorkOrders] SWRエラー:", error);
+  }
 
   return {
     workOrders: data?.success ? data.data : [],
     isLoading,
-    isError: error,
+    isError: error && !(error instanceof Error && error.message.includes("404")),
     mutate,
   };
 }

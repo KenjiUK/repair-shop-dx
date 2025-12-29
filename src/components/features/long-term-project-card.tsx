@@ -474,7 +474,7 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
       // PDFをプレビュー表示（新しいタブで開く）
       const url = URL.createObjectURL(result.data);
       window.open(url, "_blank");
-      
+
       // URLは自動的にクリーンアップされる（ブラウザがタブを閉じた時）
       // 念のため、少し遅延してからrevoke（タブが開くのを待つ）
       setTimeout(() => {
@@ -841,8 +841,8 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                   進捗詳細
                 </Button>
               )}
-              <Button 
-                variant="default" 
+              <Button
+                variant="default"
                 className="h-12 text-base font-medium"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -862,87 +862,86 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
       {hasDetails && isDetailsExpanded && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
           <div className="space-y-3">
-                {/* お客様入力情報 */}
-                {hasPreInput && (
-                  <div className="bg-blue-50 border border-blue-400 rounded-md p-3 text-base">
-                    <div className="flex items-center gap-2 mb-2">
-                      <MessageSquare className="h-5 w-5 text-blue-600 shrink-0" />
-                      <p className="font-medium text-blue-900">お客様入力情報</p>
+            {/* お客様入力情報 */}
+            {hasPreInput && (
+              <div className="bg-blue-50 border border-blue-400 rounded-md p-3 text-base">
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="h-5 w-5 text-blue-600 shrink-0" />
+                  <p className="font-medium text-blue-900">お客様入力情報</p>
+                </div>
+                <p className="text-blue-900 whitespace-pre-wrap">{job.field7}</p>
+              </div>
+            )}
+
+            {/* 受付メモ */}
+            {hasWorkOrder && (() => {
+              // メモから記入者名とメモ内容を抽出
+              const parseWorkOrder = (text: string | null): { author: string; content: string } => {
+                if (!text) return { author: "", content: "" };
+
+                // 形式: [記入者名] メモ内容
+                const match = text.match(/^\[(.+?)\]\s*([\s\S]*)$/);
+                if (match) {
+                  return { author: match[1], content: match[2] };
+                }
+
+                return { author: "", content: text };
+              };
+
+              const parsed = parseWorkOrder(job.field);
+
+              return (
+                <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base dark:bg-slate-800 dark:border-amber-400 dark:text-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <NotebookPen className="h-5 w-5 text-amber-600 shrink-0" />
+                      <p className="font-medium text-amber-900 dark:text-white">受付メモ</p>
+                      {parsed.author && (
+                        <span className="text-base text-amber-700 font-medium dark:text-white">
+                          （記入者: {parsed.author}）
+                        </span>
+                      )}
                     </div>
-                    <p className="text-blue-900 whitespace-pre-wrap">{job.field7}</p>
-                  </div>
-                )}
-                
-                {/* 受付メモ */}
-                {hasWorkOrder && (() => {
-                  // メモから記入者名とメモ内容を抽出
-                  const parseWorkOrder = (text: string | null): { author: string; content: string } => {
-                    if (!text) return { author: "", content: "" };
-                    
-                    // 形式: [記入者名] メモ内容
-                    const match = text.match(/^\[(.+?)\]\s*([\s\S]*)$/);
-                    if (match) {
-                      return { author: match[1], content: match[2] };
-                    }
-                    
-                    return { author: "", content: text };
-                  };
-                  
-                  const parsed = parseWorkOrder(job.field);
-                  
-                  return (
-                    <div className="bg-amber-50 border border-amber-400 rounded-md p-3 text-base dark:bg-slate-800 dark:border-amber-400 dark:text-white">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <NotebookPen className="h-5 w-5 text-amber-600 shrink-0" />
-                          <p className="font-medium text-amber-900 dark:text-white">受付メモ</p>
-                          {parsed.author && (
-                            <span className="text-base text-amber-700 font-medium dark:text-white">
-                              （記入者: {parsed.author}）
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenWorkOrderDialog();
-                          }}
-                          className="text-base text-amber-700 hover:text-amber-900 underline flex items-center gap-1 dark:text-white dark:hover:text-amber-400"
-                        >
-                          <Edit className="h-5 w-5 shrink-0" />
-                          編集する
-                        </button>
-                      </div>
-                      <p className="text-amber-900 whitespace-pre-wrap dark:text-white">{parsed.content}</p>
-                    </div>
-                  );
-                })()}
-                
-                {/* 変更申請 */}
-                {hasChangeRequest && customerId && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-md p-3 text-base">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Bell className="h-5 w-5 text-rose-600 shrink-0" />
-                      <p className="font-medium text-rose-700">変更申請あり</p>
-                    </div>
-                    <p className="text-base text-rose-700 mb-2">
-                      顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
-                    </p>
-                    <Button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        triggerHapticFeedback("light");
-                        setIsChangeRequestDetailOpen(true);
+                        handleOpenWorkOrderDialog();
                       }}
-                      variant="outline"
-                      className="w-full h-12 text-base font-medium bg-white border-rose-200 text-rose-700 hover:bg-rose-50"
+                      className="text-base text-amber-700 hover:text-amber-900 underline flex items-center gap-1 dark:text-white dark:hover:text-amber-400"
                     >
-                      <FileText className="h-5 w-5 mr-1.5 shrink-0" />
-                      詳細を見る
-                    </Button>
+                      <Edit className="h-5 w-5 shrink-0" />
+                      編集する
+                    </button>
                   </div>
-                )}
-                
+                  <p className="text-amber-900 whitespace-pre-wrap dark:text-white">{parsed.content}</p>
+                </div>
+              );
+            })()}
+
+            {/* 変更申請 */}
+            {hasChangeRequest && customerId && (
+              <div className="bg-rose-50 border border-rose-200 rounded-md p-3 text-base">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className="h-5 w-5 text-rose-600 shrink-0" />
+                  <p className="font-medium text-rose-700">変更申請あり</p>
+                </div>
+                <p className="text-base text-rose-700 mb-2">
+                  顧客情報の変更申請があります。対応完了後、基幹システムを更新してください。
+                </p>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHapticFeedback("light");
+                    setIsChangeRequestDetailOpen(true);
+                  }}
+                  variant="outline"
+                  className="w-full h-12 text-base font-medium bg-white border-rose-200 text-rose-700 hover:bg-rose-50"
+                >
+                  詳細を見る
+                </Button>
+              </div>
+            )}
+
             {/* 作業内容（承認済み見積明細） */}
             {job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み") && (
               <div className="bg-green-50 border border-green-400 rounded-md p-3 text-base">
@@ -958,9 +957,9 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
             {(() => {
               const jobMemos = parseJobMemosFromField26(job.field26);
               const latestWorkMemo = jobMemos.length > 0 ? jobMemos[0] : null;
-              
+
               if (!latestWorkMemo) return null;
-              
+
               return (
                 <div className="bg-purple-50 border border-purple-400 rounded-md p-3 text-base">
                   <div className="flex items-center gap-2 mb-2">

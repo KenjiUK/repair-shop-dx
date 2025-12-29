@@ -160,7 +160,7 @@ export function NotificationBell({ jobs, refreshInterval = 60000 }: Notification
                 variant="ghost"
                 size="sm"
                 onClick={handleMarkAllAsRead}
-                className="h-10 text-base text-slate-700 hover:text-slate-900"
+                className="h-10 text-base text-slate-700 hover:text-slate-900 mr-8"
               >
                 <CheckCheck className="h-4 w-4 mr-1 shrink-0" />
                 全て既読

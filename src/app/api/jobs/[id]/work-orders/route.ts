@@ -34,13 +34,33 @@ export async function GET(
   try {
     const { id: jobId } = await params;
 
+    if (process.env.NODE_ENV === "development") {
+      console.log("[API] ワークオーダーAPI GET開始:", jobId);
+    }
+
     if (!jobId) {
       return errorResponse("Job IDが指定されていません", "MISSING_JOB_ID", 400);
     }
 
     // Zoho CRMからJobを取得
     const jobResult = await fetchJobById(jobId);
+    
+    if (process.env.NODE_ENV === "development") {
+      console.log("[API] ワークオーダーAPI fetchJobById結果:", {
+        jobId,
+        success: jobResult.success,
+        hasData: !!jobResult.data,
+        error: jobResult.error,
+      });
+    }
+    
     if (!jobResult.success || !jobResult.data) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[API] ワークオーダーAPI Job取得失敗:", {
+          jobId,
+          error: jobResult.error,
+        });
+      }
       return errorResponse(
         jobResult.error?.message || "Jobが見つかりません",
         jobResult.error?.code || "JOB_NOT_FOUND",
@@ -51,12 +71,32 @@ export async function GET(
     const zohoJob = jobResult.data;
 
     // field_work_ordersからワークオーダーリストをパース
-    // 注意: 現時点ではZohoJobにworkOrdersフィールドがないため、
-    // 将来的にZoho CRM APIから取得したfield_work_ordersをパースする必要がある
-    // 暫定実装として、空配列を返す
     const jobWithWorkOrders = zohoJob as ZohoJob & { field_work_orders?: string | null };
     const workOrdersJson = jobWithWorkOrders.field_work_orders || null;
+    
+    if (process.env.NODE_ENV === "development") {
+      console.log("[API] ワークオーダー取得:", {
+        jobId,
+        hasFieldWorkOrders: !!workOrdersJson,
+        workOrdersJsonLength: workOrdersJson?.length,
+        workOrdersJsonPreview: workOrdersJson?.substring(0, 200),
+      });
+    }
+    
     const workOrders = parseWorkOrdersFromZoho(workOrdersJson);
+    
+    if (process.env.NODE_ENV === "development") {
+      console.log("[API] パース後のワークオーダー:", {
+        count: workOrders.length,
+        workOrders: workOrders.map(wo => ({
+          id: wo.id,
+          serviceKind: wo.serviceKind,
+          status: wo.status,
+          hasVendor: !!wo.vendor,
+          vendorName: wo.vendor?.name,
+        })),
+      });
+    }
 
     const response: ApiResponse<WorkOrder[]> = {
       success: true,

@@ -80,11 +80,11 @@ function formatPrice(price: number): string {
 function getPriorityLabel(priority: EstimatePriority): string {
   switch (priority) {
     case "required":
-      return "必須";
+      return "今回絶対必要";
     case "recommended":
-      return "推奨";
+      return "やったほうがいい";
     case "optional":
-      return "任意";
+      return "お客さん次第";
   }
 }
 
@@ -222,8 +222,8 @@ function SectionHeader({
   total: number;
 }) {
   const descriptions = {
-    required: "車検・点検に必要な整備です",
-    recommended: "メカニックが推奨する整備です",
+    required: "安全上・法規上、今回の整備で必須の作業です",
+    recommended: "整備士として推奨する作業です",
     optional: "ご希望に応じてお選びください",
   };
 
@@ -232,7 +232,7 @@ function SectionHeader({
       <div className="flex items-center gap-2">
         <div className={cn("w-1 h-6 rounded-full shrink-0", getPriorityColor(priority))} />
         <div>
-          <p className="text-lg font-bold text-slate-900">{getPriorityLabel(priority)}整備</p>
+          <p className="text-lg font-bold text-slate-900">{getPriorityLabel(priority)}</p>
           <p className="text-base text-slate-700">{descriptions[priority]}</p>
         </div>
       </div>
@@ -1000,7 +1000,7 @@ export default function CustomerApprovalPage() {
           </>
         )}
 
-        {/* 必須整備セクション */}
+        {/* 今回絶対必要セクション */}
         <section className="mb-6">
           <SectionHeader
             priority="required"
@@ -1020,13 +1020,13 @@ export default function CustomerApprovalPage() {
           </div>
           <div className="mt-2 flex items-center gap-2 text-base text-slate-700">
             <Lock className="h-4 w-4 shrink-0" />
-            <span>必須項目は変更できません</span>
+            <span>今回絶対必要な項目は変更できません</span>
           </div>
         </section>
 
         <Separator className="my-6" />
 
-        {/* 推奨整備セクション */}
+        {/* やったほうがいいセクション */}
         <section className="mb-6">
           <SectionHeader
             priority="recommended"
@@ -1048,7 +1048,7 @@ export default function CustomerApprovalPage() {
 
         <Separator className="my-6" />
 
-        {/* 任意整備セクション */}
+        {/* お客さん次第セクション */}
         <section className="mb-6">
           <SectionHeader
             priority="optional"

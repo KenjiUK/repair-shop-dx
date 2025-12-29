@@ -39,17 +39,17 @@ const SERVICE_ITEM_MASTER = [
 // =============================================================================
 
 interface DiagnosisAdditionalEstimateSectionProps {
-  /** 必須整備項目 */
+  /** 今回絶対必要な項目（旧: 必須整備） */
   requiredItems?: EstimateLineItem[];
-  /** 推奨整備項目 */
+  /** やったほうがいい項目（旧: 推奨整備） */
   recommendedItems?: EstimateLineItem[];
-  /** 任意整備項目 */
+  /** お客さん次第の項目（旧: 任意整備） */
   optionalItems?: EstimateLineItem[];
-  /** 必須整備項目更新ハンドラ */
+  /** 今回絶対必要項目更新ハンドラ */
   onRequiredItemsChange?: (items: EstimateLineItem[]) => void;
-  /** 推奨整備項目更新ハンドラ */
+  /** やったほうがいい項目更新ハンドラ */
   onRecommendedItemsChange?: (items: EstimateLineItem[]) => void;
-  /** 任意整備項目更新ハンドラ */
+  /** お客さん次第項目更新ハンドラ */
   onOptionalItemsChange?: (items: EstimateLineItem[]) => void;
   /** 無効化 */
   disabled?: boolean;
@@ -133,9 +133,9 @@ export function DiagnosisAdditionalEstimateSection({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* 必須整備セクション */}
+        {/* 今回絶対必要セクション（旧: 必須整備） */}
         <EstimateSubSection
-          title="必須整備"
+          title="今回絶対必要"
           priority="required"
           items={safeRequiredItems}
           onAdd={() => handleAddItem("required")}
@@ -144,9 +144,9 @@ export function DiagnosisAdditionalEstimateSection({
           disabled={disabled}
         />
 
-        {/* 推奨整備セクション */}
+        {/* やったほうがいいセクション（旧: 推奨整備） */}
         <EstimateSubSection
-          title="推奨整備"
+          title="やったほうがいい"
           priority="recommended"
           items={safeRecommendedItems}
           onAdd={() => handleAddItem("recommended")}
@@ -155,9 +155,9 @@ export function DiagnosisAdditionalEstimateSection({
           disabled={disabled}
         />
 
-        {/* 任意整備セクション */}
+        {/* お客さん次第セクション（旧: 任意整備） */}
         <EstimateSubSection
-          title="任意整備"
+          title="お客さん次第"
           priority="optional"
           items={safeOptionalItems}
           onAdd={() => handleAddItem("optional")}
@@ -175,7 +175,12 @@ export function DiagnosisAdditionalEstimateSection({
 // =============================================================================
 
 /**
- * 見積サブセクション（推奨整備・任意整備）
+ * 見積サブセクション
+ * 
+ * 優先度別の作業項目を表示・編集するサブセクション
+ * - 今回絶対必要（required）: 安全上・法規上、今回の整備で必須の作業
+ * - やったほうがいい（recommended）: 整備士として推奨する作業
+ * - お客さん次第（optional）: お客様の判断に委ねる作業
  */
 function EstimateSubSection({
   title,

@@ -161,6 +161,8 @@ export interface ZohoJob {
   /** バージョン番号（競合制御用、シナリオパターン8） */
   /** 更新のたびにインクリメントされる */
   version?: number | null;
+  /** ワークオーダーリスト（Multi-Line JSON形式で保存） */
+  field_work_orders?: string | null;
 }
 
 /**
@@ -950,14 +952,22 @@ export interface TimingEvent extends UsageAnalytics {
 
 /**
  * ワークオーダーステータス
+ * 
+ * 複合業務管理対応版
+ * - 内製作業: 未開始 → 受入点検中 → 診断中 → 見積作成待ち → 顧客承認待ち → 作業待ち → 作業中 → 完了
+ * - 外注作業: 未開始 → 外注調整中 → 外注見積待ち → 顧客承認待ち → 外注作業中 → 完了
  */
 export type WorkOrderStatus =
   | "未開始"
+  | "受入点検中"
   | "診断中"
   | "見積作成待ち"
   | "顧客承認待ち"
   | "作業待ち"
   | "作業中"
+  | "外注調整中"
+  | "外注見積待ち"
+  | "外注作業中"
   | "完了";
 
 /**
@@ -1085,6 +1095,20 @@ export interface WorkOrder {
   mechanicApprover?: string | null;
   /** 承認日時 */
   mechanicApprovedAt?: string | null; // ISO8601
+  /** 外注先情報（外注作業の場合） */
+  vendor?: {
+    /** 外注先名 */
+    name: string;
+    /** 連絡先（電話番号など） */
+    contact?: string;
+    /** 外注先からの見積受領日時 */
+    estimateReceivedAt?: string | null; // ISO8601
+    /** 外注先からの作業完了報告日時 */
+    workCompletedAt?: string | null; // ISO8601
+    /** 備考 */
+    notes?: string;
+    [key: string]: unknown;
+  } | null;
   /** 作成日時 */
   createdAt: string;
   /** 更新日時 */

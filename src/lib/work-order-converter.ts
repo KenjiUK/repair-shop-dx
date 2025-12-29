@@ -67,19 +67,32 @@ export function parseWorkOrdersFromZoho(
       return [];
     }
 
-    return parsed.map((wo: Partial<WorkOrder> & { [key: string]: unknown }) => ({
-      id: wo.id || `wo-${Date.now()}`,
-      jobId: wo.jobId || "",
-      serviceKind: wo.serviceKind || "その他",
-      status: (wo.status || "未開始") as WorkOrderStatus,
-      diagnosis: wo.diagnosis,
-      estimate: wo.estimate,
-      work: wo.work,
-      baseSystemItemId: wo.baseSystemItemId,
-      cost: wo.cost,
-      createdAt: wo.createdAt || new Date().toISOString(),
-      updatedAt: wo.updatedAt || new Date().toISOString(),
-    }));
+    return parsed.map((wo: Partial<WorkOrder> & { [key: string]: unknown }) => {
+      const mapped = {
+        id: wo.id || `wo-${Date.now()}`,
+        jobId: wo.jobId || "",
+        serviceKind: wo.serviceKind || "その他",
+        status: (wo.status || "未開始") as WorkOrderStatus,
+        diagnosis: wo.diagnosis,
+        estimate: wo.estimate,
+        work: wo.work,
+        baseSystemItemId: wo.baseSystemItemId,
+        cost: wo.cost,
+        vendor: wo.vendor || null,
+        createdAt: wo.createdAt || new Date().toISOString(),
+        updatedAt: wo.updatedAt || new Date().toISOString(),
+      };
+      
+      if (process.env.NODE_ENV === "development" && wo.vendor) {
+        console.log("[work-order-converter] vendor情報をマッピング:", {
+          workOrderId: mapped.id,
+          serviceKind: mapped.serviceKind,
+          vendor: mapped.vendor,
+        });
+      }
+      
+      return mapped;
+    });
   } catch (error) {
     console.error("ワークオーダーJSONのパースエラー:", error);
     return [];

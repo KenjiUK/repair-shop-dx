@@ -281,23 +281,23 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
 
   // ワークオーダーを取得（写真数の計算用）
   const { workOrders } = useWorkOrders(job.id);
-  
+
   // 見積があるワークオーダーを特定（マジックリンク生成用）
   const workOrderWithEstimate = useMemo(() => {
     if (!workOrders || workOrders.length === 0) return null;
     // 見積がある最初のワークオーダーを返す
     return workOrders.find((wo) => wo.estimate && wo.estimate.items && wo.estimate.items.length > 0) || null;
   }, [workOrders]);
-  
+
   // 見積承認リンクのクリックハンドラ（マジックリンク生成）
   const [isGeneratingMagicLink, setIsGeneratingMagicLink] = useState(false);
   const handleEstimateApprovalClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     e.stopPropagation();
     triggerHapticFeedback("light");
-    
+
     if (isGeneratingMagicLink) return;
-    
+
     setIsGeneratingMagicLink(true);
     try {
       const result = await generateMagicLink({
@@ -305,7 +305,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         workOrderId: workOrderWithEstimate?.id,
         expiresIn: 7 * 24 * 60 * 60, // 7日間
       });
-      
+
       if (result.success && result.url) {
         window.open(result.url, "_blank", "noopener,noreferrer");
       } else {
@@ -403,7 +403,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
       // ファイル名から位置情報を抽出
       const fileName = photo.fileName.toLowerCase();
       let position: string | undefined;
-      
+
       // ファイル名に位置情報が含まれているか確認
       if (fileName.includes("front") || fileName.includes("前面") || fileName.includes("00_")) {
         position = "front";
@@ -418,7 +418,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
       } else if (fileName.includes("interior") || fileName.includes("内装") || fileName.includes("05_")) {
         position = "interior";
       }
-      
+
       return {
         ...photo,
         position,
@@ -432,20 +432,20 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
     if (blogPhotosWithPosition.length > 0) {
       const frontPhoto = blogPhotosWithPosition.find((p) => p.position === "front");
       if (frontPhoto) return frontPhoto.url;
-      
+
       const rearPhoto = blogPhotosWithPosition.find((p) => p.position === "rear");
       if (rearPhoto) return rearPhoto.url;
-      
+
       const leftPhoto = blogPhotosWithPosition.find((p) => p.position === "left");
       if (leftPhoto) return leftPhoto.url;
-      
+
       const rightPhoto = blogPhotosWithPosition.find((p) => p.position === "right");
       if (rightPhoto) return rightPhoto.url;
-      
+
       // 位置情報がない場合は最初の写真
       return blogPhotosWithPosition[0].url;
     }
-    
+
     // 優先順位2: 社内用写真（診断写真、作業写真）
     if (workOrders && workOrders.length > 0) {
       // 診断写真
@@ -454,7 +454,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
           return wo.diagnosis.photos[0].url;
         }
       }
-      
+
       // 作業写真（before > after > general）
       for (const wo of workOrders) {
         if (wo.work?.records && Array.isArray(wo.work.records)) {
@@ -470,7 +470,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         }
       }
     }
-    
+
     // 写真がない場合、サンプル画像を返す（開発環境のみ）
     return getSamplePhotoUrl(vehicleName);
   }, [blogPhotosWithPosition, workOrders, vehicleName]);
@@ -479,10 +479,10 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
   // 写真の総数を計算（ブログ用写真 + 社内用写真の合計）
   const photoCount = useMemo(() => {
     let count = 0;
-    
+
     // ブログ用写真
     count += blogPhotosWithPosition.length;
-    
+
     // 社内用写真（診断写真と作業写真）
     if (workOrders && workOrders.length > 0) {
       workOrders.forEach((wo) => {
@@ -500,7 +500,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
         }
       });
     }
-    
+
     return count;
   }, [blogPhotosWithPosition, workOrders]);
 
@@ -558,7 +558,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
   // 代車変更ハンドラ
   const handleCourtesyCarChange = async (newCarId: string | null) => {
     if (isChangingCourtesyCar) return;
-    
+
     try {
       setIsChangingCourtesyCar(true);
       triggerHapticFeedback("medium");
@@ -641,7 +641,7 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
       // PDFをプレビュー表示（新しいタブで開く）
       const url = URL.createObjectURL(result.data);
       window.open(url, "_blank");
-      
+
       // URLは自動的にクリーンアップされる（ブラウザがタブを閉じた時）
       // 念のため、少し遅延してからrevoke（タブが開くのを待つ）
       setTimeout(() => {
@@ -714,6 +714,27 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
 
   // アクション設定を取得
   const actionConfig = getActionConfig(job, handleCheckIn);
+  
+  // 複合作業の場合は作業グループ選択画面に遷移するようにhrefを上書き
+  const finalHref = useMemo(() => {
+    if (!actionConfig.href) return actionConfig.href;
+    
+    // 診断画面への遷移の場合のみ、複合作業をチェック
+    if (actionConfig.href.startsWith(`/mechanic/diagnosis/${job.id}`)) {
+      // ワークオーダーが2つ以上ある場合は選択画面に遷移
+      if (workOrders && workOrders.length > 1) {
+        return `/mechanic/diagnosis/${job.id}/select`;
+      }
+    }
+    
+    // 作業画面への遷移の場合も同様にチェック
+    if (actionConfig.href.startsWith(`/mechanic/work/${job.id}`)) {
+      // ワークオーダーが2つ以上ある場合は選択画面に遷移（将来実装）
+      // 現時点では作業画面は複合作業に対応していないため、そのまま
+    }
+    
+    return actionConfig.href;
+  }, [actionConfig.href, job.id, workOrders]);
 
   // 承認済み作業内容があるかチェック
   const hasApprovedWorkItems = job.field13 && (job.field5 === "見積提示済み" || job.field5 === "作業待ち" || job.field5 === "出庫待ち" || job.field5 === "出庫済み");
@@ -1123,13 +1144,13 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
           {actionConfig && actionConfig.priority !== "none" && (
             <>
               {(actionConfig.priority === "high" || actionConfig.priority === "medium") ? (
-                actionConfig.href ? (
+                finalHref ? (
                   <Button
                     asChild
                     className={cn("h-12 w-full text-white text-sm font-semibold", actionConfig.buttonBgColor, actionConfig.buttonHoverColor)}
                   >
                     <Link
-                      href={actionConfig.href}
+                      href={finalHref}
                       prefetch={true}
                       onClick={() => {
                         document.body.setAttribute("data-navigating", "true");
@@ -1179,7 +1200,6 @@ export const JobCard = memo(function JobCard({ job, onCheckIn, isCheckingIn = fa
                 variant="outline"
                 className="w-full h-10 bg-white border-rose-200 text-rose-700 hover:bg-rose-50 text-base font-medium"
               >
-                <FileText className="h-4 w-4 mr-1.5 shrink-0" />
                 詳細を見る
               </Button>
             </div>
