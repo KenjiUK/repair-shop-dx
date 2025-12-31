@@ -29,30 +29,30 @@ export const customers: ZohoCustomer[] = [
     id: "cust-001",
     ID1: "K1001",
     customerId: "K1001",
-    Last_Name: "田中",
-    lastName: "田中",
-    First_Name: "太郎",
-    firstName: "太郎",
-    Business_Messaging_Line_Id: "tanaka_taro_line",
-    lineId: "tanaka_taro_line",
+    Last_Name: "(株)ワイエムコーポレーション",
+    lastName: "(株)ワイエムコーポレーション",
+    First_Name: null,
+    firstName: null,
+    Business_Messaging_Line_Id: null,
+    lineId: null,
     Email_Opt_Out: false,
     emailOptOut: false,
-    Email: "tanaka.taro@example.com",
+    Email: "ymc@ymworks.com",
     Secondary_Email: null,
-    Date_of_Birth: "1975-06-15",
-    dateOfBirth: "1975-06-15",
-    Mailing_Street: "東京都品川区東品川",
-    mailingStreet: "東京都品川区東品川",
-    field4: "2-3-5",
-    addressNumber: "2-3-5",
-    field6: "品川シーサイドビル 501",
-    buildingName: "品川シーサイドビル 501",
-    Phone: "03-1234-5678",
-    phone: "03-1234-5678",
-    Mobile: "090-1234-5678",
-    mobile: "090-1234-5678",
-    Description: "【アプリ変更届】2025-01-15 10:30: 携帯番号: 090-1234-5678 → 080-9999-8888",
-    description: "【アプリ変更届】2025-01-15 10:30: 携帯番号: 090-1234-5678 → 080-9999-8888",
+    Date_of_Birth: null,
+    dateOfBirth: null,
+    Mailing_Street: "大阪府堺市美原区丹上",
+    mailingStreet: "大阪府堺市美原区丹上",
+    field4: "469-1",
+    addressNumber: "469-1",
+    field6: null,
+    buildingName: null,
+    Phone: "072-363-3381",
+    phone: "072-363-3381",
+    Mobile: null,
+    mobile: null,
+    Description: null,
+    description: null,
     Booking_Phone_Temp: null,
     bookingPhoneTemp: null,
   },
@@ -531,14 +531,14 @@ export const customers: ZohoCustomer[] = [
 export const vehicles: ZohoVehicle[] = [
   {
     id: "veh-001",
-    Name: "V001",
-    vehicleId: "V001",
-    field44: "品川 300 あ 1234",
-    licensePlate: "品川 300 あ 1234",
+    Name: "B1934",
+    vehicleId: "B1934",
+    field44: "堺 500 ぬ 3541",
+    licensePlate: "堺 500 ぬ 3541",
     ID1: "K1001",
     customerId: "K1001",
-    field7: "2025-12-15",
-    inspectionExpiry: "2025-12-15",
+    field7: "2022-02-16",
+    inspectionExpiry: "2022-02-16",
   },
   {
     id: "veh-002",
@@ -909,8 +909,8 @@ export const jobs: ZohoJob[] = [
     mileage: 78500,
     field13: null,
     approvedWorkItems: null,
-    field19: "https://drive.google.com/drive/folders/xxx",
-    customerFolderUrl: "https://drive.google.com/drive/folders/xxx",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-003",
     bookingId: "booking-003",
     field12: null,
@@ -940,25 +940,25 @@ export const jobs: ZohoJob[] = [
         },
         estimate: {
           items: [
-            { 
-              id: "est-003-1", 
-              name: "足回り", 
-              price: 0, 
-              priority: "recommended" as const, 
-              selected: true, 
-              linkedPhotoUrls: ["https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=400&h=300&fit=crop"], 
-              linkedVideoUrl: null, 
-              note: "タイヤ溝残り4mm。次回交換推奨。" 
+            {
+              id: "est-003-1",
+              name: "足回り",
+              price: 0,
+              priority: "recommended" as const,
+              selected: true,
+              linkedPhotoUrls: ["https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=400&h=300&fit=crop"],
+              linkedVideoUrl: null,
+              note: "タイヤ溝残り4mm。次回交換推奨。"
             },
-            { 
-              id: "est-003-2", 
-              name: "エアコンフィルター", 
-              price: 0, 
-              priority: "recommended" as const, 
-              selected: true, 
-              linkedPhotoUrls: ["https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400&h=300&fit=crop"], 
-              linkedVideoUrl: null, 
-              note: "やや汚れあり。交換推奨。" 
+            {
+              id: "est-003-2",
+              name: "エアコンフィルター",
+              price: 0,
+              priority: "recommended" as const,
+              selected: true,
+              linkedPhotoUrls: ["https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400&h=300&fit=crop"],
+              linkedVideoUrl: null,
+              note: "やや汚れあり。交換推奨。"
             },
           ],
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7日後
@@ -990,8 +990,8 @@ export const jobs: ZohoJob[] = [
     mileage: 32000,
     field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
     approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
-    field19: "https://drive.google.com/drive/folders/yyy",
-    customerFolderUrl: "https://drive.google.com/drive/folders/yyy",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-004",
     bookingId: "booking-004",
     field12: null,
@@ -1048,8 +1048,8 @@ export const jobs: ZohoJob[] = [
     mileage: 55000,
     field13: "タイヤ履き替え（4本）: ¥4,400\nタイヤバランス調整: ¥2,200\nブレーキ点検: ¥3,300",
     approvedWorkItems: "タイヤ履き替え（4本）: ¥4,400\nタイヤバランス調整: ¥2,200\nブレーキ点検: ¥3,300",
-    field19: "https://drive.google.com/drive/folders/zzz",
-    customerFolderUrl: "https://drive.google.com/drive/folders/zzz",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-005",
     bookingId: "booking-005",
     field12: null,
@@ -1465,8 +1465,8 @@ export const jobs: ZohoJob[] = [
     mileage: 42000,
     field13: "フロントバンパー板金・塗装: ¥180,000\nボンネット板金・塗装: ¥120,000\nヘッドライト交換: ¥80,000",
     approvedWorkItems: "フロントバンパー板金・塗装: ¥180,000\nボンネット板金・塗装: ¥120,000\nヘッドライト交換: ¥80,000",
-    field19: "https://drive.google.com/drive/folders/bodypaint-002",
-    customerFolderUrl: "https://drive.google.com/drive/folders/bodypaint-002",
+    field19: null, // "https://drive.google.com/drive/folders/bodypaint-002",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/bodypaint-002",
     ID_BookingId: "booking-017",
     bookingId: "booking-017",
     field12: null,
@@ -1505,8 +1505,8 @@ export const jobs: ZohoJob[] = [
     mileage: 95000,
     field13: "エンジンオーバーホール: ¥900,000\nサスペンションオーバーホール: ¥600,000\n内装復元: ¥500,000",
     approvedWorkItems: "エンジンオーバーホール: ¥900,000\nサスペンションオーバーホール: ¥600,000\n内装復元: ¥500,000",
-    field19: "https://drive.google.com/drive/folders/restore-004",
-    customerFolderUrl: "https://drive.google.com/drive/folders/restore-004",
+    field19: null, // "https://drive.google.com/drive/folders/restore-004",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/restore-004",
     ID_BookingId: "booking-018",
     bookingId: "booking-018",
     field12: null,
@@ -1552,8 +1552,8 @@ export const jobs: ZohoJob[] = [
     mileage: 78000,
     field13: "左側面パネル板金: ¥250,000\n左側面パネル塗装: ¥150,000\nドア交換: ¥180,000",
     approvedWorkItems: "左側面パネル板金: ¥250,000\n左側面パネル塗装: ¥150,000\nドア交換: ¥180,000",
-    field19: "https://drive.google.com/drive/folders/bodypaint-003",
-    customerFolderUrl: "https://drive.google.com/drive/folders/bodypaint-003",
+    field19: null, // "https://drive.google.com/drive/folders/bodypaint-003",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/bodypaint-003",
     ID_BookingId: "booking-019",
     bookingId: "booking-019",
     field12: null,
@@ -1592,8 +1592,8 @@ export const jobs: ZohoJob[] = [
     mileage: 65000,
     field13: "ボディ全塗装: ¥700,000\nパワートレインオーバーホール: ¥850,000\nサスペンション調整: ¥350,000",
     approvedWorkItems: "ボディ全塗装: ¥700,000\nパワートレインオーバーホール: ¥850,000\nサスペンション調整: ¥350,000",
-    field19: "https://drive.google.com/drive/folders/restore-005",
-    customerFolderUrl: "https://drive.google.com/drive/folders/restore-005",
+    field19: null, // "https://drive.google.com/drive/folders/restore-005",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/restore-005",
     ID_BookingId: "booking-020",
     bookingId: "booking-020",
     field12: null,
@@ -1631,10 +1631,10 @@ export const jobs: ZohoJob[] = [
     arrivalDateTime: todayISO.replace(/T.*/, "T14:00:00+09:00"),
     field5: "作業待ち",
     stage: "作業待ち",
-    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    field6: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
-    vehicle: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
+    field4: { id: "cust-001", name: "(株)ワイエムコーポレーション" } as ZohoLookup,
+    customer: { id: "cust-001", name: "(株)ワイエムコーポレーション" } as ZohoLookup,
+    field6: { id: "veh-001", name: "ベリーサ / 堺 500 ぬ 3541" } as ZohoLookup,
+    vehicle: { id: "veh-001", name: "ベリーサ / 堺 500 ぬ 3541" } as ZohoLookup,
     field: "[山田] お客様から追加でエアコンフィルター交換も希望とのこと。また、タイヤの溝も確認してほしいとのことです。",
     workOrder: "[山田] お客様から追加でエアコンフィルター交換も希望とのこと。また、タイヤの溝も確認してほしいとのことです。",
     field7: "【事前入力】ブレーキから異音がする。高速道路走行時に振動を感じる。エアコンの効きも最近悪くなってきた気がする。",
@@ -1643,8 +1643,8 @@ export const jobs: ZohoJob[] = [
     mileage: 45000,
     field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nエアコンフィルター交換: ¥3,300\nブレーキパッド交換（前輪）: ¥18,000\nブレーキローター交換（前輪）: ¥25,000",
     approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nエアコンフィルター交換: ¥3,300\nブレーキパッド交換（前輪）: ¥18,000\nブレーキローター交換（前輪）: ¥25,000",
-    field19: "https://drive.google.com/drive/folders/sample-folder-001",
-    customerFolderUrl: "https://drive.google.com/drive/folders/sample-folder-001",
+    field19: null, // "https://drive.google.com/drive/folders/sample-folder-001",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/sample-folder-001",
     ID_BookingId: "booking-021",
     bookingId: "booking-021",
     field12: null,
@@ -1666,10 +1666,10 @@ export const jobs: ZohoJob[] = [
     arrivalDateTime: todayISO.replace(/T.*/, "T08:00:00+09:00"),
     field5: "入庫待ち",
     stage: "入庫待ち",
-    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    field6: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
-    vehicle: { id: "veh-001", name: "BMW X3 / 品川 300 あ 1234" } as ZohoLookup,
+    field4: { id: "cust-001", name: "(株)ワイエムコーポレーション" } as ZohoLookup,
+    customer: { id: "cust-001", name: "(株)ワイエムコーポレーション" } as ZohoLookup,
+    field6: { id: "veh-001", name: "ベリーサ / 堺 500 ぬ 3541" } as ZohoLookup,
+    vehicle: { id: "veh-001", name: "ベリーサ / 堺 500 ぬ 3541" } as ZohoLookup,
     serviceKind: "車検" as ServiceKind,
     field_service_kinds: ["車検"] as ServiceKind[],
     field: null,
@@ -1723,8 +1723,8 @@ export const jobs: ZohoJob[] = [
     mileage: 52000,
     field13: null,
     approvedWorkItems: null,
-    field19: "https://drive.google.com/drive/folders/test-shaken-02",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-02",
+    field19: null, // "https://drive.google.com/drive/folders/test-shaken-02",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/test-shaken-02",
     ID_BookingId: "booking-test-shaken-02",
     bookingId: "booking-test-shaken-02",
     field12: null,
@@ -1746,6 +1746,7 @@ export const jobs: ZohoJob[] = [
           ],
           photos: [],
           mileage: 52000,
+          startedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前に診断開始
         },
         estimate: null,
         work: null,
@@ -1763,6 +1764,7 @@ export const jobs: ZohoJob[] = [
           ],
           photos: [],
           mileage: 52000,
+          startedAt: new Date(Date.now() - 0.5 * 60 * 60 * 1000).toISOString(), // 30分前に診断開始
         },
         estimate: null,
         work: null,
@@ -1800,8 +1802,8 @@ export const jobs: ZohoJob[] = [
     mileage: 78500,
     field13: null,
     approvedWorkItems: null,
-    field19: "https://drive.google.com/drive/folders/test-shaken-03",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-03",
+    field19: null, // "https://drive.google.com/drive/folders/test-shaken-03",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/test-shaken-03",
     ID_BookingId: "booking-test-shaken-03",
     bookingId: "booking-test-shaken-03",
     field12: null,
@@ -1857,8 +1859,8 @@ export const jobs: ZohoJob[] = [
     mileage: 65000,
     field13: null,
     approvedWorkItems: null,
-    field19: "https://drive.google.com/drive/folders/test-shaken-04",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-04",
+    field19: null, // "https://drive.google.com/drive/folders/test-shaken-04",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/test-shaken-04",
     ID_BookingId: "booking-test-shaken-04",
     bookingId: "booking-test-shaken-04",
     field12: null,
@@ -1918,8 +1920,8 @@ export const jobs: ZohoJob[] = [
     mileage: 55000,
     field13: "法定24ヶ月点検: ¥15,000\nタイヤ交換（4本）: ¥88,000\nエアコンフィルター交換: ¥5,500",
     approvedWorkItems: "法定24ヶ月点検: ¥15,000\nタイヤ交換（4本）: ¥88,000\nエアコンフィルター交換: ¥5,500",
-    field19: "https://drive.google.com/drive/folders/test-shaken-05",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-shaken-05",
+    field19: null, // "https://drive.google.com/drive/folders/test-shaken-05",
+    customerFolderUrl: null, // "https://drive.google.com/drive/folders/test-shaken-05",
     ID_BookingId: "booking-test-shaken-05",
     bookingId: "booking-test-shaken-05",
     field12: null,
@@ -2004,6 +2006,7 @@ export const jobs: ZohoJob[] = [
           ],
           photos: [],
           mileage: 120000,
+          startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2時間前に診断開始
         },
         estimate: {
           items: [
@@ -2014,7 +2017,8 @@ export const jobs: ZohoJob[] = [
         },
         work: {
           mechanicName: "中村",
-          completedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+          startedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前に作業開始
+          completedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30分前に作業完了
           records: [
             { time: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), content: "車検完了。タイヤ交換完了。" },
           ],
@@ -2197,8 +2201,8 @@ export const jobs: ZohoJob[] = [
     mileage: 65000,
     field13: null,
     approvedWorkItems: null,
-    field19: "https://drive.google.com/drive/folders/test-12month-03",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-03",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-test-12month-03",
     bookingId: "booking-test-12month-03",
     field12: null,
@@ -2250,8 +2254,8 @@ export const jobs: ZohoJob[] = [
     mileage: 42000,
     field13: null,
     approvedWorkItems: null,
-    field19: "https://drive.google.com/drive/folders/test-12month-04",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-04",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-test-12month-04",
     bookingId: "booking-test-12month-04",
     field12: null,
@@ -2311,8 +2315,8 @@ export const jobs: ZohoJob[] = [
     mileage: 42000,
     field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nブレーキパッド交換（前輪）: ¥33,000",
     approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200\nブレーキパッド交換（前輪）: ¥33,000",
-    field19: "https://drive.google.com/drive/folders/test-12month-05",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-05",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-test-12month-05",
     bookingId: "booking-test-12month-05",
     field12: null,
@@ -2373,8 +2377,8 @@ export const jobs: ZohoJob[] = [
     mileage: 78000,
     field13: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
     approvedWorkItems: "法定12ヶ月点検: ¥15,000\nエンジンオイル交換: ¥5,500\nオイルフィルター交換: ¥2,200",
-    field19: "https://drive.google.com/drive/folders/test-12month-06",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-06",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-test-12month-06",
     bookingId: "booking-test-12month-06",
     field12: null,
@@ -2440,8 +2444,8 @@ export const jobs: ZohoJob[] = [
     mileage: 65000,
     field13: "法定12ヶ月点検: ¥15,000",
     approvedWorkItems: "法定12ヶ月点検: ¥15,000",
-    field19: "https://drive.google.com/drive/folders/test-12month-07",
-    customerFolderUrl: "https://drive.google.com/drive/folders/test-12month-07",
+    field19: null,
+    customerFolderUrl: null,
     ID_BookingId: "booking-test-12month-07",
     bookingId: "booking-test-12month-07",
     field12: null,
@@ -2491,10 +2495,10 @@ export const jobs: ZohoJob[] = [
     arrivalDateTime: todayISO.replace(/T.*/, "T09:00:00+09:00"),
     field5: "診断中",
     stage: "診断中",
-    field4: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    customer: { id: "cust-001", name: "田中 太郎" } as ZohoLookup,
-    field6: { id: "veh-001", name: "トヨタ プリウス / 品川 500 あ 1234" } as ZohoLookup,
-    vehicle: { id: "veh-001", name: "トヨタ プリウス / 品川 500 あ 1234" } as ZohoLookup,
+    field4: { id: "cust-001", name: "(株)ワイエムコーポレーション" } as ZohoLookup,
+    customer: { id: "cust-001", name: "(株)ワイエムコーポレーション" } as ZohoLookup,
+    field6: { id: "veh-001", name: "ベリーサ / 堺 500 ぬ 3541" } as ZohoLookup,
+    vehicle: { id: "veh-001", name: "ベリーサ / 堺 500 ぬ 3541" } as ZohoLookup,
     field: null,
     workOrder: null,
     field7: "車検と同時に左フェンダーの板金修理も希望。",
@@ -2529,6 +2533,7 @@ export const jobs: ZohoJob[] = [
           ],
           photos: [],
           mileage: 85000,
+          startedAt: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(), // 1.5時間前に診断開始
         },
         estimate: null,
         work: null,
@@ -2546,6 +2551,7 @@ export const jobs: ZohoJob[] = [
           ],
           photos: [],
           mileage: 85000,
+          startedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1時間前に診断開始
         },
         estimate: null,
         work: null,
@@ -2557,6 +2563,61 @@ export const jobs: ZohoJob[] = [
           workCompletedAt: null,
         },
         createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+    ]),
+  } as any,
+
+  // === 複合業務サンプル: 車検 + オイル交換（受付前） ===
+  {
+    id: "test-composite-02",
+    field22: todayISO.replace(/T.*/, "T10:00:00+09:00"),
+    arrivalDateTime: todayISO.replace(/T.*/, "T10:00:00+09:00"),
+    field5: "入庫待ち",
+    stage: "入庫待ち",
+    field4: { id: "cust-003", name: "鈴木 一郎" } as ZohoLookup,
+    customer: { id: "cust-003", name: "鈴木 一郎" } as ZohoLookup,
+    field6: { id: "veh-003", name: "ホンダ フィット / 品川 500 す 9012" } as ZohoLookup,
+    vehicle: { id: "veh-003", name: "ホンダ フィット / 品川 500 す 9012" } as ZohoLookup,
+    field: null,
+    workOrder: null,
+    field7: "車検とオイル交換を希望。",
+    details: "車検とオイル交換を希望。",
+    field10: 45000,
+    mileage: 45000,
+    field13: null,
+    approvedWorkItems: null,
+    field19: "https://drive.google.com/drive/folders/test-composite-02",
+    customerFolderUrl: "https://drive.google.com/drive/folders/test-composite-02",
+    ID_BookingId: "booking-composite-02",
+    bookingId: "booking-composite-02",
+    field12: null,
+    attachments: null,
+    tagId: null,
+    field_service_kinds: ["車検", "オイル交換"] as ServiceKind[],
+    serviceKind: "車検" as ServiceKind,
+    assignedMechanic: null,
+    field_work_orders: serializeWorkOrdersForZoho([
+      {
+        id: "wo-composite-02-inspection",
+        jobId: "test-composite-02",
+        serviceKind: "車検" as ServiceKind,
+        status: "未開始" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: "wo-composite-02-oil",
+        jobId: "test-composite-02",
+        serviceKind: "オイル交換" as ServiceKind,
+        status: "未開始" as WorkOrderStatus,
+        diagnosis: null,
+        estimate: null,
+        work: null,
+        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
       },
     ]),
@@ -2656,17 +2717,65 @@ export function getVehicleById(vehicleId: string): ZohoVehicle | undefined {
   return vehicles.find((v) => v.id === vehicleId || v.Name === vehicleId);
 }
 
+// =============================================================================
+// マスタデータ (Google Sheets - Mock)
+// =============================================================================
+
+import { MasterCustomer, MasterVehicle } from "@/types";
+
+/**
+ * 顧客マスタデータ（モック）
+ */
+export const customerMasters: MasterCustomer[] = [
+  {
+    顧客ID: "K1001",
+    顧客名: "(株)ワイエムコーポレーション",
+    住所連結: "大阪府堺市美原区丹上469-1",
+    電話番号: "072-363-3381",
+    携帯番号: "",
+  },
+];
+
+/**
+ * 車両マスタデータ（モック）
+ */
+export const vehicleMasters: MasterVehicle[] = [
+  {
+    車両ID: "B1934",
+    顧客ID: "K1001",
+    登録番号連結: "堺 500 ぬ 3541",
+    車名: "ベリーサ",
+    型式: "DBA-DC5W",
+    車検有効期限: "2022-02-16",
+    次回点検日: "",
+  },
+];
+
+/**
+ * 顧客IDから顧客マスタデータを取得（モック実装）
+ * 実際の実装では、Google Sheetsから取得する
+ */
+export function getCustomerMasterById(customerId: string): MasterCustomer | null {
+  return customerMasters.find((c) => c.顧客ID === customerId) || null;
+}
+
 /**
  * 車両IDから車両マスタデータを取得（モック実装）
  * 実際の実装では、Google Sheetsから取得する
  */
-export function getVehicleMasterById(vehicleId: string): import("@/types").MasterVehicle | null {
+export function getVehicleMasterById(vehicleId: string): MasterVehicle | null {
+  // まずマスタデータから検索
+  const master = vehicleMasters.find((v) => v.車両ID === vehicleId);
+  if (master) {
+    return master;
+  }
+  
+  // マスタデータにない場合は、ZohoVehicleから変換
   const vehicle = getVehicleById(vehicleId);
   if (!vehicle) {
     return null;
   }
   // ZohoVehicleからMasterVehicleに変換（簡易実装）
-  // 実際のマスタデータ構造に合わせて変換する必要がある
   return {
     車両ID: vehicle.Name || vehicle.vehicleId || vehicleId,
     顧客ID: vehicle.ID1 || vehicle.customerId || "",
@@ -2717,8 +2826,11 @@ export function getTodayJobs(): ZohoJob[] {
     "test-12month-05", // 作業待ち
     "test-12month-06", // 出庫待ち
     "test-12month-07", // 出庫済み
+    // 複合業務サンプル
+    "test-composite-01", // 診断中（受付後）
+    "test-composite-02", // 入庫待ち（受付前）
   ];
-  
+
   return jobs.filter((j) => testJobIds.includes(j.id));
 }
 
@@ -2731,15 +2843,15 @@ export function getAllLongTermProjectJobs(): ZohoJob[] {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const today = new Date();
   today.setHours(23, 59, 59, 999); // 今日の終わりまで
-  
+
   return jobs.filter((j) => {
     // 長期プロジェクトかどうかをチェック
     const serviceKinds = j.field_service_kinds || (j.serviceKind ? [j.serviceKind] : []);
-    const isLongTerm = serviceKinds.includes("レストア" as ServiceKind) || 
-                       serviceKinds.includes("板金・塗装" as ServiceKind);
-    
+    const isLongTerm = serviceKinds.includes("レストア" as ServiceKind) ||
+      serviceKinds.includes("板金・塗装" as ServiceKind);
+
     if (!isLongTerm) return false;
-    
+
     // 過去30日以内または今日の日付のジョブ
     const jobDate = new Date(j.field22);
     return jobDate >= thirtyDaysAgo && jobDate <= today;

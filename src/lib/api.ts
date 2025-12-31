@@ -90,7 +90,6 @@ function error(code: string, message: string): ApiResponse<never> {
  */
 export async function fetchJobs(): Promise<ApiResponse<ZohoJob[]>> {
   await delay();
-  console.log("[API] fetchJobs:", jobs.length, "件");
   return success([...jobs]);
 }
 
@@ -112,7 +111,6 @@ export async function fetchTodayJobs(): Promise<ApiResponse<ZohoJob[]>> {
     }
   });
 
-  console.log("[API] fetchTodayJobs:", todayJobs.length, "件");
   return success(todayJobs);
 }
 
@@ -122,7 +120,6 @@ export async function fetchTodayJobs(): Promise<ApiResponse<ZohoJob[]>> {
 export async function fetchAllLongTermProjectJobs(): Promise<ApiResponse<ZohoJob[]>> {
   await delay();
   const allLongTermJobs = getAllLongTermProjectJobs();
-  console.log("[API] fetchAllLongTermProjectJobs:", allLongTermJobs.length, "件");
   return success(allLongTermJobs);
 }
 
@@ -131,10 +128,49 @@ export async function fetchAllLongTermProjectJobs(): Promise<ApiResponse<ZohoJob
  */
 export async function fetchJobById(id: string): Promise<ApiResponse<ZohoJob>> {
   await delay();
+
+  // 検証用サンプルデータの注入
+  if (id === "sample-shaken-001") {
+    const sampleJob = {
+      id: "sample-shaken-001",
+      field5: "入庫済み",
+      stage: "入庫済み",
+      field6: { name: "BMW X3", id: "vehicle-001" }, // 車両
+      field4: { name: "山田 太郎", id: "customer-001" }, // 顧客
+      field10: 54000, // 走行距離
+      field22: new Date().toISOString(), // 入庫日時 (必須)
+      field: null, // 受付メモ
+      field7: "ブレーキから異音", // 不具合内容
+      field13: null, // 作業内容
+      field19: null, // 共有フォルダURL
+      field12: null, // 関連ファイル
+      ID_BookingId: null, // 予約ID
+      field_work_orders: JSON.stringify([
+        { id: "wo-sample-001", serviceKind: "車検", status: "未着手" }
+      ]),
+      // name: "車検 - BMW X3", // ZohoJob型にはnameプロパティがないためコメントアウト
+      // created_time: new Date().toISOString(), // ZohoJob型にはcreated_timeプロパティがないためコメントアウト
+      // updated_time: new Date().toISOString(), // ZohoJob型にはupdated_timeプロパティがないためコメントアウト
+      // 必須フィールドのダミー値
+      field1: "dummy",
+      Owner: { name: "Staff", id: "staff-001", email: "staff@example.com" },
+      Created_By: { name: "Admin", id: "admin-001", email: "admin@example.com" },
+      Modified_By: { name: "Admin", id: "admin-001", email: "admin@example.com" },
+      Tag: [],
+      $state: "save",
+      $approved: true,
+      $approval: { delegate: false, approve: false, reject: false, resubmit: false },
+      $editable: true,
+      $orchestration: false,
+      $in_merge: false,
+      $approval_state: "approved"
+    } as ZohoJob;
+    return success(sampleJob);
+  }
+
   const job = getJobById(id);
 
   if (!job) {
-    console.log("[API] fetchJobById: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -147,8 +183,6 @@ export async function fetchJobById(id: string): Promise<ApiResponse<ZohoJob>> {
     }
   }
 
-  console.log("[API] fetchJobById:", id, job.field4?.name, "Version:", job.version);
-  console.log("[API] fetchJobById RAW:", JSON.stringify(job, null, 2));
   return success({ ...job });
 }
 
@@ -163,7 +197,6 @@ export async function updateJobStatus(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobStatus: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -171,7 +204,6 @@ export async function updateJobStatus(
   jobs[jobIndex].field5 = status;
   jobs[jobIndex].stage = status;
 
-  console.log("[API] updateJobStatus:", id, "→", status);
   return success({ ...jobs[jobIndex] });
 }
 
@@ -187,7 +219,6 @@ export async function updateJobField6(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobField6: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -195,7 +226,6 @@ export async function updateJobField6(
   const { validateVehicleLookup } = await import("./lookup-field-validation");
   const validationResult = await validateVehicleLookup(vehicleId);
   if (!validationResult.success) {
-    console.log("[API] updateJobField6: Lookup validation failed", vehicleId);
     return error(
       "LOOKUP_VALIDATION_FAILED",
       validationResult.error?.message || `車両ID ${vehicleId} の検証に失敗しました`
@@ -205,7 +235,6 @@ export async function updateJobField6(
   // 車両を取得
   const vehicle = getVehicleById(vehicleId);
   if (!vehicle) {
-    console.log("[API] updateJobField6: Vehicle NOT FOUND", vehicleId);
     return error("NOT_FOUND", `Vehicle ${vehicleId} が見つかりません`);
   }
 
@@ -216,7 +245,6 @@ export async function updateJobField6(
   };
   jobs[jobIndex].vehicle = jobs[jobIndex].field6;
 
-  console.log("[API] updateJobField6:", id, "→", vehicleId);
   return success({ ...jobs[jobIndex] });
 }
 
@@ -231,7 +259,6 @@ export async function updateJobField10(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobField10: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -239,7 +266,6 @@ export async function updateJobField10(
   jobs[jobIndex].field10 = mileage;
   jobs[jobIndex].mileage = mileage;
 
-  console.log("[API] updateJobField10:", id, "→", mileage, "km");
   return success({ ...jobs[jobIndex] });
 }
 
@@ -254,7 +280,6 @@ export async function updateJobField7(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobField7: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -262,7 +287,6 @@ export async function updateJobField7(
   jobs[jobIndex].field7 = field7;
   jobs[jobIndex].details = field7;
 
-  console.log("[API] updateJobField7:", id);
   return success({ ...jobs[jobIndex] });
 }
 
@@ -277,7 +301,6 @@ export async function updateJobField26(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobField26: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -306,7 +329,6 @@ export async function updateJobField26(
     console.error("[API] updateJobField26: JSONパースエラー", error);
   }
 
-  console.log("[API] updateJobField26:", id, "→", field26 ? `${field26.substring(0, 50)}...` : "(削除)");
   return success({ ...jobs[jobIndex] });
 }
 
@@ -321,7 +343,6 @@ export async function addJobMemo(
 
   const jobIndex = jobs.findIndex((j) => j.id === jobId);
   if (jobIndex === -1) {
-    console.log("[API] addJobMemo: NOT FOUND", jobId);
     return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
   }
 
@@ -336,7 +357,6 @@ export async function addJobMemo(
   jobs[jobIndex].jobMemos = updatedMemos;
   jobs[jobIndex].lastMemoUpdatedAt = new Date().toISOString();
 
-  console.log("[API] addJobMemo:", jobId, "→", memo.content.substring(0, 50));
   return success({ ...jobs[jobIndex] });
 }
 
@@ -352,7 +372,6 @@ export async function updateJobMemo(
 
   const jobIndex = jobs.findIndex((j) => j.id === jobId);
   if (jobIndex === -1) {
-    console.log("[API] updateJobMemo: NOT FOUND", jobId);
     return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
   }
 
@@ -375,7 +394,6 @@ export async function updateJobMemo(
   jobs[jobIndex].jobMemos = updatedMemos;
   jobs[jobIndex].lastMemoUpdatedAt = new Date().toISOString();
 
-  console.log("[API] updateJobMemo:", jobId, memoId, "→", content.substring(0, 50));
   return success({ ...jobs[jobIndex] });
 }
 
@@ -390,7 +408,6 @@ export async function deleteJobMemo(
 
   const jobIndex = jobs.findIndex((j) => j.id === jobId);
   if (jobIndex === -1) {
-    console.log("[API] deleteJobMemo: NOT FOUND", jobId);
     return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
   }
 
@@ -405,7 +422,6 @@ export async function deleteJobMemo(
   jobs[jobIndex].jobMemos = updatedMemos.length > 0 ? updatedMemos : undefined;
   jobs[jobIndex].lastMemoUpdatedAt = updatedMemos.length > 0 ? new Date().toISOString() : null;
 
-  console.log("[API] deleteJobMemo:", jobId, memoId);
   return success({ ...jobs[jobIndex] });
 }
 
@@ -421,7 +437,6 @@ export async function updateJobDiagnosisFee(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobDiagnosisFee: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -448,7 +463,6 @@ export async function updateJobDiagnosisFee(
     jobs[jobIndex].details = newDetails;
   }
 
-  console.log("[API] updateJobDiagnosisFee:", id, "→", diagnosisFee !== null ? `¥${diagnosisFee.toLocaleString()}` : "(削除)");
   return success({ ...jobs[jobIndex] });
 }
 
@@ -463,7 +477,6 @@ export async function updateJobBaseSystemId(
 
   const jobIndex = jobs.findIndex((j) => j.id === id);
   if (jobIndex === -1) {
-    console.log("[API] updateJobBaseSystemId: NOT FOUND", id);
     return error("NOT_FOUND", `Job ${id} が見つかりません`);
   }
 
@@ -471,7 +484,27 @@ export async function updateJobBaseSystemId(
   jobs[jobIndex].field_base_system_id = baseSystemId;
   jobs[jobIndex].baseSystemId = baseSystemId;
 
-  console.log("[API] updateJobBaseSystemId:", id, "→", baseSystemId);
+  return success({ ...jobs[jobIndex] });
+}
+
+/**
+ * Jobのfield19（お客様共有フォルダURL）を更新
+ */
+export async function updateJobField19(
+  id: string,
+  folderUrl: string
+): Promise<ApiResponse<ZohoJob>> {
+  await delay();
+
+  const jobIndex = jobs.findIndex((j) => j.id === id);
+  if (jobIndex === -1) {
+    return error("NOT_FOUND", `Job ${id} が見つかりません`);
+  }
+
+  // field19を更新（モックなので直接変更）
+  jobs[jobIndex].field19 = folderUrl;
+  jobs[jobIndex].customerFolderUrl = folderUrl;
+
   return success({ ...jobs[jobIndex] });
 }
 
@@ -494,20 +527,17 @@ export async function checkIn(
   // ジョブを検索
   const jobIndex = jobs.findIndex((j) => j.id === jobId);
   if (jobIndex === -1) {
-    console.log("[API] checkIn: JOB NOT FOUND", jobId);
     return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
   }
 
   // タグを検索
   const tagIndex = smartTags.findIndex((t) => t.tagId === tagId);
   if (tagIndex === -1) {
-    console.log("[API] checkIn: TAG NOT FOUND", tagId);
     return error("NOT_FOUND", `Tag ${tagId} が見つかりません`);
   }
 
   // タグが使用中でないか確認
   if (smartTags[tagIndex].status === "in_use") {
-    console.log("[API] checkIn: TAG IN USE", tagId);
     return error("TAG_IN_USE", `Tag ${tagId} は既に使用中です`);
   }
 
@@ -517,13 +547,11 @@ export async function checkIn(
   if (courtesyCarId) {
     carIndex = courtesyCars.findIndex((c) => c.carId === courtesyCarId);
     if (carIndex === -1) {
-      console.log("[API] checkIn: CAR NOT FOUND", courtesyCarId);
       return error("NOT_FOUND", `代車 ${courtesyCarId} が見つかりません`);
     }
 
     // 代車が利用可能（available）または選択中（reserving）の場合のみ貸出可能
     if (courtesyCars[carIndex].status !== "available" && courtesyCars[carIndex].status !== "reserving") {
-      console.log("[API] checkIn: CAR NOT AVAILABLE", courtesyCarId, "status:", courtesyCars[carIndex].status);
       return error("CAR_NOT_AVAILABLE", `代車 ${courtesyCarId} は利用できません`);
     }
 
@@ -593,10 +621,7 @@ export async function checkIn(
       courtesyCars[carIndex].rentedAt = checkInDateTime;
       courtesyCars[carIndex].status = "in_use";
       rentedCar = { ...courtesyCars[carIndex] };
-      console.log("[API] checkIn: Car rented", courtesyCarId, "→ Job", jobId);
     }
-
-    console.log("[API] checkIn: Success", jobId, "← Tag", tagId, courtesyCarId ? `+ Car ${courtesyCarId}` : "");
 
     return success({
       job: { ...jobs[jobIndex] },
@@ -664,7 +689,6 @@ export async function checkIn(
   smartTags[tagIndex].linkedAt = new Date().toISOString();
   smartTags[tagIndex].status = "in_use";
 
-  console.log("[API] checkIn:", jobId, "← Tag", tagId, courtesyCarId ? `+ Car ${courtesyCarId}` : "");
   return success({
     job: { ...jobs[jobIndex] },
     tag: { ...smartTags[tagIndex] },
@@ -684,7 +708,6 @@ export async function updateJobTag(
   try {
     const jobIndex = jobs.findIndex((j) => j.id === jobId);
     if (jobIndex === -1) {
-      console.log("[API] updateJobTag: JOB NOT FOUND", jobId);
       return error("NOT_FOUND", `Job ${jobId} が見つかりません`);
     }
 
@@ -952,6 +975,11 @@ export async function saveDiagnosis(
       return error("NOT_FOUND", `WorkOrder ${workOrderId} が見つかりません`);
     }
 
+    // 診断開始時間を記録（診断データが初めて保存される場合）
+    const currentWorkOrder = workOrders[workOrderIndex];
+    const isFirstDiagnosisSave = !currentWorkOrder.diagnosis?.startedAt && data.items.length > 0;
+    const diagnosisStartedAt = isFirstDiagnosisSave ? new Date().toISOString() : currentWorkOrder.diagnosis?.startedAt;
+
     // ワークオーダーを更新
     const updatedWorkOrder = updateWorkOrderUtil(workOrders[workOrderIndex], {
       diagnosis: {
@@ -967,6 +995,7 @@ export async function saveDiagnosis(
         qualityCheckData: data.qualityCheckData || undefined,
         maintenanceAdvice: data.maintenanceAdvice || undefined,
         obdPdfResult: data.obdPdfResult || undefined,
+        startedAt: diagnosisStartedAt || undefined,
       },
       ...(data.isComplete === true ? { status: "見積作成待ち" as const } : {}),
     });
@@ -1266,6 +1295,40 @@ export async function fetchCustomers(): Promise<ApiResponse<ZohoCustomer[]>> {
 }
 
 /**
+ * 顧客情報を更新
+ */
+export async function updateCustomer(
+  customerId: string,
+  updateData: Partial<ZohoCustomer>
+): Promise<ApiResponse<ZohoCustomer>> {
+  await delay();
+
+  const customer = getCustomerById(customerId);
+  if (!customer) {
+    console.log("[API] updateCustomer: NOT FOUND", customerId);
+    return error("NOT_FOUND", `Customer ${customerId} が見つかりません`);
+  }
+
+  // 許可されたフィールドのみ更新
+  // LINE ID、メール同意、誕生日などのフィールドのみ更新可能
+  if (updateData.Business_Messaging_Line_Id !== undefined) {
+    customer.Business_Messaging_Line_Id = updateData.Business_Messaging_Line_Id;
+  }
+  if (updateData.Email_Opt_Out !== undefined) {
+    customer.Email_Opt_Out = updateData.Email_Opt_Out;
+  }
+  if (updateData.Date_of_Birth !== undefined) {
+    customer.Date_of_Birth = updateData.Date_of_Birth;
+  }
+  if (updateData.Description !== undefined) {
+    customer.Description = updateData.Description;
+  }
+
+  console.log("[API] updateCustomer:", customerId, "→", Object.keys(updateData).join(", "));
+  return success({ ...customer });
+}
+
+/**
  * 顧客のDescriptionを更新（変更申請対応完了時）
  */
 export async function updateCustomerDescription(
@@ -1325,10 +1388,20 @@ export async function fetchVehiclesByCustomerId(
   customerId: string
 ): Promise<ApiResponse<ZohoVehicle[]>> {
   await delay();
+  
+  // まず、customerId（ZohoのRecord ID）から顧客データを取得
+  const customer = getCustomerById(customerId);
+  if (!customer) {
+    console.log("[API] fetchVehiclesByCustomerId: 顧客が見つかりません", customerId);
+    return success([]);
+  }
+  
+  // 顧客のID1（基幹システムの顧客ID）を使って車両を検索
+  const baseCustomerId = customer.ID1 || customer.customerId || customerId;
   const customerVehicles = vehicles.filter(
-    (v) => v.ID1 === customerId || v.customerId === customerId
+    (v) => v.ID1 === baseCustomerId || v.customerId === baseCustomerId || v.ID1 === customerId || v.customerId === customerId
   );
-  console.log("[API] fetchVehiclesByCustomerId:", customerId, customerVehicles.length, "件");
+  console.log("[API] fetchVehiclesByCustomerId:", customerId, "→", baseCustomerId, customerVehicles.length, "件");
   return success(customerVehicles);
 }
 
@@ -1703,10 +1776,10 @@ export async function updateJobCourtesyCar(
   // 既存の代車を検索
   const oldCarIndex = courtesyCars.findIndex((c) => c.jobId === jobId);
   let oldCar: CourtesyCar | undefined;
-  
+
   if (oldCarIndex !== -1) {
     oldCar = { ...courtesyCars[oldCarIndex] };
-    
+
     // 既存の代車を返却
     courtesyCars[oldCarIndex].jobId = null;
     courtesyCars[oldCarIndex].rentedAt = null;

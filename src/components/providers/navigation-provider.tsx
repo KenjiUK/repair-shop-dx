@@ -29,6 +29,16 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       }, 50);
     };
 
+    // 診断・作業ページかどうかを判定してbodyにdata属性を設定
+    const isDiagnosisOrWorkPage = pathname?.includes("/mechanic/diagnosis/") || 
+                                   pathname?.includes("/mechanic/work/");
+    
+    if (isDiagnosisOrWorkPage) {
+      document.body.setAttribute("data-page-type", "diagnosis-or-work");
+    } else {
+      document.body.removeAttribute("data-page-type");
+    }
+
     // パス名が変更された時に処理を実行
     handleRouteChangeComplete();
 
@@ -36,6 +46,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     return () => {
       document.body.removeAttribute("data-navigating");
       document.body.removeAttribute("data-loading");
+      document.body.removeAttribute("data-page-type");
     };
   }, [pathname]);
 

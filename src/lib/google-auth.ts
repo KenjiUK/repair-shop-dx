@@ -41,7 +41,23 @@ async function getAccessTokenFromServiceAccount(): Promise<string> {
     }
 
     // JSON文字列をパース
-    const serviceAccount = JSON.parse(serviceAccountJson);
+    let serviceAccount: any;
+    try {
+      serviceAccount = JSON.parse(serviceAccountJson);
+    } catch (parseError) {
+      console.error("[Google Auth] JSONパースエラー:", parseError);
+      throw new Error(
+        `GOOGLE_SERVICE_ACCOUNT_JSONのパースに失敗しました: ${parseError instanceof Error ? parseError.message : "不明なエラー"}`
+      );
+    }
+
+    // 必須フィールドの確認
+    if (!serviceAccount.client_email) {
+      throw new Error("Service Account JSONにclient_emailが含まれていません");
+    }
+    if (!serviceAccount.private_key) {
+      throw new Error("Service Account JSONにprivate_keyが含まれていません");
+    }
 
     // JWT認証クライアントを作成
     const auth = new google.auth.JWT({
@@ -60,6 +76,12 @@ async function getAccessTokenFromServiceAccount(): Promise<string> {
     return tokenResponse.token;
   } catch (error) {
     console.error("[Google Auth] Service Account認証エラー:", error);
+    if (error instanceof Error) {
+      console.error("[Google Auth] エラー詳細:", {
+        message: error.message,
+        stack: error.stack,
+      });
+    }
     throw new Error(
       `Service Account認証に失敗しました: ${error instanceof Error ? error.message : "不明なエラー"}`
     );

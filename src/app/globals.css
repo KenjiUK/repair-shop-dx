@@ -271,6 +271,91 @@ body[data-navigating="true"]::before {
     }
   }
   
+  /* 診断・作業ページ向けトースト（40歳以上ユーザー向け最適化） */
+  /* 診断ページ: /mechanic/diagnosis/[id] */
+  /* 作業ページ: /mechanic/work/[id] */
+  body[data-page-type="diagnosis-or-work"] {
+    [data-sonner-toast] {
+      font-size: 1.25rem !important; /* text-xl (20px) - 診断・作業ページ向け */
+      padding: 1rem 1.25rem !important; /* 16px 20px - より大きなパディング */
+      min-height: 64px !important; /* h-16相当 - 診断・作業ページ向けボタンサイズに合わせる */
+      line-height: 1.5 !important;
+    }
+    
+    /* トーストのアイコンサイズも大きく */
+    [data-sonner-toast] svg {
+      width: 1.5rem !important; /* 24px */
+      height: 1.5rem !important; /* 24px */
+    }
+    
+    /* トーストの説明文も大きく */
+    [data-sonner-toast] [data-description] {
+      font-size: 1.125rem !important; /* text-lg (18px) */
+      margin-top: 0.5rem !important;
+    }
+    
+    /* トースト内のボタン（アクション、キャンセル、閉じる）も大きく */
+    [data-sonner-toast] button {
+      min-height: 48px !important; /* h-12相当 - 40歳以上ユーザー向け最小タッチターゲット */
+      padding: 0.75rem 1rem !important; /* 12px 16px - より大きなパディング */
+      font-size: 1rem !important; /* text-base (16px) */
+      font-weight: 600 !important; /* font-semibold */
+      border-radius: 0.5rem !important; /* rounded-md */
+    }
+    
+    /* アクションボタン */
+    [data-sonner-toast] [data-button] {
+      min-height: 48px !important;
+      padding: 0.75rem 1rem !important;
+      font-size: 1rem !important;
+    }
+    
+    /* 閉じるボタン */
+    [data-sonner-toast] [data-sonner-close-button],
+    [data-sonner-toast] button[aria-label="Close"],
+    [data-sonner-toast] button[aria-label="閉じる"] {
+      min-width: 48px !important; /* 最小タッチターゲットサイズ */
+      min-height: 48px !important;
+      width: 48px !important;
+      height: 48px !important;
+    }
+    
+    /* モバイルでも診断・作業ページのトーストは大きく */
+    @media (max-width: 640px) {
+      [data-sonner-toast] {
+        font-size: 1.125rem !important; /* text-lg (18px) - モバイルでも大きく */
+        padding: 0.875rem 1rem !important; /* 14px 16px */
+        min-height: 56px !important; /* モバイルでも十分な高さ */
+      }
+      
+      [data-sonner-toast] svg {
+        width: 1.25rem !important; /* 20px */
+        height: 1.25rem !important; /* 20px */
+      }
+      
+      [data-sonner-toast] [data-description] {
+        font-size: 1rem !important; /* text-base (16px) */
+      }
+      
+      /* モバイルでもトースト内のボタンを大きく */
+      [data-sonner-toast] button {
+        min-height: 48px !important; /* h-12相当 - 最小タッチターゲットサイズ */
+        padding: 0.625rem 0.875rem !important; /* 10px 14px */
+        font-size: 1rem !important; /* text-base (16px) */
+      }
+      
+      /* モバイルでも閉じるボタンを大きく */
+      [data-sonner-toast] [data-sonner-close-button],
+      [data-sonner-toast] button[aria-label="Close"],
+      [data-sonner-toast] button[aria-label="閉じる"] {
+        min-width: 48px !important;
+        min-height: 48px !important;
+        width: 48px !important;
+        height: 48px !important;
+      }
+    }
+  }
+  
   /* タブレット対応 */
   @media (min-width: 641px) and (max-width: 1024px) {
     [data-sonner-toaster] {

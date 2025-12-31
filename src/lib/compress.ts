@@ -121,28 +121,6 @@ export async function compressImage(file: File): Promise<File> {
   }
 }
 
-/**
- * 画像ファイルをリネームする（非推奨）
- * 
- * @deprecated この関数は非推奨です。代わりに `generateInternalPhotoFileName` を使用してください。
- * 
- * @param file - 画像ファイル
- * @param position - 撮影位置 (front/rear/left/right/detail)
- * @param vehicleId - 車両ID
- * @returns リネームされたファイル
- */
-export function renameImageFile(
-  file: File,
-  position: string,
-  vehicleId: string
-): File {
-  const today = new Date();
-  const dateStr = today.toISOString().split("T")[0].replace(/-/g, "");
-  // 簡易的なフォーマット（後方互換性のため維持）
-  const newFileName = `${position}_${dateStr}_${vehicleId}.jpg`;
-  
-  return new File([file], newFileName, { type: file.type });
-}
 
 /**
  * 画像ファイルからプレビュー用のData URLを生成

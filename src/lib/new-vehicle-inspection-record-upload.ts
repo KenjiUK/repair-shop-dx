@@ -73,12 +73,13 @@ export async function uploadNewVehicleInspectionRecord(
     const sanitizedVehicleName = vehicleName.replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, "_");
     const fileName = `inspection_record_new_${today}_${sanitizedVehicleName}_${timestamp}.${extension}`;
 
-    // ファイルをアップロード
+    // ファイルをアップロード（driveIdを渡す）
     const uploadedFile = await uploadFile({
       fileName,
       mimeType: file.type || "application/pdf",
       fileData: file,
       parentFolderId: newVehiclesFolder.id,
+      driveId: newVehiclesFolder.driveId,
     });
 
     return {
@@ -95,4 +96,5 @@ export async function uploadNewVehicleInspectionRecord(
     };
   }
 }
+
 

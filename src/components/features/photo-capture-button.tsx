@@ -18,6 +18,7 @@ export interface PhotoData {
   previewUrl?: string;
   isCompressing?: boolean;
   error?: string;
+  fileId?: string; // Google DriveのファイルID
 }
 
 export interface PhotoCaptureButtonProps {

@@ -63,12 +63,13 @@ export async function uploadInspectionRecord(
       fileName
     );
 
-    // ファイルをアップロード
+    // ファイルをアップロード（driveIdを渡す）
     const uploadedFile = await uploadFile({
       fileName,
       mimeType: file.type || "application/pdf",
       fileData: file,
       parentFolderId: documentsFolder.id,
+      driveId: documentsFolder.driveId,
     });
 
     return {

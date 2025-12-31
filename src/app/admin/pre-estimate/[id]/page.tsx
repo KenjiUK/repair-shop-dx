@@ -292,10 +292,31 @@ export default function CoatingPreEstimatePage() {
     );
   }
 
+  // 受付未完了チェック
+  const isCheckInRequired = job.field5 === "入庫待ち";
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <AppHeader />
       <main className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full">
+        {/* 受付未完了警告バナー */}
+        {isCheckInRequired && (
+          <Card className="border-amber-300 bg-amber-50 mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-amber-900 mb-1">
+                    受付が完了していません
+                  </h3>
+                  <p className="text-base text-amber-800">
+                    この案件はまだ受付が完了していません。受付完了後にご利用いただけます。
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* ヘッダー */}
         <div className="flex items-center gap-4 mb-6">
           <Link href={`/admin/estimate/${job.id}`}>

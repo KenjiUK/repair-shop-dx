@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useImperativeHandle, forwardRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, X, Loader2, CheckCircle2 } from "lucide-react";
@@ -28,16 +28,28 @@ interface VehicleRegistrationUploadProps {
 }
 
 // =============================================================================
+// Ref Interface
+// =============================================================================
+
+export interface VehicleRegistrationUploadRef {
+  upload: () => Promise<boolean>;
+  hasFile: () => boolean;
+}
+
+// =============================================================================
 // Component
 // =============================================================================
 
-export function VehicleRegistrationUpload({
+export const VehicleRegistrationUpload = forwardRef<
+  VehicleRegistrationUploadRef,
+  VehicleRegistrationUploadProps
+>(({
   customerId,
   customerName,
   vehicleId,
   vehicleName,
   onUploadComplete,
-}: VehicleRegistrationUploadProps) {
+}, ref) => {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -46,7 +58,7 @@ export function VehicleRegistrationUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * ファイル選択ハンドラ
+   * ファイル選択ハンドラ（選択のみ、アップロードはしない）
    */
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -89,10 +101,12 @@ export function VehicleRegistrationUpload({
   };
 
   /**
-   * アップロードハンドラ
+   * アップロード処理（外部から呼び出し可能）
    */
-  const handleUpload = async () => {
-    if (!file) return;
+  const upload = async (): Promise<boolean> => {
+    if (!file) {
+      return true; // ファイルが選択されていない場合は成功として扱う
+    }
 
     setIsUploading(true);
     setUploadError(null);
@@ -110,18 +124,34 @@ export function VehicleRegistrationUpload({
         setUploadedFileId(result.data.id);
         toast.success("車検証をアップロードしました");
         onUploadComplete?.(result.data.id);
+        return true;
       } else {
         setUploadError(result.error?.message || "アップロードに失敗しました");
         toast.error(result.error?.message || "アップロードに失敗しました");
+        return false;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "アップロード中にエラーが発生しました";
       setUploadError(errorMessage);
       toast.error(errorMessage);
+      return false;
     } finally {
       setIsUploading(false);
     }
   };
+
+  /**
+   * ファイルが選択されているかチェック
+   */
+  const hasFile = (): boolean => {
+    return file !== null;
+  };
+
+  // 親コンポーネントから呼び出せるメソッドを公開
+  useImperativeHandle(ref, () => ({
+    upload,
+    hasFile,
+  }));
 
   return (
     <div className="space-y-4">
@@ -168,15 +198,22 @@ export function VehicleRegistrationUpload({
               <div className="flex-1 min-w-0">
                 <p className="text-base font-medium truncate">{file.name}</p>
                 <p className="text-base text-slate-700">{formatFileSize(file.size)}</p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleFileRemove}
-                  className="mt-2 h-7"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  削除
-                </Button>
+                {isUploading ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-600" />
+                    <span className="text-base text-slate-600">アップロード中...</span>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleFileRemove}
+                    className="mt-2 h-7"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    削除
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -188,25 +225,6 @@ export function VehicleRegistrationUpload({
                 category={ErrorCategory.CLIENT_ERROR}
               />
             )}
-
-            {/* アップロードボタン */}
-            <Button
-              onClick={handleUpload}
-              disabled={isUploading}
-              className="w-full h-12 text-base font-medium"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin shrink-0" />
-                  アップロード中...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-5 w-5 mr-2 shrink-0" />
-                  アップロード
-                </>
-              )}
-            </Button>
           </div>
         )}
 
@@ -233,7 +251,9 @@ export function VehicleRegistrationUpload({
         )}
     </div>
   );
-}
+});
+
+VehicleRegistrationUpload.displayName = "VehicleRegistrationUpload";
 
 
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { User, Car, Clock, Tag, Wrench, FileText, Star, Folder, CarFront, AlertTriangle, UserCog, ShieldCheck, CalendarCheck, Droplet, Circle, Settings, Activity, Zap, Package, Shield, Sparkles, Paintbrush, ExternalLink } from "lucide-react";
+import { User, Car, Clock, Tag, Wrench, FileText, Star, Folder, CarFront, AlertTriangle, UserCog, ShieldCheck, CalendarCheck, Droplet, Circle, Settings, Activity, Zap, Package, Shield, Sparkles, Paintbrush, ExternalLink, Loader2 } from "lucide-react";
 import { ZohoJob, ServiceKind } from "@/types";
 import { cn } from "@/lib/utils";
 import { CustomerDetailDialog } from "@/components/features/customer-detail-dialog";
@@ -166,34 +166,34 @@ export function CompactJobHeader({
   const [isAssigningMechanic, setIsAssigningMechanic] = useState(false);
   const [isCourtesyCarChangeDialogOpen, setIsCourtesyCarChangeDialogOpen] = useState(false);
   const [isChangingCourtesyCar, setIsChangingCourtesyCar] = useState(false);
-  
+
   // 顧客IDを取得
   const customerId = job.field4?.id || null;
-  
+
   // 車両IDを取得
   const vehicleId = job.field6?.id || null;
-  
+
   // 重要な顧客フラグ
   const [isImportant, setIsImportant] = useState(false);
-  
+
   // 代車一覧を取得
   const { data: allCourtesyCarsResponse, isLoading: isCourtesyCarsLoading } = useSWR(
     "all-courtesy-cars",
     fetchAllCourtesyCars
   );
   const allCourtesyCars = allCourtesyCarsResponse?.success ? allCourtesyCarsResponse.data || [] : [];
-  
+
   useEffect(() => {
     if (!customerId) return;
-    
+
     // 次のレンダリングサイクルで状態を更新
     const updateTimer = setTimeout(() => {
       setIsImportant(isImportantCustomer(customerId));
     }, 0);
-    
+
     return () => clearTimeout(updateTimer);
   }, [customerId]);
-  
+
   // 重要な顧客フラグのトグル
   const handleToggleImportant = () => {
     if (!customerId) return;
@@ -203,17 +203,17 @@ export function CompactJobHeader({
     triggerHapticFeedback(newState ? "success" : "light");
     toast.success(newState ? "重要な顧客としてマークしました" : "重要な顧客マークを解除しました");
   };
-  
+
   // 代車情報を取得（配列チェックを追加）
   const courtesyCar = Array.isArray(courtesyCars) ? courtesyCars.find(car => car.jobId === job.id) : undefined;
-  
+
   // 入庫日時の表示ロジック（JobCardと同じ）
   const isCheckedIn = job.field5 !== "入庫待ち";
   const arrivalDateTime = isCheckedIn && job.field22 ? formatDateTime(job.field22) : { date: "--/--", time: "00:00" };
   const arrivalLabel = isCheckedIn ? "入庫" : "入庫予定";
 
   // 入庫区分バッジと現在の作業名が重複するかチェック
-  const isWorkOrderDuplicated = serviceKind && currentWorkOrderName && 
+  const isWorkOrderDuplicated = serviceKind && currentWorkOrderName &&
     serviceKind === currentWorkOrderName;
 
   // 第3階層に表示する要素があるかチェック（代車情報も追加、タグIDは showTagId が true の場合のみ）
@@ -241,14 +241,14 @@ export function CompactJobHeader({
           >
             {customerName}
           </button>
-          
+
           {/* 重要な顧客フラグ（Starアイコン） */}
           {customerId && (
             <button
               onClick={handleToggleImportant}
               className={cn(
                 "shrink-0 transition-all",
-                isImportant 
+                isImportant
                   ? "text-amber-700 hover:text-amber-900" // yellow → amber, text-amber-600 → text-amber-700 (40歳以上ユーザー向け、コントラスト向上)
                   : "text-slate-300 hover:text-amber-500" // yellow → amber
               )}
@@ -258,7 +258,7 @@ export function CompactJobHeader({
               <Star className={cn("h-4 w-4 transition-all", isImportant && "fill-current")} />
             </button>
           )}
-          
+
           {/* お客様共有フォルダ（Starアイコンの右） */}
           {job.field19 && (
             <a
@@ -276,18 +276,18 @@ export function CompactJobHeader({
               <Folder className="h-4 w-4" />
             </a>
           )}
-          
+
           {/* 緊急対応バッジ */}
           {job.isUrgent && (
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className="bg-red-50 text-red-700 border-red-300 text-base font-medium px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap flex items-center gap-1"
             >
               <AlertTriangle className="h-4 w-4 shrink-0" />
               緊急
             </Badge>
           )}
-          
+
           {/* ステータスバッジ */}
           <Badge
             variant="outline"
@@ -324,24 +324,14 @@ export function CompactJobHeader({
             </span>
           </button>
 
-        {/* 入庫区分（JOBカードと同じアイコン付き） */}
-        {serviceKind && (
-          <Badge 
-            variant="outline" 
-            className="bg-slate-100 text-slate-800 border-slate-300 text-base font-medium px-2.5 py-1 rounded-full shrink-0 inline-flex items-center gap-1.5 dark:bg-slate-700 dark:text-white dark:border-slate-600"
-          >
-            {getServiceKindIcon(serviceKind)}
-            <span className="whitespace-nowrap">{serviceKind}</span>
-          </Badge>
-        )}
 
-        {/* 入庫日時 */}
-        <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0 dark:text-white">
-          <Clock className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
-          <span className="whitespace-nowrap">
-            {arrivalDateTime.date} {arrivalDateTime.time} {arrivalLabel}
-          </span>
-        </div>
+          {/* 入庫日時 */}
+          <div className="flex items-center gap-1.5 text-base text-slate-800 shrink-0 dark:text-white">
+            <Clock className="h-4 w-4 text-slate-700 shrink-0 dark:text-white" />
+            <span className="whitespace-nowrap">
+              {arrivalDateTime.date} {arrivalDateTime.time} {arrivalLabel}
+            </span>
+          </div>
         </div>
 
         {/* 第3階層: 現在の作業、担当整備士、代車、タグ（該当する場合のみ） */}
@@ -385,7 +375,7 @@ export function CompactJobHeader({
                 <span>未割り当て</span>
               </button>
             )}
-            
+
             {/* 代車（クリック可能：変更可能） */}
             {courtesyCar && (
               <button

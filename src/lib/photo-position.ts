@@ -97,7 +97,7 @@ export function generateInternalPhotoFileName(
 /**
  * 日本語ファイル名用にサニタイズ（特殊文字のみ削除・置換、日本語はそのまま）
  */
-function sanitizeForJapaneseFileName(text: string): string {
+export function sanitizeForJapaneseFileName(text: string): string {
   // 特殊文字を削除・置換（日本語文字はそのまま）
   let sanitized = text.replace(/[\/\\:*?"<>|]/g, "_");
   // 複数のアンダースコアを1つに

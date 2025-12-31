@@ -25,6 +25,46 @@ function errorResponse(
 }
 
 /**
+ * フォルダIDからdriveIdを取得（改善版）
+ */
+async function getDriveIdFromFolderId(folderId: string): Promise<string | null> {
+  try {
+    const accessToken = await getGoogleAccessToken();
+    const url = `${GOOGLE_DRIVE_API_BASE}/files/${folderId}?fields=driveId&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+    
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "エラーレスポンスの読み取りに失敗");
+      console.warn("[getDriveIdFromFolderId] フォルダ情報の取得に失敗:", {
+        folderId,
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText.substring(0, 500),
+      });
+      return null;
+    }
+
+    const data = await response.json();
+    const driveId = data.driveId || null;
+    
+    if (!driveId) {
+      // driveIdが取得できない場合、個人ドライブのフォルダの可能性がある
+      console.warn("[getDriveIdFromFolderId] driveIdが取得できませんでした（個人ドライブの可能性）:", folderId);
+    }
+    
+    return driveId;
+  } catch (error) {
+    console.error("[getDriveIdFromFolderId] エラー:", error);
+    return null;
+  }
+}
+
+/**
  * 既存の同名ファイルを検索
  */
 async function findExistingFile(
@@ -38,7 +78,7 @@ async function findExistingFile(
     query += ` and '${parentFolderId}' in parents`;
   }
 
-  const url = `${GOOGLE_DRIVE_API_BASE}/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents)`;
+  const url = `${GOOGLE_DRIVE_API_BASE}/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
 
   const response = await fetch(url, {
     headers: {
@@ -101,6 +141,7 @@ export async function POST(request: NextRequest) {
     const mimeType = formData.get("mimeType") as string;
     const parentFolderId = formData.get("parentFolderId") as string | null;
     const replaceExisting = formData.get("replaceExisting") === "true";
+    const providedDriveId = formData.get("driveId") as string | null;
 
     if (!file || !fileName || !mimeType) {
       return errorResponse(
@@ -123,6 +164,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // driveIdを取得（優先順位: 提供されたdriveId > parentFolderIdから取得 > 環境変数）
+    let driveId: string | null = null;
+    
+    // 1. 提供されたdriveIdを優先的に使用
+    if (providedDriveId) {
+      driveId = providedDriveId;
+    } else if (parentFolderId) {
+      // 2. parentFolderIdからdriveIdを取得
+      driveId = await getDriveIdFromFolderId(parentFolderId);
+      // 3. 取得できない場合、GOOGLE_DRIVE_PARENT_FOLDER_IDを試す（フォールバック）
+      if (!driveId && process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID) {
+        // GOOGLE_DRIVE_PARENT_FOLDER_IDが共有ドライブIDの場合、それを使用
+        driveId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
+      }
+    }
+
     // ファイルメタデータを作成
     const metadata: Record<string, unknown> = {
       name: fileName,
@@ -132,6 +189,9 @@ export async function POST(request: NextRequest) {
       metadata.parents = [parentFolderId];
     }
 
+    // 注意: driveIdはメタデータに含めない（Google Drive APIの仕様に準拠）
+    // driveIdはURLパラメータとしてのみ指定する
+
     // ファイルをアップロード
     const formDataForUpload = new FormData();
     formDataForUpload.append(
@@ -140,7 +200,20 @@ export async function POST(request: NextRequest) {
     );
     formDataForUpload.append("file", file);
 
-    const uploadUrl = `${GOOGLE_DRIVE_UPLOAD_API_BASE}/files?uploadType=multipart&fields=id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents`;
+    // URLパラメータを構築
+    const urlParams = new URLSearchParams({
+      uploadType: "multipart",
+      fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+    });
+    
+    // driveIdが取得できた場合、URLパラメータに追加
+    if (driveId) {
+      urlParams.append("driveId", driveId);
+    }
+
+    const uploadUrl = `${GOOGLE_DRIVE_UPLOAD_API_BASE}/files?${urlParams.toString()}`;
 
     const response = await fetch(uploadUrl, {
       method: "POST",

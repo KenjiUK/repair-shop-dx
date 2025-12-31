@@ -49,7 +49,7 @@ export function JobFilterDialog({
                         {filterModalType === "mechanic" && (
                             <>
                                 <Users className="h-5 w-5 text-slate-600 shrink-0" />
-                                整備士
+                                担当整備士
                             </>
                         )}
                         {filterModalType === "additional" && (

@@ -194,7 +194,7 @@ export async function hasPendingChangeRequests(
 ): Promise<boolean> {
   try {
     const result = await fetchPendingChangeRequests(customerId);
-    return result.success && result.data && result.data.length > 0;
+    return !!(result.success && result.data && result.data.length > 0);
   } catch {
     return false;
   }

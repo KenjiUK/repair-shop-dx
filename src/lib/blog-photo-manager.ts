@@ -772,6 +772,13 @@ export async function uploadBlogPhotoTemporary(
  */
 export async function listBlogPhotosFromJobFolder(jobId: string): Promise<BlogPhotoInfo[]> {
   try {
+    // 開発環境でGoogle Drive APIの認証情報が設定されていない場合は空配列を返す
+    // 本番環境では必ず設定されている必要がある
+    if (typeof window !== "undefined" && !process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ENABLED) {
+      // クライアント側では環境変数を直接確認できないため、APIエンドポイントで確認
+      // ここではエラーをキャッチして空配列を返す
+    }
+
     // Job情報を取得
     const jobResult = await fetchJobById(jobId);
     if (!jobResult.success || !jobResult.data) {
@@ -820,6 +827,11 @@ export async function listBlogPhotosFromJobFolder(jobId: string): Promise<BlogPh
       metadata: undefined,
     }));
   } catch (error) {
+    // Google Drive APIの認証エラーの場合は空配列を返す（開発環境での動作を保証）
+    if (error instanceof Error && error.message.includes("GOOGLE_DRIVE_ACCESS_TOKEN")) {
+      console.warn("[listBlogPhotosFromJobFolder] Google Drive API認証情報が設定されていません。開発環境では空配列を返します。");
+      return [];
+    }
     console.error("ジョブフォルダ内ブログ用写真取得エラー:", error);
     return [];
   }

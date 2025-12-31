@@ -17,9 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, ShieldCheck, CalendarCheck, Droplet, Circle, Settings, Activity, Wrench, Zap, Package, Shield, Sparkles, Paintbrush, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { ZohoJob, ServiceKind } from "@/types";
+import { ZohoJob, ServiceKind, WorkOrder } from "@/types";
 
 // =============================================================================
 // Props
@@ -34,8 +34,8 @@ interface AddWorkOrderDialogProps {
   job: ZohoJob | null;
   /** 既存の作業区分リスト（重複チェック用） */
   existingServiceKinds?: ServiceKind[];
-  /** 保存成功時のコールバック */
-  onSuccess?: () => void;
+  /** 保存成功時のコールバック（追加されたworkOrderを渡す） */
+  onSuccess?: (newWorkOrder?: WorkOrder) => void;
 }
 
 // =============================================================================
@@ -47,7 +47,6 @@ const SERVICE_KINDS: ServiceKind[] = [
   "12ヵ月点検",
   "エンジンオイル交換",
   "タイヤ交換・ローテーション",
-  "その他",
   "故障診断",
   "修理・整備",
   "チューニング",
@@ -56,6 +55,46 @@ const SERVICE_KINDS: ServiceKind[] = [
   "レストア",
   "その他",
 ];
+
+// =============================================================================
+// 入庫区分アイコン取得関数
+// =============================================================================
+
+/**
+ * 入庫区分に応じたアイコンと色を取得
+ */
+function getServiceKindIcon(serviceKind: ServiceKind) {
+  switch (serviceKind) {
+    case "車検":
+      return <ShieldCheck className="h-4 w-4 text-cyan-600" strokeWidth={2.5} />;
+    case "12ヵ月点検":
+      return <CalendarCheck className="h-4 w-4 text-cyan-600" strokeWidth={2.5} />;
+    case "エンジンオイル交換":
+      return <Droplet className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />;
+    case "タイヤ交換・ローテーション":
+      return <Circle className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />;
+    case "その他のメンテナンス":
+      return <Settings className="h-4 w-4 text-slate-700" strokeWidth={2.5} />;
+    case "故障診断":
+      return <Activity className="h-4 w-4 text-rose-600" strokeWidth={2.5} />;
+    case "修理・整備":
+      return <Wrench className="h-4 w-4 text-orange-700" strokeWidth={2.5} />;
+    case "チューニング":
+      return <Zap className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "パーツ取付":
+      return <Package className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "コーティング":
+      return <Shield className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "レストア":
+      return <Sparkles className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "板金・塗装":
+      return <Paintbrush className="h-4 w-4 text-violet-700" strokeWidth={2.5} />;
+    case "その他":
+      return <FileText className="h-4 w-4 text-slate-700" strokeWidth={2.5} />;
+    default:
+      return <FileText className="h-4 w-4 text-slate-700" strokeWidth={2.5} />;
+  }
+}
 
 // =============================================================================
 // Component
@@ -112,9 +151,9 @@ export function AddWorkOrderDialog({
           description: `${selectedServiceKind}を追加しました`,
         });
 
-        // コールバックを実行
+        // コールバックを実行（追加されたworkOrderを渡す）
         if (onSuccess) {
-          onSuccess();
+          onSuccess(result.data);
         }
 
         // ダイアログを閉じる
@@ -195,12 +234,22 @@ export function AddWorkOrderDialog({
               disabled={isCreating}
             >
               <SelectTrigger id="service-kind" className="h-12 text-base">
-                <SelectValue placeholder="作業区分を選択してください" />
+                <SelectValue placeholder="作業区分を選択してください">
+                  {selectedServiceKind && (
+                    <div className="flex items-center gap-1.5">
+                      {getServiceKindIcon(selectedServiceKind)}
+                      <span>{selectedServiceKind}</span>
+                    </div>
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {availableServiceKinds.map((kind) => (
                   <SelectItem key={kind} value={kind}>
-                    {kind}
+                    <div className="flex items-center gap-1.5">
+                      {getServiceKindIcon(kind)}
+                      <span>{kind}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -40,7 +40,7 @@ async function createFolderInDrive(
     ...(parentFolderId && { parents: [parentFolderId] }),
   };
 
-  const response = await fetch(`${GOOGLE_DRIVE_API_BASE}/files`, {
+  const response = await fetch(`${GOOGLE_DRIVE_API_BASE}/files?fields=id,name,createdTime,modifiedTime,webViewLink,parents`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -58,11 +58,16 @@ async function createFolderInDrive(
 
   const file = await response.json();
 
+  // webViewLinkが存在しない場合は、フォルダIDからURLを構築
+  // Service Accountで作成されたフォルダの場合、webViewLinkがnullの可能性がある
+  const webViewLink = file.webViewLink || `https://drive.google.com/drive/folders/${file.id}`;
+
   return {
     id: file.id,
     name: file.name,
     createdTime: file.createdTime,
     modifiedTime: file.modifiedTime,
+    webViewLink: webViewLink,
     parentId: file.parents?.[0],
   };
 }
@@ -102,11 +107,16 @@ async function findExistingFolder(
 
   // 最初に見つかったフォルダを返す
   const folder = files[0];
+  // webViewLinkが存在しない場合は、フォルダIDからURLを構築
+  // Service Accountで作成されたフォルダの場合、webViewLinkがnullの可能性がある
+  const webViewLink = folder.webViewLink || `https://drive.google.com/drive/folders/${folder.id}`;
+
   return {
     id: folder.id,
     name: folder.name,
     createdTime: folder.createdTime,
     modifiedTime: folder.modifiedTime,
+    webViewLink: webViewLink,
     parentId: folder.parents?.[0],
   };
 }

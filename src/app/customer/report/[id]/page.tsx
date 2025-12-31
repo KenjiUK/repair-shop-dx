@@ -34,6 +34,7 @@ import {
   Heart,
   Video,
   Share2,
+  Lock,
 } from "lucide-react";
 import { VideoCallDialog } from "@/components/features/video-call-dialog";
 import { VideoShareDialog } from "@/components/features/video-share-dialog";
@@ -55,6 +56,8 @@ interface BeforeAfterItem {
 interface WorkItem {
   name: string;
   price: number;
+  priority?: "required" | "recommended" | "optional";
+  serviceKind?: string;
 }
 
 // =============================================================================
@@ -67,6 +70,38 @@ interface WorkItem {
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat("ja-JP").format(price);
+}
+
+/**
+ * 優先度ラベルを取得
+ */
+function getPriorityLabel(priority?: "required" | "recommended" | "optional"): string {
+  switch (priority) {
+    case "required":
+      return "今回絶対必要";
+    case "recommended":
+      return "やったほうがいい";
+    case "optional":
+      return "お客さん次第";
+    default:
+      return "";
+  }
+}
+
+/**
+ * 優先度カラーを取得
+ */
+function getPriorityColor(priority?: "required" | "recommended" | "optional"): string {
+  switch (priority) {
+    case "required":
+      return "bg-red-500";
+    case "recommended":
+      return "bg-amber-500";
+    case "optional":
+      return "bg-slate-500";
+    default:
+      return "bg-slate-300";
+  }
 }
 
 // =============================================================================
@@ -183,7 +218,7 @@ function MechanicCommentBubble({
 // =============================================================================
 
 export default function CustomerReportPage() {
-  // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
+  // Next.js 16対応: paramsは既に同期的に値を返す
   const params = useParams();
   const reportId = useMemo(() => (params?.id ?? "") as string, [params]);
 
@@ -295,6 +330,8 @@ export default function CustomerReportPage() {
           items.push({
             name: item.name,
             price: item.price,
+            priority: item.priority,
+            serviceKind: workOrder.serviceKind,
           });
         });
       }
@@ -306,6 +343,31 @@ export default function CustomerReportPage() {
   // 合計金額を計算
   const totalAmount = useMemo(() => {
     return workItems.reduce((sum, item) => sum + item.price, 0);
+  }, [workItems]);
+
+  // 車検・12ヵ月点検かどうかを判定
+  const isInspection = useMemo(() => {
+    if (!workOrders || workOrders.length === 0) return false;
+    return workOrders.some((wo) => wo.serviceKind === "車検" || wo.serviceKind === "12ヵ月点検");
+  }, [workOrders]);
+
+  // 箱①・②・③別の作業項目を分類
+  const requiredItems = workItems.filter((item) => item.priority === "required");
+  const recommendedItems = workItems.filter((item) => item.priority === "recommended");
+  const optionalItems = workItems.filter((item) => item.priority === "optional");
+  const itemsWithoutPriority = workItems.filter((item) => !item.priority);
+
+  // 独立作業（複数のワークオーダー）をグループ化
+  const workItemsByServiceKind = useMemo(() => {
+    const grouped: Record<string, WorkItem[]> = {};
+    workItems.forEach((item) => {
+      const key = item.serviceKind || "その他";
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(item);
+    });
+    return grouped;
   }, [workItems]);
 
   // 整備士コメントを取得（作業データから）
@@ -678,7 +740,111 @@ export default function CustomerReportPage() {
               <div className="space-y-2">
                 {workItems.length > 0 ? (
                   <>
-                    {workItems.map((item, index) => (
+                    {/* 箱①: 今回絶対必要（車検の場合のみ表示） */}
+                    {isInspection && requiredItems.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 mb-2 pt-2">
+                          <div className={cn("w-1 h-6 rounded-full shrink-0", getPriorityColor("required"))} />
+                          <p className="text-base font-bold text-slate-900">今回絶対必要</p>
+                        </div>
+                        {requiredItems.map((item, index) => (
+                          <div
+                            key={`required-${index}`}
+                            className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 pl-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Lock className="h-4 w-4 text-slate-600 shrink-0" />
+                              <span className="text-base text-slate-700">{item.name}</span>
+                            </div>
+                            <span className="text-base font-medium tabular-nums">¥{formatPrice(item.price)}</span>
+                          </div>
+                        ))}
+                        {(recommendedItems.length > 0 || optionalItems.length > 0 || itemsWithoutPriority.length > 0) && (
+                          <Separator className="my-3" />
+                        )}
+                      </>
+                    )}
+
+                    {/* 箱②: やったほうがいい（車検の場合のみ表示） */}
+                    {isInspection && recommendedItems.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={cn("w-1 h-6 rounded-full shrink-0", getPriorityColor("recommended"))} />
+                          <p className="text-base font-bold text-slate-900">やったほうがいい</p>
+                        </div>
+                        {recommendedItems.map((item, index) => (
+                          <div
+                            key={`recommended-${index}`}
+                            className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 pl-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              <span className="text-base text-slate-700">{item.name}</span>
+                            </div>
+                            <span className="text-base font-medium tabular-nums">¥{formatPrice(item.price)}</span>
+                          </div>
+                        ))}
+                        {(optionalItems.length > 0 || itemsWithoutPriority.length > 0) && (
+                          <Separator className="my-3" />
+                        )}
+                      </>
+                    )}
+
+                    {/* 箱③: お客さん次第（車検の場合のみ表示） */}
+                    {isInspection && optionalItems.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={cn("w-1 h-6 rounded-full shrink-0", getPriorityColor("optional"))} />
+                          <p className="text-base font-bold text-slate-900">お客さん次第</p>
+                        </div>
+                        {optionalItems.map((item, index) => (
+                          <div
+                            key={`optional-${index}`}
+                            className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 pl-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              <span className="text-base text-slate-700">{item.name}</span>
+                            </div>
+                            <span className="text-base font-medium tabular-nums">¥{formatPrice(item.price)}</span>
+                          </div>
+                        ))}
+                        {itemsWithoutPriority.length > 0 && (
+                          <Separator className="my-3" />
+                        )}
+                      </>
+                    )}
+
+                    {/* 優先度がない項目（独立作業など） */}
+                    {itemsWithoutPriority.length > 0 && (
+                      <>
+                        {isInspection && (requiredItems.length > 0 || recommendedItems.length > 0 || optionalItems.length > 0) && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-base font-bold text-slate-900">その他の作業</p>
+                          </div>
+                        )}
+                        {itemsWithoutPriority.map((item, index) => (
+                          <div
+                            key={`no-priority-${index}`}
+                            className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 pl-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              <span className="text-base text-slate-700">{item.name}</span>
+                              {item.serviceKind && (
+                                <Badge variant="outline" className="text-xs">
+                                  {item.serviceKind}
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-base font-medium tabular-nums">¥{formatPrice(item.price)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* 車検以外の場合はすべての項目を通常表示 */}
+                    {!isInspection && workItems.map((item, index) => (
                       <div
                         key={index}
                         className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
@@ -686,6 +852,11 @@ export default function CustomerReportPage() {
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
                           <span className="text-base text-slate-700">{item.name}</span>
+                          {item.serviceKind && (
+                            <Badge variant="outline" className="text-xs">
+                              {item.serviceKind}
+                            </Badge>
+                          )}
                         </div>
                         <span className="text-base font-medium tabular-nums">¥{formatPrice(item.price)}</span>
                       </div>

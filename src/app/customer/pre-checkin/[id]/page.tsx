@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import { fetchJobById, fetchVehiclesByCustomerId, updateJobField6, updateJobFiel
 import { ZohoJob, ZohoVehicle, ZohoLookup } from "@/types";
 import { Loader2, Car, CheckCircle2, AlertCircle, Upload, X, FileText, MessageCircle, User } from "lucide-react";
 import useSWR from "swr";
-import { VehicleRegistrationUpload } from "@/components/features/vehicle-registration-upload";
+import { VehicleRegistrationUpload, VehicleRegistrationUploadRef } from "@/components/features/vehicle-registration-upload";
 import { InspectionRecordUpload } from "@/components/features/inspection-record-upload";
 import { NewVehicleInspectionRecordUpload } from "@/components/features/new-vehicle-inspection-record-upload";
 import { useVehicleMasterById, useCustomerMasterById } from "@/hooks/use-master-data";
@@ -120,6 +120,9 @@ export default function PreCheckinPage() {
   // 郵便番号検索中フラグ
   const [isSearchingPostalCode, setIsSearchingPostalCode] = useState(false);
 
+  // アップロードコンポーネントのref
+  const vehicleRegistrationUploadRef = useRef<VehicleRegistrationUploadRef>(null);
+
   // 選択された車両のマスタ情報を取得
   const selectedZohoVehicle = vehicles.find(v => v.id === formData.vehicleId);
   const { vehicle: vehicleMaster, isLoading: isVehicleMasterLoading } = useVehicleMasterById(
@@ -153,8 +156,29 @@ export default function PreCheckinPage() {
         buildingName,
       ].filter(Boolean).join(" ");
       
+      // 車両情報の初期値を設定（job.field6から取得）
+      let initialVehicleId = null;
+      let initialVehicleName = "";
+      let initialVehicleLicensePlate = "";
+      
+      if (job.field6?.id) {
+        initialVehicleId = job.field6.id;
+        // job.field6.nameは「車名 / 登録番号」の形式
+        const vehicleNameParts = job.field6.name?.split(" / ") || [];
+        if (vehicleNameParts.length >= 2) {
+          initialVehicleName = vehicleNameParts[0]; // 車名
+          initialVehicleLicensePlate = vehicleNameParts[1]; // 登録番号
+        } else if (vehicleNameParts.length === 1) {
+          initialVehicleName = vehicleNameParts[0];
+          initialVehicleLicensePlate = vehicleNameParts[0];
+        }
+      }
+      
       setFormData((prev) => ({
         ...prev,
+        vehicleId: initialVehicleId || prev.vehicleId,
+        vehicleName: initialVehicleName || prev.vehicleName,
+        vehicleLicensePlate: initialVehicleLicensePlate || prev.vehicleLicensePlate,
         customerName: fullName,
         postalCode: "", // 郵便番号はZohoに保存されていない可能性があるため空
         address: fullAddress || "",
@@ -363,12 +387,6 @@ export default function PreCheckinPage() {
 
   // フォーム送信（確認ダイアログ表示）
   const handleSubmit = () => {
-    // バリデーション
-    if (!formData.dateOfBirth) {
-      toast.error("誕生日は必須項目です");
-      return;
-    }
-    
     // 確認ダイアログを表示
     setShowConfirmDialog(true);
   };
@@ -379,6 +397,15 @@ export default function PreCheckinPage() {
     setIsSubmitting(true);
 
     try {
+      // 0. ファイルアップロード（選択されている場合）
+      if (vehicleRegistrationUploadRef.current?.hasFile()) {
+        const uploadSuccess = await vehicleRegistrationUploadRef.current.upload();
+        if (!uploadSuccess) {
+          setIsSubmitting(false);
+          return; // アップロード失敗時は処理を中断
+        }
+      }
+
       // 1. 車両IDの更新（選択された車両がある場合）
       if (formData.vehicleId && !formData.isNewVehicle) {
         await updateJobField6(jobId, formData.vehicleId);
@@ -455,7 +482,7 @@ export default function PreCheckinPage() {
         // したがって、Email_Opt_Out = !emailOptIn となる
         updateData.Email_Opt_Out = !formData.emailOptIn;
         
-        // 誕生日の更新（必須項目、バリデーションは既に実行済み）
+        // 誕生日の更新（任意項目）
         if (formData.dateOfBirth && formData.dateOfBirth !== customer.Date_of_Birth) {
           updateData.Date_of_Birth = formData.dateOfBirth;
         }
@@ -591,6 +618,10 @@ export default function PreCheckinPage() {
       }
 
       // 6. 新規車両画像のアップロードと車両作成
+      let finalVehicleId: string | null = null;
+      let finalVehicleName: string = "";
+      
+      
       if (formData.isNewVehicle && formData.newVehicleImage && customer) {
         const { uploadNewVehicleImage } = await import("@/lib/new-vehicle-image-upload");
         const { createNewVehicleAndLinkImage } = await import("@/lib/new-vehicle-creation");
@@ -617,6 +648,8 @@ export default function PreCheckinPage() {
           
           if (createResult.success && createResult.data) {
             // 新規車両作成成功
+            finalVehicleId = createResult.data.vehicle.id;
+            finalVehicleName = createResult.data.vehicle.Name || formData.newVehicleName;
             toast.success("新規車両を作成しました", {
               description: "車検証画像もリンク設定されました",
             });
@@ -632,8 +665,72 @@ export default function PreCheckinPage() {
             description: uploadResult.error?.message,
           });
         }
+      } else if (formData.vehicleId && !formData.isNewVehicle) {
+        // 既存車両選択時
+        finalVehicleId = formData.vehicleId;
+        finalVehicleName = formData.vehicleName || selectedZohoVehicle?.Name || "";
+      } else if (job?.field6?.id) {
+        // フォームで車両が選択されていない場合、jobから車両IDを取得
+        finalVehicleId = job.field6.id;
+        finalVehicleName = job.field6.name || job.vehicle?.name || "";
+      } else {
+        console.warn("[Pre-checkin] 車両IDが取得できませんでした", {
+          formDataVehicleId: formData.vehicleId,
+          jobField6Id: job?.field6?.id,
+        });
       }
 
+
+      // 7. Google Driveフォルダを作成してfield19を更新
+      if (finalVehicleId && customer && job && !job.field19) {
+        
+        try {
+          const jobDate = job.field22 
+            ? new Date(job.field22).toISOString().slice(0, 10).replace(/-/g, "")
+            : new Date().toISOString().slice(0, 10).replace(/-/g, "");
+          
+          // 最初の作業オーダーIDを取得
+          let workOrderId: string | undefined;
+          if (job.field_work_orders) {
+            try {
+              const workOrders = JSON.parse(job.field_work_orders);
+              if (Array.isArray(workOrders) && workOrders.length > 0) {
+                workOrderId = workOrders[0].id;
+              }
+            } catch (e) {
+              console.warn("[Pre-checkin] field_work_ordersのパースに失敗:", e);
+            }
+          }
+          
+          const { createJobFolderAction } = await import("@/app/actions/drive");
+          const { updateJobField19 } = await import("@/lib/api");
+          
+          const folderResult = await createJobFolderAction(
+            jobId,
+            jobDate,
+            workOrderId || job.ID_BookingId || job.bookingId || jobId,
+            customer.id,
+            customer.Last_Name || customer.First_Name || "顧客",
+            finalVehicleId,
+            finalVehicleName
+          );
+          
+          if (folderResult.success && folderResult.url) {
+            const updateResult = await updateJobField19(jobId, folderResult.url);
+            
+            if (!updateResult.success) {
+              console.warn("[Pre-checkin] field19の更新に失敗しました:", updateResult.error?.message);
+            }
+          } else {
+            console.warn("[Pre-checkin] フォルダ作成に失敗しました:", folderResult.error);
+          }
+        } catch (error) {
+          console.error("[Pre-checkin] フォルダ作成・更新エラー:", error);
+          // エラーが発生しても処理は続行（フォルダがなくても他の処理は可能）
+        }
+      } else {
+      }
+      
       toast.success("事前チェックイン情報を送信しました。ありがとうございます。");
       
       // 5秒後にトップページにリダイレクト
@@ -641,7 +738,7 @@ export default function PreCheckinPage() {
         router.push("/");
       }, 5000);
     } catch (error) {
-      console.error("Pre-checkin submission error:", error);
+      console.error("[Pre-checkin] 送信処理エラー:", error);
       const errorMessage = error instanceof Error ? error.message : "保存に失敗しました";
       toast.error("保存に失敗しました", {
         description: errorMessage,
@@ -709,33 +806,44 @@ export default function PreCheckinPage() {
                       </div>
                     ) : vehicles.length > 0 ? (
                       <div className="space-y-2">
-                        {vehicles.map((vehicle) => (
-                          <label
-                            key={vehicle.id}
-                            className="flex items-center gap-3 p-4 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors"
-                          >
-                            <input
-                              type="radio"
-                              name="vehicle"
-                              value={vehicle.id}
-                              checked={formData.vehicleId === vehicle.id}
-                              onChange={(e) =>
-                                setFormData((prev) => ({ ...prev, vehicleId: e.target.value }))
-                              }
-                              className="w-5 h-5 text-primary shrink-0"
-                            />
-                            <div className="flex-1">
-                              <p className="text-base font-medium text-slate-900">
-                                {vehicle.field44 || "車名未登録"}
-                              </p>
-                              {vehicle.field44 && vehicle.licensePlate && vehicle.field44 !== vehicle.licensePlate && (
-                                <p className="text-base text-slate-700">
-                                  登録番号: {vehicle.licensePlate}
+                        {vehicles.map((vehicle) => {
+                          // ジョブに紐づいている車両の場合は、job.field6.nameを使用
+                          // job.field6.nameは「車名 / 登録番号」の形式の可能性があるため、車名のみを抽出
+                          let displayName = vehicle.field44 || vehicle.Name || "車名未登録";
+                          if (job?.field6?.id === vehicle.id && job.field6.name) {
+                            // 「車名 / 登録番号」の形式から車名のみを抽出
+                            const nameParts = job.field6.name.split(" / ");
+                            displayName = nameParts[0] || job.field6.name;
+                          }
+                          
+                          return (
+                            <label
+                              key={vehicle.id}
+                              className="flex items-center gap-3 p-4 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors"
+                            >
+                              <input
+                                type="radio"
+                                name="vehicle"
+                                value={vehicle.id}
+                                checked={formData.vehicleId === vehicle.id}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({ ...prev, vehicleId: e.target.value }))
+                                }
+                                className="w-5 h-5 text-primary shrink-0"
+                              />
+                              <div className="flex-1">
+                                <p className="text-base font-medium text-slate-900">
+                                  {displayName}
                                 </p>
-                              )}
-                            </div>
-                          </label>
-                        ))}
+                                {vehicle.field44 && vehicle.licensePlate && vehicle.field44 !== vehicle.licensePlate && (
+                                  <p className="text-base text-slate-700">
+                                    登録番号: {vehicle.licensePlate}
+                                  </p>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-base text-slate-800 py-2">
@@ -784,6 +892,9 @@ export default function PreCheckinPage() {
                           <Label className="text-base font-medium mb-2 block">車検証</Label>
                           <p className="text-base text-slate-600 mb-2">
                             電子車検証（ICカードタイプ）または従来の紙の車検証をアップロードできます
+                          </p>
+                          <p className="text-base text-slate-500 mb-3">
+                            ※ ファイルを選択後、「確認して送信」ボタンを押すとアップロードされます
                           </p>
                           {previewImage ? (
                             <div className="relative aspect-video border border-slate-300 rounded-xl overflow-hidden">
@@ -965,24 +1076,36 @@ export default function PreCheckinPage() {
                         if (daysUntilExpiry < 0) {
                           return (
                             <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                              <p className="text-base text-red-700 font-medium">
-                                ⚠️ 車検が期限切れです。早急に更新をお願いします。
-                              </p>
-                              <p className="text-base text-red-600 mt-1">
-                                車検有効期限: {expiryDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
-                              </p>
+                              <div className="flex items-start gap-2">
+                                <AlertCircle className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-base text-red-700 font-medium">
+                                    車検が期限切れです。早急に更新をお願いします。
+                                  </p>
+                                  <p className="text-base text-red-600 mt-1">
+                                    車検有効期限: {expiryDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           );
                         } else if (daysUntilExpiry <= 90) {
                           return (
                             <div className={`p-4 border rounded-xl ${daysUntilExpiry <= 30 ? "bg-amber-50 border-amber-200" : "bg-blue-50 border-blue-200"}`}>
-                              <p className={`text-base font-medium ${daysUntilExpiry <= 30 ? "text-amber-900" : "text-blue-800"}`}>
-                                {daysUntilExpiry <= 30 && "⚠️ "}車検有効期限まであと<span className="tabular-nums">{daysUntilExpiry}</span>日です。
-                                {daysUntilExpiry <= 30 && "更新をご検討ください。"}
-                              </p>
-                              <p className={`text-base mt-1 ${daysUntilExpiry <= 30 ? "text-amber-800" : "text-blue-700"}`}>
-                                車検有効期限: {expiryDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
-                              </p>
+                              <div className="flex items-start gap-2">
+                                {daysUntilExpiry <= 30 && (
+                                  <AlertCircle className={`h-5 w-5 shrink-0 mt-0.5 ${daysUntilExpiry <= 30 ? "text-amber-900" : "text-blue-800"}`} />
+                                )}
+                                <div className="flex-1">
+                                  <p className={`text-base font-medium ${daysUntilExpiry <= 30 ? "text-amber-900" : "text-blue-800"}`}>
+                                    車検有効期限まであと<span className="tabular-nums">{daysUntilExpiry}</span>日です。
+                                    {daysUntilExpiry <= 30 && "更新をご検討ください。"}
+                                  </p>
+                                  <p className={`text-base mt-1 ${daysUntilExpiry <= 30 ? "text-amber-800" : "text-blue-700"}`}>
+                                    車検有効期限: {expiryDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           );
                         }
@@ -1009,11 +1132,22 @@ export default function PreCheckinPage() {
                         <p className="text-base text-slate-600 mb-2">
                           電子車検証（ICカードタイプ）または従来の紙の車検証をアップロードできます
                         </p>
+                        <p className="text-base text-slate-500 mb-3">
+                          ※ ファイルを選択後、「確認して送信」ボタンを押すとアップロードされます
+                        </p>
                         <VehicleRegistrationUpload
+                          ref={vehicleRegistrationUploadRef}
                           customerId={customer.id}
                           customerName={customer.Last_Name || customer.First_Name || "顧客"}
                           vehicleId={selectedVehicle.id}
-                          vehicleName={selectedVehicle.field44 || "車名未登録"}
+                          vehicleName={(() => {
+                            // job.field6.nameは「車名 / 登録番号」の形式の可能性があるため、車名のみを抽出
+                            if (job?.field6?.id === selectedVehicle.id && job.field6.name) {
+                              const nameParts = job.field6.name.split(" / ");
+                              return nameParts[0] || job.field6.name;
+                            }
+                            return selectedVehicle.field44 || selectedVehicle.Name || "車名未登録";
+                          })()}
                         />
                       </div>
                       
@@ -1027,7 +1161,14 @@ export default function PreCheckinPage() {
                           customerId={customer.id}
                           customerName={customer.Last_Name || customer.First_Name || "顧客"}
                           vehicleId={selectedVehicle.id}
-                          vehicleName={selectedVehicle.field44 || "車名未登録"}
+                          vehicleName={(() => {
+                            // job.field6.nameは「車名 / 登録番号」の形式の可能性があるため、車名のみを抽出
+                            if (job?.field6?.id === selectedVehicle.id && job.field6.name) {
+                              const nameParts = job.field6.name.split(" / ");
+                              return nameParts[0] || job.field6.name;
+                            }
+                            return selectedVehicle.field44 || selectedVehicle.Name || "車名未登録";
+                          })()}
                         />
                       </div>
                     </div>
@@ -1175,7 +1316,7 @@ export default function PreCheckinPage() {
                         id="emailOptIn"
                         checked={true}
                         disabled={true}
-                        className="h-5 w-5 shrink-0 mt-0.5"
+                        className="size-4 shrink-0 mt-1"
                       />
                       <label
                         htmlFor="emailOptIn"
@@ -1196,7 +1337,6 @@ export default function PreCheckinPage() {
                         setFormData((prev) => ({ ...prev, dateOfBirth: e.target.value }))
                       }
                       className="mt-1 h-12 text-base"
-                      required
                     />
                   </div>
                 </div>
@@ -1240,8 +1380,9 @@ export default function PreCheckinPage() {
             <div className="py-4">
               <div className="space-y-3">
                 {getConfirmItems().map((item, index) => (
-                  <div key={index} className="text-base text-slate-800 whitespace-pre-line">
-                    ○ {item}
+                  <div key={index} className="text-base text-slate-800 whitespace-pre-line leading-relaxed">
+                    <span className="inline-block w-6">○</span>
+                    <span className="inline-block">{item}</span>
                   </div>
                 ))}
                 {getConfirmItems().length === 0 && (

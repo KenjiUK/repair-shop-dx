@@ -18,6 +18,16 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -30,12 +40,12 @@ import Image from "next/image";
 import { fetchJobById, saveDiagnosis, updateJobStatus, assignMechanic, fetchCustomerById, fetchAllCourtesyCars, updateJobField7, updateJobField10 } from "@/lib/api";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { saveToIndexedDB, addToSyncQueue, STORE_NAMES } from "@/lib/offline-storage";
-import { uploadFile, getOrCreateWorkOrderFolder } from "@/lib/google-drive";
+import { uploadFile, getOrCreateWorkOrderFolder, getOrCreateWorkOrderSubFolder, getPhotoSubFolderType, generateWorkOrderPhotoFileName, generateDiagnosticPdfFileName } from "@/lib/google-drive";
 import { getCurrentMechanicName } from "@/lib/auth";
 import { setNavigationHistory, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
 import { PhotoManager, PhotoItem } from "@/components/features/photo-manager";
 import { ConflictResolutionDialog } from "@/components/features/conflict-resolution-dialog";
-import { HeaderBlogPhotoButton } from "@/components/features/header-blog-photo-button";
+
 
 // ダイアログコンポーネントを動的インポート（コード分割）
 const MechanicSelectDialog = dynamic(
@@ -119,7 +129,6 @@ import { generateWorkOrderPDF, createWorkOrderPDFDataFromJob } from "@/lib/work-
 import { InspectionRedesignTabs } from "@/components/features/inspection-redesign-tabs";
 import { InspectionBottomSheetList } from "@/components/features/inspection-bottom-sheet-list";
 import { OBDDiagnosticUnifiedSection, OBDDiagnosticResult as OBDDiagnosticResultUnified } from "@/components/features/obd-diagnostic-unified-section";
-import { InspectionQualityCheckSection } from "@/components/features/inspection-quality-check-section";
 import { DiagnosisAdditionalEstimateSection } from "@/components/features/diagnosis-additional-estimate-section";
 import { Textarea } from "@/components/ui/textarea";
 import { getInspectionItems, getInspectionCategories } from "@/lib/inspection-items-redesign";
@@ -154,9 +163,6 @@ function formatTime(isoString: string): string {
   });
 }
 
-/**
- * ステータスバッジのスタイルを取得
- */
 /**
  * ステータスバッジのスタイルを取得
  * セマンティックカラーシステムに基づく統一ルール
@@ -211,11 +217,11 @@ import { appendTemporaryReturnInfoToField7, parseTemporaryReturnInfoFromField7 }
 import { parseJobMemosFromField26 } from "@/lib/job-memo-parser";
 import { AudioInputButton, AudioData } from "@/components/features/audio-input-button";
 import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
-import { WorkOrderList } from "@/components/features/work-order-list";
+
 import { createWorkOrder } from "@/hooks/use-work-orders";
 import { VendorStatusManager } from "@/components/features/vendor-status-manager";
 import { WorkOrderStatus, WorkOrder } from "@/types";
-import { useAutoSave } from "@/hooks/use-auto-save";
+import { useAutoSaveWithOffline } from "@/hooks/use-auto-save-with-offline";
 import { SaveStatusIndicator } from "@/components/features/save-status-indicator";
 import { TireInspectionView } from "@/components/features/tire-inspection-view";
 import { usePageTiming } from "@/hooks/use-page-timing";
@@ -632,7 +638,7 @@ function ErrorDisplay({ message, onRetry }: { message: string; onRetry: () => vo
 
 function DiagnosisPageContent() {
   const router = useRouter();
-  // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
+  // Next.js 16対応: paramsとsearchParamsは既に同期的に値を返す
   const params = useParams();
   const searchParams = useSearchParams();
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
@@ -661,13 +667,6 @@ function DiagnosisPageContent() {
 
   // ワークオーダーを取得
   const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
-
-  // 複合作業の場合、workOrderパラメータがない場合は作業グループ選択画面にリダイレクト
-  useEffect(() => {
-    if (!isLoadingWorkOrders && workOrders && workOrders.length > 1 && !workOrderId) {
-      router.replace(`/mechanic/diagnosis/${jobId}/select`);
-    }
-  }, [workOrders, isLoadingWorkOrders, workOrderId, jobId, router]);
 
   // 顧客情報を取得（変更申請チェック用）
   const customerId = job?.field4?.id;
@@ -708,6 +707,9 @@ function DiagnosisPageContent() {
 
   // PDF生成中フラグ
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // 受付未完了確認ダイアログの状態
+  const [showCheckInRequiredDialog, setShowCheckInRequiredDialog] = useState(false);
 
   /**
    * 作業指示書PDF出力
@@ -786,6 +788,8 @@ function DiagnosisPageContent() {
       }
       return found;
     }
+    // workOrderパラメータがない場合、最初のワークオーダーを選択
+    // 複合作業の場合は、URLにworkOrderパラメータを追加することを推奨
     const first = workOrders[0];
     if (process.env.NODE_ENV === "development") {
       console.log("[診断画面] selectedWorkOrder (デフォルト):", first?.id, first?.serviceKind, first?.status, first?.vendor);
@@ -1141,6 +1145,10 @@ function DiagnosisPageContent() {
   // 一時帰宅/入庫選択ダイアログの状態
   const [isTemporaryReturnDialogOpen, setIsTemporaryReturnDialogOpen] = useState(false);
 
+  // 追加見積もりがない場合の作業画面遷移確認モーダル
+  const [isNoEstimateDialogOpen, setIsNoEstimateDialogOpen] = useState(false);
+  const [workUrlForNoEstimate, setWorkUrlForNoEstimate] = useState<string | null>(null);
+
   // 一時帰宅情報の状態
   const [isTemporaryReturn, setIsTemporaryReturn] = useState<boolean | null>(null);
   const [reentryDateTime, setReentryDateTime] = useState<string | null>(null);
@@ -1196,7 +1204,7 @@ function DiagnosisPageContent() {
           toast.success("走行距離を更新しました");
         } else {
           toast.error("走行距離の更新に失敗しました", {
-            description: result.error?.message,
+            ...(result.error?.message ? { description: result.error.message } : {}),
           });
           // エラー時は元の値に戻す
           setMileage(job?.field10 || null);
@@ -1292,18 +1300,22 @@ function DiagnosisPageContent() {
       setRestoreProgress(null);
     }
 
-    // qualityInspectionを復元
-    if (diagnosis.qualityInspection) {
-      setQualityInspection(diagnosis.qualityInspection as QualityInspection);
-    } else {
-      setQualityInspection(null);
+    // qualityInspectionを復元（24ヶ月点検以外の場合のみ）
+    if (!is24MonthInspection) {
+      if (diagnosis.qualityInspection) {
+        setQualityInspection(diagnosis.qualityInspection as QualityInspection);
+      } else {
+        setQualityInspection(null);
+      }
     }
 
-    // manufacturerInquiryを復元
-    if (diagnosis.manufacturerInquiry) {
-      setManufacturerInquiry(diagnosis.manufacturerInquiry as ManufacturerInquiry);
-    } else {
-      setManufacturerInquiry(null);
+    // manufacturerInquiryを復元（24ヶ月点検以外の場合のみ）
+    if (!is24MonthInspection) {
+      if (diagnosis.manufacturerInquiry) {
+        setManufacturerInquiry(diagnosis.manufacturerInquiry as ManufacturerInquiry);
+      } else {
+        setManufacturerInquiry(null);
+      }
     }
 
     // 追加見積項目を復元（24ヶ月点検の場合のみ）
@@ -1490,11 +1502,15 @@ function DiagnosisPageContent() {
     saveCurrentPath(currentPathname, window.location.search);
   }, []);
 
-  // ページ読み込み時にスクロール位置をトップにリセット
+  // ページ読み込み時にスクロール位置をトップにリセット（ヘッダーの高さ計算後に実行）
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // ページ読み込み時にスクロール位置をトップにリセット
-      window.scrollTo(0, 0);
+      // ヘッダーの高さ計算を待ってからスクロール位置をリセット
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo(0, 0);
+        });
+      });
     }
   }, []);
 
@@ -1545,7 +1561,7 @@ function DiagnosisPageContent() {
         toast.success(`${mechanicName}さんを担当に設定しました`);
       } else {
         toast.error("整備士の割り当てに失敗しました", {
-          description: result.error?.message,
+          ...(result.error?.message ? { description: result.error.message } : {}),
         });
         // エラー時はスクロール位置の保存を削除
         sessionStorage.removeItem("mechanic-dialog-scroll-y");
@@ -1569,16 +1585,35 @@ function DiagnosisPageContent() {
     if (isAssigningMechanic) return; // 処理中は閉じない
     setIsMechanicDialogOpen(open);
 
-    // ダイアログが閉じた時、スクロール位置を復元
+    // ダイアログが閉じた時、スクロール位置を復元（レイアウトシフトを防ぐため、ヘッダーの高さ更新を待つ）
     if (!open && typeof window !== "undefined") {
       const savedScrollY = sessionStorage.getItem("mechanic-dialog-scroll-y");
       if (savedScrollY) {
-        // レイアウトの更新を待ってからスクロール位置を復元
+        // ヘッダーの高さ更新とレイアウトの更新を待ってからスクロール位置を復元
         // 複数のフレームを待つことで、データ更新によるレイアウト変更を確実に待つ
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            window.scrollTo(0, parseInt(savedScrollY, 10));
-            sessionStorage.removeItem("mechanic-dialog-scroll-y");
+            requestAnimationFrame(() => {
+              // ヘッダーの高さを再確認してからスクロール位置を復元
+              const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height') || '176');
+              window.scrollTo({
+                top: parseInt(savedScrollY, 10),
+                left: 0,
+                behavior: 'instant' as ScrollBehavior
+              });
+              sessionStorage.removeItem("mechanic-dialog-scroll-y");
+            });
+          });
+        });
+      } else {
+        // スクロール位置が保存されていない場合、トップに戻す
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            window.scrollTo({
+              top: 0,
+              left: 0,
+              behavior: 'instant' as ScrollBehavior
+            });
           });
         });
       }
@@ -1999,12 +2034,33 @@ function DiagnosisPageContent() {
         selectedWorkOrder.id
       );
 
+      // 証拠写真フォルダを取得または作成
+      const subFolderType = getPhotoSubFolderType("diagnosis", false);
+      const subFolder = await getOrCreateWorkOrderSubFolder(
+        workOrderFolder.id,
+        subFolderType
+      );
+
+      // 車両名とサービス種類を取得
+      const vehicleNameForFile = extractVehicleName(vehicleName);
+      const serviceKind = selectedWorkOrder?.serviceKind || primaryServiceKind || "その他";
+
+      // ファイル名を生成（ドキュメント仕様に準拠）
+      const fileName = generateDiagnosticPdfFileName(
+        jobDate,
+        vehicleNameForFile,
+        serviceKind,
+        "OBD診断",
+        0,
+        file.name
+      );
+
       // PDFファイルをアップロード
       const uploadedFile = await uploadFile({
-        fileName: `obd-diagnostic-${Date.now()}.pdf`,
+        fileName,
         mimeType: "application/pdf",
         fileData: file,
-        parentFolderId: workOrderFolder.id,
+        parentFolderId: subFolder.id,
       });
 
       setObdDiagnosticResult({
@@ -2061,12 +2117,33 @@ function DiagnosisPageContent() {
         selectedWorkOrder.id
       );
 
+      // 証拠写真フォルダを取得または作成
+      const subFolderType = getPhotoSubFolderType("diagnosis", false);
+      const subFolder = await getOrCreateWorkOrderSubFolder(
+        workOrderFolder.id,
+        subFolderType
+      );
+
+      // 車両名とサービス種類を取得
+      const vehicleNameForFile = extractVehicleName(vehicleName);
+      const serviceKind = selectedWorkOrder?.serviceKind || primaryServiceKind || "その他";
+
+      // ファイル名を生成（ドキュメント仕様に準拠）
+      const fileName = generateDiagnosticPdfFileName(
+        jobDate,
+        vehicleNameForFile,
+        serviceKind,
+        "診断機結果",
+        0,
+        file.name
+      );
+
       // PDFファイルをアップロード
       const uploadedFile = await uploadFile({
-        fileName: `repair-diagnostic-${Date.now()}.pdf`,
+        fileName,
         mimeType: "application/pdf",
         fileData: file,
-        parentFolderId: workOrderFolder.id,
+        parentFolderId: subFolder.id,
       });
 
       setRepairDiagnosticToolResult({
@@ -2735,12 +2812,33 @@ function DiagnosisPageContent() {
         selectedWorkOrder.id
       );
 
+      // 証拠写真フォルダを取得または作成
+      const subFolderType = getPhotoSubFolderType("diagnosis", false);
+      const subFolder = await getOrCreateWorkOrderSubFolder(
+        workOrderFolder.id,
+        subFolderType
+      );
+
+      // 車両名とサービス種類を取得
+      const vehicleNameForFile = extractVehicleName(vehicleName);
+      const serviceKind = selectedWorkOrder?.serviceKind || primaryServiceKind || "その他";
+
+      // ファイル名を生成（ドキュメント仕様に準拠）
+      const fileName = generateDiagnosticPdfFileName(
+        jobDate,
+        vehicleNameForFile,
+        serviceKind,
+        "故障診断",
+        0,
+        file.name
+      );
+
       // PDFファイルをアップロード
       const uploadedFile = await uploadFile({
-        fileName: `fault-diagnostic-${Date.now()}.pdf`,
+        fileName,
         mimeType: "application/pdf",
         fileData: file,
-        parentFolderId: workOrderFolder.id,
+        parentFolderId: subFolder.id,
       });
 
       setFaultDiagnosticToolResult({
@@ -2920,8 +3018,11 @@ function DiagnosisPageContent() {
         photos: photoData,
         mechanicName: diagnosisMechanic || undefined,
         enhancedOBDDiagnosticResult: enhancedOBDDiagnosticResult || undefined,
-        qualityInspection: qualityInspection || undefined,
-        manufacturerInquiry: manufacturerInquiry || undefined,
+        // 24ヶ月点検（車検）の場合は品質管理・最終検査とメーカー問い合わせは使用しない（Phase 5に移動）
+        ...(is24MonthInspection ? {} : {
+          qualityInspection: qualityInspection || undefined,
+          manufacturerInquiry: manufacturerInquiry || undefined,
+        }),
       };
     } else if (isEngineOilChange) {
       // エンジンオイル交換用の診断データ
@@ -3233,12 +3334,18 @@ function DiagnosisPageContent() {
 
   // 前回の保存データを記録（トースト通知の重複を防ぐため）
   const lastSavedDataRef = useRef<string | null>(null);
-  
-  const { saveStatus, saveManually, hasUnsavedChanges: autoSaveHasUnsavedChanges } = useAutoSave({
+
+  const { saveStatus, saveManually, hasUnsavedChanges: autoSaveHasUnsavedChanges, isOffline, pendingSyncCount } = useAutoSaveWithOffline({
     data: diagnosisDataSnapshot,
     onSave: saveDraftDiagnosis,
     debounceMs: 2000,
     disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
+    enableOffline: true,
+    storeName: STORE_NAMES.DIAGNOSIS,
+    dataId: jobId,
+    syncMetadata: {
+      workOrderId: selectedWorkOrder?.id,
+    },
     onSaveSuccess: () => {
       // データが実際に変更された場合のみトースト通知を表示
       const currentData = JSON.stringify(diagnosisDataSnapshot);
@@ -3354,13 +3461,88 @@ function DiagnosisPageContent() {
     try {
       // サービス種類は既にコンポーネントレベルで定義済み
 
-      // 写真データを整形
-      const photoData = Object.values(photos)
-        .filter((p) => p.file)
-        .map((p) => ({
-          position: p.position,
-          url: p.previewUrl || "", // 実際はアップロード後のURLになる
-        }));
+      // 写真をGoogle Driveにアップロード
+      const uploadedPhotos: { position: string; url: string }[] = [];
+      
+      if (selectedWorkOrder?.id && job) {
+        // 顧客情報と車両情報を取得
+        const customerId = job.field4?.ID1 || job.field4?.id || "";
+        const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+        const vehicleId = job.field6?.Name || job.field6?.id || "";
+        const vehicleName = job.field6?.Name || job.field6?.name || "車両";
+        const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
+        
+        // ワークオーダーフォルダを取得または作成
+        const workOrderFolder = await getOrCreateWorkOrderFolder(
+          customerId,
+          customerName,
+          vehicleId,
+          vehicleName,
+          jobId,
+          jobDate,
+          selectedWorkOrder.id
+        );
+        
+        // 証拠写真フォルダを取得または作成
+        const subFolderType = getPhotoSubFolderType("diagnosis", false);
+        const subFolder = await getOrCreateWorkOrderSubFolder(
+          workOrderFolder.id,
+          subFolderType
+        );
+        
+        // 車両名とサービス種類を取得
+        const vehicleNameForFile = extractVehicleName(vehicleName);
+        const serviceKind = selectedWorkOrder?.serviceKind || primaryServiceKind || "その他";
+        
+        // 写真をアップロード
+        const photosToUpload = Object.values(photos).filter((p) => p.file);
+        for (let i = 0; i < photosToUpload.length; i++) {
+          const photo = photosToUpload[i];
+          if (photo.file) {
+            try {
+              // ファイル名を生成（ドキュメント仕様に準拠）
+              const fileName = generateWorkOrderPhotoFileName(
+                jobDate,
+                vehicleNameForFile,
+                serviceKind,
+                photo.position,
+                i,
+                photo.file.name
+              );
+              
+              // Google Driveにアップロード
+              const uploadedFile = await uploadFile({
+                fileData: photo.file,
+                fileName,
+                parentFolderId: subFolder.id,
+                mimeType: "image/jpeg",
+              });
+              
+              uploadedPhotos.push({
+                position: photo.position,
+                url: uploadedFile.webViewLink || uploadedFile.webContentLink || uploadedFile.id,
+              });
+            } catch (error) {
+              console.error(`写真アップロードエラー (${photo.position}):`, error);
+              // アップロードに失敗した場合は、プレビューURLを使用（フォールバック）
+              uploadedPhotos.push({
+                position: photo.position,
+                url: photo.previewUrl || "",
+              });
+            }
+          }
+        }
+      }
+      
+      // 写真データを整形（アップロード済みのURLを使用）
+      const photoData = uploadedPhotos.length > 0 
+        ? uploadedPhotos 
+        : Object.values(photos)
+            .filter((p) => p.file)
+            .map((p) => ({
+              position: p.position,
+              url: p.previewUrl || "", // フォールバック: アップロードに失敗した場合はプレビューURLを使用
+            }));
 
       // 診断データを整形
       let diagnosisData: any;
@@ -3751,7 +3933,7 @@ function DiagnosisPageContent() {
             console.error("[Diagnosis] 診断料金の保存に失敗:", feeResult.error);
             // 診断料金の保存失敗は警告のみ（診断完了処理は継続）
             toast.warning("診断料金の保存に失敗しました", {
-              description: feeResult.error?.message,
+              ...(feeResult.error?.message ? { description: feeResult.error.message } : {}),
             });
           }
         }
@@ -3807,23 +3989,11 @@ function DiagnosisPageContent() {
           toast.success("点検完了", {
             id: "diagnosis-complete-no-estimate",
             description: "追加見積もりがないため、作業画面で最終確認を行ってください",
-            action: {
-              label: "作業画面へ",
-              onClick: () => {
-                router.push(workUrl);
-              },
-            },
-            duration: 5000,
           });
 
-          // 作業画面への遷移時に履歴を記録
-          const workUrlObj = new URL(workUrl, window.location.origin);
-          setNavigationHistory(workUrlObj.pathname + workUrlObj.search, "diagnosis");
-
-          // 3秒後に自動で作業画面へ遷移
-          setTimeout(() => {
-            router.push(workUrl);
-          }, 3000);
+          // 作業画面への遷移確認モーダルを表示
+          setWorkUrlForNoEstimate(workUrl);
+          setIsNoEstimateDialogOpen(true);
 
           // 処理を終了（見積画面への遷移処理をスキップ）
           setIsSubmitting(false);
@@ -4067,6 +4237,14 @@ function DiagnosisPageContent() {
     return phases;
   }, [job]);
 
+  // 受付未完了チェック（jobが読み込まれた時点で確認）
+  // 注意: このHookは早期リターンの前に配置する必要があります（React Hooksのルール）
+  useEffect(() => {
+    if (job && job.field5 === "入庫待ち" && !showCheckInRequiredDialog) {
+      setShowCheckInRequiredDialog(true);
+    }
+  }, [job, showCheckInRequiredDialog]);
+
   // エラー状態（すべてのHooksの後に配置）
   if (jobError) {
     return (
@@ -4210,7 +4388,7 @@ function DiagnosisPageContent() {
   const redCount = checkItems.filter((item) => item.status === "red").length;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 overflow-x-hidden" style={{ touchAction: 'pan-y', scrollBehavior: 'auto' }}>
       {/* オフライン/オンラインバナー */}
       <OfflineBanner />
       <OnlineBanner />
@@ -4224,15 +4402,23 @@ function DiagnosisPageContent() {
         collapsedCustomerName={job.field4?.name || "未登録"}
         collapsedVehicleName={vehicleName}
         collapsedLicensePlate={licensePlate}
-        pageTitle={diagnosisTitle}
+        pageTitle={currentWorkOrderName ? `${currentWorkOrderName}｜${diagnosisTitle}` : diagnosisTitle}
         pageTitleIcon={<Activity className="h-5 w-5 text-slate-700 shrink-0" />}
-        rightArea={<HeaderBlogPhotoButton jobId={jobId} />}
+
       >
         {/* ページタイトル */}
         <div className="mb-3">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2 dark:text-white">
             <Activity className="h-5 w-5 text-slate-700 shrink-0 dark:text-white" />
-            {diagnosisTitle}
+            {currentWorkOrderName ? (
+              <>
+                <span>{currentWorkOrderName}</span>
+                <span className="text-slate-400">｜</span>
+                <span>{diagnosisTitle}</span>
+              </>
+            ) : (
+              <span>{diagnosisTitle}</span>
+            )}
           </h1>
         </div>
 
@@ -4297,27 +4483,7 @@ function DiagnosisPageContent() {
         </div>
       </AppHeader>
 
-      {/* 作業グループ一覧（複数作業がある場合のみ表示） */}
-      {(() => {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[診断画面] WorkOrderList表示条件チェック:", {
-            hasWorkOrders: !!workOrders,
-            workOrdersLength: workOrders?.length,
-            shouldShow: workOrders && workOrders.length > 1,
-          });
-        }
-        return workOrders && workOrders.length > 1 ? (
-          <div className="max-w-4xl mx-auto px-4 mb-6" style={{ marginTop: 'calc(var(--header-height, 176px) + 1rem)' }}>
-            <WorkOrderList
-              workOrders={workOrders}
-              selectedWorkOrderId={selectedWorkOrder?.id || null}
-              onSelectWorkOrder={handleWorkOrderSelect}
-              onAddWorkOrder={handleAddWorkOrder}
-              readOnly={false}
-            />
-          </div>
-        ) : null;
-      })()}
+
 
       {/* メインコンテンツ */}
       <main className="max-w-4xl mx-auto px-4 py-6 pb-32 overflow-x-hidden" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)', touchAction: 'pan-y' }}>
@@ -4593,12 +4759,12 @@ function DiagnosisPageContent() {
         {is24MonthInspection ? (
           /* 24ヶ月点検（車検）リデザイン版 */
           <div className="space-y-6 mb-4">
-            {/* 点検時の総走行距離（ページの最初に独立したセクション） */}
+            {/* 作業時の総走行距離（ページの最初に独立したセクション） */}
             <Card className="border-slate-200 shadow-md">
               <CardHeader className="pb-3">
-                <CardTitle className="text-xl font-semibold text-slate-900 flex items-center gap-2 dark:text-white">
-                  <Gauge className="h-5 w-5 text-slate-600 shrink-0 dark:text-white" />
-                  点検時の総走行距離
+                <CardTitle className="text-3xl font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+                  <Gauge className="h-9 w-9 text-slate-600 shrink-0 dark:text-white" />
+                  作業時の総走行距離
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -4670,17 +4836,7 @@ function DiagnosisPageContent() {
               </CardContent>
             </Card>
 
-            {/* 
-              測定値記入欄は各点検項目のフロー内で入力するため削除
-              - CO/HC濃度: 「CO、HCの濃度」項目の入力時に測定値を入力
-              - タイヤの溝の深さ: 「タイヤの溝の深さ、異状摩耗」項目の入力時に測定値を入力
-              - ブレーキパッド/ライニングの厚さ: 「ブレーキ・パッドの摩耗」項目の入力時に測定値を入力
-
-              交換部品等はPhase 5（整備・完成検査）に移動
-              理由: 受入点検では「発見」のみを記録し、実際の交換部品は作業時に記録する
-            */}
-
-            {/* 追加見積内容 */}
+            {/* 車検外提案（車検とは切り分けて説明した方が分かりやすい内容） */}
             <DiagnosisAdditionalEstimateSection
               requiredItems={additionalEstimateRequired}
               recommendedItems={additionalEstimateRecommended}
@@ -4699,13 +4855,6 @@ function DiagnosisPageContent() {
               disabled={isSubmitting}
             />
 
-            {/* 
-              品質管理・最終検査はPhase 5（作業画面）に移動
-              コンセプト: 完成検査は整備完了後に行うため、受入点検（Phase 2）では実施しない
-
-              整備アドバイスはPhase 5（作業画面）に移動
-              コンセプト: 整備アドバイスは整備作業完了後に提供するため、受入点検（Phase 2）では実施しない
-            */}
           </div>
         ) : isInspection ? (
           /* 12ヶ月点検（従来版） */
@@ -5041,11 +5190,11 @@ function DiagnosisPageContent() {
                   )}
                   <Button
                     variant="outline"
-                    className="w-full h-12 text-base font-medium"
+                    className="w-full h-14 text-base font-medium"
                     onClick={() => setIsJobMemoDialogOpen(true)}
                     disabled={isSubmitting}
                   >
-                    <Notebook className="h-4 w-4 mr-2 shrink-0" />
+                    <NotebookPen className="h-5 w-5 mr-2 shrink-0" />
                     メモを追加/編集
                     {allMemos.length > 0 && (
                       <Badge variant="secondary" className="ml-2 text-base font-medium px-2.5 py-1 shrink-0 whitespace-nowrap">
@@ -5058,6 +5207,18 @@ function DiagnosisPageContent() {
             })()}
           </CardContent>
         </Card>
+
+        {/* 保存状態インジケーター */}
+        <div className="mb-4 flex items-center justify-end">
+          <SaveStatusIndicator
+            status={saveStatus}
+            hasUnsavedChanges={autoSaveHasUnsavedChanges}
+            onSave={saveManually}
+            showSaveButton={true}
+            isOffline={isOffline}
+            pendingSyncCount={pendingSyncCount}
+          />
+        </div>
 
         {/* 診断料金入力セクション（24ヶ月点検以外） */}
         {!is24MonthInspection && (
@@ -5178,7 +5339,7 @@ function DiagnosisPageContent() {
       </main>
 
       {/* 完了ボタン（固定フッター） */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-lg">
         <div className="max-w-4xl mx-auto flex gap-4">
           {/* プレビューボタン（左側） */}
           <Button
@@ -5368,6 +5529,32 @@ function DiagnosisPageContent() {
         additionalEstimateOptional={additionalEstimateOptional}
       />
 
+      {/* 受付未完了確認ダイアログ */}
+      <AlertDialog open={showCheckInRequiredDialog} onOpenChange={setShowCheckInRequiredDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+              受付が完了していません
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-slate-700 pt-2">
+              この案件はまだ受付が完了していません。先に受付を完了してください。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-12 text-base">キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                router.push("/");
+              }}
+              className="h-12 text-base bg-primary hover:bg-primary/90"
+            >
+              受付を完了する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* 作業メモダイアログ */}
       <JobMemoDialog
         open={isJobMemoDialogOpen}
@@ -5436,6 +5623,38 @@ function DiagnosisPageContent() {
           submittedVersion={conflictInfo.submittedVersion}
         />
       )}
+
+      {/* 追加見積もりがない場合の作業画面遷移確認モーダル */}
+      <AlertDialog open={isNoEstimateDialogOpen} onOpenChange={setIsNoEstimateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl">点検完了</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              追加見積もりがないため、見積・承認をスキップして作業画面に進みます。
+              <br />
+              作業画面で最終確認を行ってください。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-12 text-base">キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-12 text-base"
+              onClick={() => {
+                if (workUrlForNoEstimate) {
+                  // 作業画面への遷移時に履歴を記録
+                  const workUrlObj = new URL(workUrlForNoEstimate, window.location.origin);
+                  setNavigationHistory(workUrlObj.pathname + workUrlObj.search, "diagnosis");
+                  router.push(workUrlForNoEstimate);
+                }
+                setIsNoEstimateDialogOpen(false);
+                setWorkUrlForNoEstimate(null);
+              }}
+            >
+              作業画面へ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

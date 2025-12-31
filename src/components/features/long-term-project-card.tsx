@@ -611,7 +611,11 @@ export function LongTermProjectCard({ project, onClick, courtesyCars = [], showD
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-1.5 rounded-md transition-all hover:bg-slate-100 text-slate-400 hover:text-slate-600"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHapticFeedback("light");
+                  }}
+                  title="Google Driveフォルダを開く"
                 >
                   <Folder className="h-4.5 w-4.5" />
                 </a>

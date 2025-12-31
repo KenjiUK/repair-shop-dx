@@ -303,12 +303,12 @@ export function InspectionStatusBottomSheet({
           {/* ステータス選択ボタン（測定値入力・写真撮影オプション表示中は非表示） */}
           {!showMeasurementInput && !showPhotoOptions && (
             <>
-              {/* 良好（レ）- 最頻繁に使用するため大きく表示 */}
+              {/* 良好（レ）- 最頻繁に使用するため大きく表示（点検項目と同じ高さ） */}
               <Button
             variant={currentStatus === "good" ? "default" : "outline"}
             onClick={() => handleStatusSelect("good")}
             className={cn(
-              "w-full h-16 text-xl font-semibold",
+              "w-full h-[72px] text-xl font-semibold",
               currentStatus === "good"
                 ? "bg-green-600 hover:bg-green-700 text-white"
                 : "border-2 border-slate-300 text-green-700 hover:bg-green-50 hover:border-green-300 dark:border-slate-600 dark:text-green-400 dark:hover:bg-green-900/30 dark:hover:border-green-700"

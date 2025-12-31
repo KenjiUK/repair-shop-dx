@@ -245,6 +245,12 @@ export async function updateCustomer(
     // 仕様書によると、LINE ID、メール同意、誕生日などのフィールドのみ更新可能
     // マスタデータ（顧客ID、氏名、住所、電話番号など）は更新不可
     
+    console.log("[zoho-api-client] updateCustomer request:", {
+      customerId,
+      updateData,
+      updateDataKeys: Object.keys(updateData),
+    });
+
     const response = await retryWithBackoff(async () => {
       return await fetch(`${ZOHO_API_BASE_URL}/customers/${customerId}`, {
         method: "PATCH",
@@ -255,16 +261,38 @@ export async function updateCustomer(
       });
     });
 
+    console.log("[zoho-api-client] updateCustomer response:", {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorText = await response.text().catch(() => "エラーレスポンスの読み取りに失敗");
+      let errorData: any = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        // JSONパース失敗時はそのまま使用
+      }
+      console.error("[zoho-api-client] updateCustomer error:", {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText.substring(0, 500),
+        errorData,
+      });
       throw new Error(
-        errorData.error?.message || `更新に失敗しました（ステータス: ${response.status}）`
+        errorData.error?.message || `更新に失敗しました（ステータス: ${response.status} ${response.statusText}）`
       );
     }
 
     const data = await response.json();
+    console.log("[zoho-api-client] updateCustomer success:", {
+      success: data.success,
+    });
     return data as ApiResponse<unknown>;
   } catch (error) {
+    console.error("[zoho-api-client] updateCustomer exception:", error);
     const errorEntry = createErrorLogEntry(
       error,
       ErrorCodes.EXTERNAL_API_ERROR,

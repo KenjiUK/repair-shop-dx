@@ -16,6 +16,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { compressImage, getImagePreviewUrl } from "@/lib/compress";
 import Image from "next/image";
@@ -27,10 +37,12 @@ import { ServiceKind, WorkOrderStatus, WorkOrder } from "@/types";
 import { ApprovedWorkItemCard, ApprovedWorkItem } from "@/components/features/approved-work-item-card";
 import { WorkProgressBar } from "@/components/features/work-progress-bar";
 import { useWorkOrders, updateWorkOrder, createWorkOrder } from "@/hooks/use-work-orders";
-import { WorkOrderList } from "@/components/features/work-order-list";
+
 import { VendorStatusManager } from "@/components/features/vendor-status-manager";
-import { useAutoSave } from "@/hooks/use-auto-save";
+import { useAutoSaveWithOffline } from "@/hooks/use-auto-save-with-offline";
 import { SaveStatusIndicator } from "@/components/features/save-status-indicator";
+import { STORE_NAMES } from "@/lib/offline-storage";
+import { useDirtyCheck } from "@/lib/dirty-check";
 import { ReplacementPart } from "@/lib/inspection-pdf-generator";
 import useSWR from "swr";
 import { fetchJobById, updateJobStatus, completeWork, fetchAllCourtesyCars } from "@/lib/api";
@@ -78,6 +90,7 @@ import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
 import { CompactJobHeader } from "@/components/layout/compact-job-header";
 import { User, Printer } from "lucide-react";
+import { InspectionRecordPreviewDialog } from "@/components/features/inspection-record-preview-dialog";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VoiceInputButton } from "@/components/features/voice-input-button";
@@ -101,9 +114,9 @@ import {
   QualityCheckData as InspectionQualityCheckData,
   ReplacementPartItem,
 } from "@/components/features/inspection-work-view";
-import { getOrCreateWorkOrderFolder, uploadFile } from "@/lib/google-drive";
+import { getOrCreateWorkOrderFolder, getOrCreateWorkOrderSubFolder, getPhotoSubFolderType, generateWorkOrderBeforeAfterPhotoFileName, uploadFile } from "@/lib/google-drive";
 import { setNavigationHistory, getPageTypeFromPath, saveCurrentPath } from "@/lib/navigation-history";
-import { HeaderBlogPhotoButton } from "@/components/features/header-blog-photo-button";
+
 
 // =============================================================================
 // Helper Functions
@@ -122,9 +135,6 @@ function formatTime(isoString: string): string {
   });
 }
 
-/**
- * ステータスバッジのスタイルを取得
- */
 /**
  * ステータスバッジのスタイルを取得
  * セマンティックカラーシステムに基づく統一ルール
@@ -272,7 +282,7 @@ function WorkItemCard({
                 <Check className="h-5 w-5 text-white shrink-0" /> {/* h-4 w-4 → h-5 w-5 (40歳以上ユーザー向け、アイコンサイズ拡大) */}
               </div>
             ) : (
-              <div className="w-6 h-6 rounded-full border-2 border-slate-300" />
+              <div className="w-8 h-8 rounded-full border-2 border-slate-300" />
             )}
           </div>
 
@@ -339,7 +349,7 @@ function WorkItemCard({
                 size="default"
                 onClick={handleCameraClick}
                 disabled={item.isCapturing || item.isCompleted}
-                className="flex-1"
+                className="flex-1 h-12 text-base"
                 aria-label={item.afterPhotoUrl ? `${item.name}の再撮影` : `${item.name}の完了撮影`}
               >
                 {item.isCapturing ? (
@@ -503,7 +513,7 @@ const jobFetcherWithTiming = (jobId: string) =>
 function MechanicWorkPageContent() {
   const router = useRouter();
   const pathname = usePathname();
-  // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
+  // Next.js 16対応: paramsとsearchParamsは既に同期的に値を返す
   const params = useParams();
   const searchParams = useSearchParams();
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
@@ -558,10 +568,6 @@ function MechanicWorkPageContent() {
 
         // 履歴を記録（前の画面のパスとタイプを記録）
         setNavigationHistory(previousPath, referrerType);
-
-        if (process.env.NODE_ENV === "development") {
-          console.log("[Work] Navigation history saved from sessionStorage:", { previousPath, referrerType });
-        }
       } catch (error) {
         console.error("[Work] Failed to parse previous path:", error);
         // エラーが発生した場合は、document.referrerを使用
@@ -585,9 +591,6 @@ function MechanicWorkPageContent() {
             // 履歴を記録（前の画面のパスとタイプを記録）
             setNavigationHistory(referrerPath, referrerType);
 
-            if (process.env.NODE_ENV === "development") {
-              console.log("[Work] Navigation history saved from referrer:", { referrerPath, referrerType });
-            }
           } else {
             // 同じページへの遷移（リロードなど）は履歴を保持
             // 既存の履歴があればそのまま使用
@@ -605,13 +608,6 @@ function MechanicWorkPageContent() {
   // ワークオーダーを取得
   const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
 
-  // 複合作業の場合、workOrderパラメータがない場合は作業グループ選択画面にリダイレクト（将来実装）
-  // 現時点では作業画面の選択画面は未実装のため、コメントアウト
-  // useEffect(() => {
-  //   if (!isLoadingWorkOrders && workOrders && workOrders.length > 1 && !workOrderId) {
-  //     router.replace(`/mechanic/work/${jobId}/select`);
-  //   }
-  // }, [workOrders, isLoadingWorkOrders, workOrderId, jobId, router]);
 
   // 代車情報を取得（グローバルキャッシュを活用）
   const {
@@ -664,9 +660,15 @@ function MechanicWorkPageContent() {
 
   // PDF生成中フラグ
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewRecordData, setPreviewRecordData] = useState<InspectionRecordData | null>(null);
+  const [previewTemplateType, setPreviewTemplateType] = useState<"12month" | "24month">("24month");
 
   // 作業メモダイアログの状態
   const [isJobMemoDialogOpen, setIsJobMemoDialogOpen] = useState(false);
+
+  // 受付未完了確認ダイアログの状態
+  const [showCheckInRequiredDialog, setShowCheckInRequiredDialog] = useState(false);
 
   // サービス種類を判定
   const serviceKinds = job?.field_service_kinds || (job?.serviceKind ? [job.serviceKind] : []);
@@ -680,17 +682,6 @@ function MechanicWorkPageContent() {
     return serviceKinds.length > 0 ? (serviceKinds[0] as ServiceKind) : undefined;
   }, [selectedWorkOrder, serviceKinds]);
 
-  // デバッグログ（開発環境のみ）
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("[作業画面] サービス種類判定:", {
-        serviceKinds,
-        primaryServiceKind,
-        selectedWorkOrderId: selectedWorkOrder?.id,
-        selectedWorkOrderServiceKind: selectedWorkOrder?.serviceKind,
-      });
-    }
-  }, [serviceKinds, primaryServiceKind, selectedWorkOrder]);
 
   const isInspection = useMemo(() => {
     // 選択中のワークオーダーのサービス種類を優先
@@ -869,8 +860,27 @@ function MechanicWorkPageContent() {
       if (diagnosis.maintenanceAdvice) {
         setMaintenanceAdvice(diagnosis.maintenanceAdvice);
       }
+      
+      // 診断データから完成検査のテスター値を自動入力
+      if (diagnosis.inspectionMeasurements && Object.keys(finalInspectionData).length === 0) {
+        const measurements = diagnosis.inspectionMeasurements;
+        const autoFillData: FinalInspectionData = {};
+        
+        // 排ガス測定値の自動入力
+        if (measurements.coConcentration !== undefined) {
+          autoFillData.exhaustCO = measurements.coConcentration;
+        }
+        if (measurements.hcConcentration !== undefined) {
+          autoFillData.exhaustHC = measurements.hcConcentration;
+        }
+        
+        // 自動入力された値がある場合のみ更新
+        if (Object.keys(autoFillData).length > 0) {
+          setFinalInspectionData(autoFillData);
+        }
+      }
     }
-  }, [isInspection, is12MonthInspection, selectedWorkOrder]);
+  }, [isInspection, is12MonthInspection, selectedWorkOrder, finalInspectionData]);
 
   // 法定点検用：診断画面から引き継いだ作業データの読み込み（追加見積もりがない場合）
   useEffect(() => {
@@ -917,6 +927,109 @@ function MechanicWorkPageContent() {
   }, [isInspection, is12MonthInspection, acceptanceData, replacementParts.length]);
 
   /**
+   * 分解整備記録簿データを準備する共通関数
+   */
+  const prepareRecordData = (): InspectionRecordData | null => {
+    if (!job || !selectedWorkOrder) return null;
+
+    const isInspectionWork = selectedWorkOrder.serviceKind === "車検" || selectedWorkOrder.serviceKind === "12ヵ月点検";
+    if (!isInspectionWork) return null;
+
+    if (!selectedWorkOrder?.diagnosis?.items) {
+      return null;
+    }
+
+    // 検査項目を取得
+    const inspectionItems: InspectionItem[] = selectedWorkOrder.diagnosis.items.map((item) => {
+      const templateItem = VEHICLE_INSPECTION_ITEMS.find((t) => t.id === item.id);
+      return {
+        ...(templateItem || { id: item.id, name: item.name, category: "other" as const, status: "unchecked" }),
+        status: item.status as InspectionItem["status"],
+        comment: item.comment || undefined,
+        photoUrls: item.evidencePhotoUrls,
+        videoUrl: item.evidenceVideoUrl || undefined,
+      };
+    });
+
+    // 車両情報を取得
+    const vehicleName = extractVehicleName(job.field6?.name);
+    const licensePlate = extractLicensePlate(job.field6?.name);
+    const customerName = job.field4?.name || "未登録";
+
+    // 24ヶ月点検リデザイン版の測定値データを取得
+    const diagnosisMeasurements = (selectedWorkOrder.diagnosis as any)?.inspectionMeasurements;
+    const diagnosisInspectionParts = (selectedWorkOrder.diagnosis as any)?.inspectionParts;
+    const diagnosisCustomParts = (selectedWorkOrder.diagnosis as any)?.customParts;
+
+    // 分解整備記録簿データを準備
+    return {
+      vehicle: {
+        ownerName: customerName,
+        vehicleName,
+        licensePlate,
+        chassisNumber: undefined,
+        firstRegistrationYear: undefined,
+        engineType: undefined,
+      },
+      inspectionItems,
+      replacementParts: [
+        // 24ヶ月点検リデザイン版の交換部品データを変換
+        ...(diagnosisInspectionParts?.engineOil ? [{ name: "エンジンオイル", quantity: diagnosisInspectionParts.engineOil, unit: "L" }] : []),
+        ...(diagnosisInspectionParts?.oilFilter ? [{ name: "オイルフィルター", quantity: diagnosisInspectionParts.oilFilter, unit: "個" }] : []),
+        ...(diagnosisInspectionParts?.llc ? [{ name: "LLC", quantity: diagnosisInspectionParts.llc, unit: "L" }] : []),
+        ...(diagnosisInspectionParts?.brakeFluid ? [{ name: "ブレーキフルード", quantity: diagnosisInspectionParts.brakeFluid, unit: "L" }] : []),
+        ...(diagnosisInspectionParts?.wiperRubber ? [{ name: "ワイパーゴム", quantity: diagnosisInspectionParts.wiperRubber, unit: "個" }] : []),
+        ...(diagnosisInspectionParts?.cleanAirFilter ? [{ name: "クリーンエアフィルター", quantity: diagnosisInspectionParts.cleanAirFilter, unit: "個" }] : []),
+        // カスタム部品
+        ...(diagnosisCustomParts || []).map((part: { name: string; quantity: string }) => ({
+          name: part.name,
+          quantity: parseFloat(part.quantity) || 1,
+          unit: "",
+        })),
+      ],
+      mechanicName: job.assignedMechanic || "未設定",
+      mileage: job.field10 || null,
+      inspectionDate: new Date().toISOString(),
+      measurements: diagnosisMeasurements ? {
+        coConcentration: diagnosisMeasurements.coConcentration,
+        hcConcentration: diagnosisMeasurements.hcConcentration,
+        brakePadFrontLeft: diagnosisMeasurements.brakePadFrontLeft,
+        brakePadFrontRight: diagnosisMeasurements.brakePadFrontRight,
+        brakePadRearLeft: diagnosisMeasurements.brakePadRearLeft,
+        brakePadRearRight: diagnosisMeasurements.brakePadRearRight,
+        tireDepthFrontLeft: diagnosisMeasurements.tireDepthFrontLeft,
+        tireDepthFrontRight: diagnosisMeasurements.tireDepthFrontRight,
+        tireDepthRearLeft: diagnosisMeasurements.tireDepthRearLeft,
+        tireDepthRearRight: diagnosisMeasurements.tireDepthRearRight,
+      } : undefined,
+    };
+  };
+
+  /**
+   * 分解整備記録簿プレビュー
+   */
+  const handlePreviewInspectionRecord = () => {
+    if (!job || !selectedWorkOrder) return;
+
+    const isInspectionWork = selectedWorkOrder.serviceKind === "車検" || selectedWorkOrder.serviceKind === "12ヵ月点検";
+    if (!isInspectionWork) return;
+
+    const recordData = prepareRecordData();
+    if (!recordData) {
+      toast.error("診断データが見つかりません");
+      return;
+    }
+
+    // テンプレートタイプを判定
+    const templateType: "12month" | "24month" =
+      selectedWorkOrder.serviceKind === "12ヵ月点検" ? "12month" : "24month";
+
+    setPreviewRecordData(recordData);
+    setPreviewTemplateType(templateType);
+    setIsPreviewOpen(true);
+  };
+
+  /**
    * 分解整備記録簿PDF出力（テンプレートPDF使用）
    */
   const handlePrintInspectionRecord = async () => {
@@ -929,76 +1042,15 @@ function MechanicWorkPageContent() {
     triggerHapticFeedback("medium");
 
     try {
-      if (!selectedWorkOrder?.diagnosis?.items) {
+      // 分解整備記録簿データを準備（共通関数を使用）
+      const recordData = prepareRecordData();
+      if (!recordData) {
         toast.error("診断データが見つかりません");
         return;
       }
 
-      // 検査項目を取得
-      const inspectionItems: InspectionItem[] = selectedWorkOrder.diagnosis.items.map((item) => {
-        const templateItem = VEHICLE_INSPECTION_ITEMS.find((t) => t.id === item.id);
-        return {
-          ...(templateItem || { id: item.id, name: item.name, category: "other" as const, status: "unchecked" }),
-          status: item.status as InspectionItem["status"],
-          comment: item.comment || undefined,
-          photoUrls: item.evidencePhotoUrls,
-          videoUrl: item.evidenceVideoUrl || undefined,
-        };
-      });
-
-      // 車両情報を取得
+      // 車両名を取得（ダウンロードファイル名用）
       const vehicleName = extractVehicleName(job.field6?.name);
-      const licensePlate = extractLicensePlate(job.field6?.name);
-      const customerName = job.field4?.name || "未登録";
-
-      // 24ヶ月点検リデザイン版の測定値データを取得
-      const diagnosisMeasurements = (selectedWorkOrder.diagnosis as any)?.inspectionMeasurements;
-      const diagnosisInspectionParts = (selectedWorkOrder.diagnosis as any)?.inspectionParts;
-      const diagnosisCustomParts = (selectedWorkOrder.diagnosis as any)?.customParts;
-
-      // 分解整備記録簿データを準備
-      const recordData: InspectionRecordData = {
-        vehicle: {
-          ownerName: customerName,
-          vehicleName,
-          licensePlate,
-          chassisNumber: undefined,
-          firstRegistrationYear: undefined,
-          engineType: undefined,
-        },
-        inspectionItems,
-        replacementParts: [
-          // 24ヶ月点検リデザイン版の交換部品データを変換
-          ...(diagnosisInspectionParts?.engineOil ? [{ name: "エンジンオイル", quantity: diagnosisInspectionParts.engineOil, unit: "L" }] : []),
-          ...(diagnosisInspectionParts?.oilFilter ? [{ name: "オイルフィルター", quantity: diagnosisInspectionParts.oilFilter, unit: "個" }] : []),
-          ...(diagnosisInspectionParts?.llc ? [{ name: "LLC", quantity: diagnosisInspectionParts.llc, unit: "L" }] : []),
-          ...(diagnosisInspectionParts?.brakeFluid ? [{ name: "ブレーキフルード", quantity: diagnosisInspectionParts.brakeFluid, unit: "L" }] : []),
-          ...(diagnosisInspectionParts?.wiperRubber ? [{ name: "ワイパーゴム", quantity: diagnosisInspectionParts.wiperRubber, unit: "個" }] : []),
-          ...(diagnosisInspectionParts?.cleanAirFilter ? [{ name: "クリーンエアフィルター", quantity: diagnosisInspectionParts.cleanAirFilter, unit: "個" }] : []),
-          // カスタム部品
-          ...(diagnosisCustomParts || []).map((part: { name: string; quantity: string }) => ({
-            name: part.name,
-            quantity: parseFloat(part.quantity) || 1,
-            unit: "",
-          })),
-        ],
-        mechanicName: job.assignedMechanic || "未設定",
-        mileage: job.field10 || null, // 顧客申告の走行距離（無ければnull、空欄になる）
-        inspectionDate: new Date().toISOString(),
-        // 24ヶ月点検リデザイン版の測定値データ
-        measurements: diagnosisMeasurements ? {
-          coConcentration: diagnosisMeasurements.coConcentration,
-          hcConcentration: diagnosisMeasurements.hcConcentration,
-          brakePadFrontLeft: diagnosisMeasurements.brakePadFrontLeft,
-          brakePadFrontRight: diagnosisMeasurements.brakePadFrontRight,
-          brakePadRearLeft: diagnosisMeasurements.brakePadRearLeft,
-          brakePadRearRight: diagnosisMeasurements.brakePadRearRight,
-          tireDepthFrontLeft: diagnosisMeasurements.tireDepthFrontLeft,
-          tireDepthFrontRight: diagnosisMeasurements.tireDepthFrontRight,
-          tireDepthRearLeft: diagnosisMeasurements.tireDepthRearLeft,
-          tireDepthRearRight: diagnosisMeasurements.tireDepthRearRight,
-        } : undefined,
-      };
 
       // テンプレートタイプを判定（12ヶ月点検か24ヶ月点検か）
       const templateType: "12month" | "24month" =
@@ -1253,11 +1305,17 @@ function MechanicWorkPageContent() {
     workItems,
   ]);
 
-  const { saveStatus, saveManually, hasUnsavedChanges } = useAutoSave({
+  const { saveStatus, saveManually, hasUnsavedChanges, isOffline, pendingSyncCount } = useAutoSaveWithOffline({
     data: workDataSnapshot,
     onSave: saveDraftWork,
     debounceMs: 2000,
     disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
+    enableOffline: true,
+    storeName: STORE_NAMES.WORK,
+    dataId: jobId,
+    syncMetadata: {
+      workOrderId: selectedWorkOrder?.id,
+    },
     onSaveSuccess: () => {
       // 保存成功時のトースト通知
       toast.success("保存しました");
@@ -1269,6 +1327,12 @@ function MechanicWorkPageContent() {
         description: error.message || "エラーが発生しました",
       });
     },
+  });
+
+  // Dirty Check（未保存変更の検知）
+  useDirtyCheck(hasUnsavedChanges, {
+    message: "入力中の内容が保存されていません。このまま移動しますか？",
+    disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
   });
 
   /**
@@ -1332,16 +1396,6 @@ function MechanicWorkPageContent() {
       const currentServiceKind = primaryServiceKind || (serviceKinds.length > 0 ? serviceKinds[0] : undefined);
       const shouldGenerateRecordBook = currentServiceKind === "車検" || currentServiceKind === "12ヵ月点検";
 
-      // デバッグログ（開発環境のみ）
-      if (process.env.NODE_ENV === "development") {
-        console.log("[作業画面] 分解整備記録簿生成判定:", {
-          currentServiceKind,
-          shouldGenerateRecordBook,
-          isInspection,
-          selectedWorkOrderId: selectedWorkOrder?.id,
-          selectedWorkOrderServiceKind: selectedWorkOrder?.serviceKind,
-        });
-      }
 
       if (shouldGenerateRecordBook) {
         // 車検・12ヵ月点検の場合：分解整備記録簿PDFを生成してGoogle Driveに保存
@@ -1792,9 +1846,6 @@ function MechanicWorkPageContent() {
           .filter((i) => i.status === "completed")
           .map((i) => i.id);
 
-        console.log("=== 作業完了 ===");
-        console.log("Job ID:", jobId);
-        console.log("Completed Items:", approvedWorkItems.filter((i) => i.status === "completed").map((i) => i.name));
 
         // ワークオーダーを作成してからworkデータを保存
         const serviceKindForWorkOrder = primaryServiceKind || serviceKinds[0] || "その他";
@@ -1897,6 +1948,13 @@ function MechanicWorkPageContent() {
       setIsSubmitting(false);
     }
   };
+
+  // 受付未完了チェック（jobが読み込まれた時点で確認）
+  useEffect(() => {
+    if (job && job.field5 === "入庫待ち" && !showCheckInRequiredDialog) {
+      setShowCheckInRequiredDialog(true);
+    }
+  }, [job, showCheckInRequiredDialog]);
 
   // 承認された作業項目を取得（車検・故障診断・修理・整備・タイヤ交換・ローテーション・その他のメンテナンス・チューニング・コーティングの場合）
   // 板金・塗装とレストアの場合は、外注管理ビュー/レストア作業ビューを使用するため、承認された作業項目は使用しない
@@ -2223,8 +2281,8 @@ function MechanicWorkPageContent() {
       <div className="flex-1 bg-slate-50 dark:bg-slate-900">
         <AppHeader maxWidthClassName="max-w-4xl">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-slate-200 animate-pulse rounded" />
-            <div className="h-8 w-48 bg-slate-200 animate-pulse rounded" />
+            <div className="h-12 w-12 bg-slate-200 animate-pulse rounded" />
+            <div className="h-12 w-48 bg-slate-200 animate-pulse rounded" />
           </div>
         </AppHeader>
         <div className="max-w-4xl mx-auto px-4 py-6">
@@ -2248,8 +2306,8 @@ function MechanicWorkPageContent() {
       <div className="flex-1 bg-slate-50 dark:bg-slate-900">
         <AppHeader maxWidthClassName="max-w-4xl">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-slate-200 animate-pulse rounded" />
-            <div className="h-8 w-48 bg-slate-200 animate-pulse rounded" />
+            <div className="h-12 w-12 bg-slate-200 animate-pulse rounded" />
+            <div className="h-12 w-48 bg-slate-200 animate-pulse rounded" />
           </div>
         </AppHeader>
         <div className="max-w-4xl mx-auto px-4 py-6">
@@ -2278,13 +2336,15 @@ function MechanicWorkPageContent() {
         collapsedLicensePlate={licensePlate}
         rightArea={
           <div className="flex items-center gap-2">
-            <HeaderBlogPhotoButton jobId={jobId} />
+
             {selectedWorkOrder?.id && (
               <SaveStatusIndicator
                 status={saveStatus}
                 hasUnsavedChanges={hasUnsavedChanges}
                 onSave={saveManually}
                 showSaveButton={true}
+                isOffline={isOffline}
+                pendingSyncCount={pendingSyncCount}
               />
             )}
           </div>
@@ -2314,12 +2374,21 @@ function MechanicWorkPageContent() {
         {/* 分解整備記録簿PDF出力ボタン（車検・12ヶ月点検の場合のみ） */}
         {selectedWorkOrder &&
           (selectedWorkOrder.serviceKind === "車検" || selectedWorkOrder.serviceKind === "12ヵ月点検") && (
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={handlePreviewInspectionRecord}
+                disabled={isGeneratingPDF}
+                className="gap-2 h-12 text-base"
+              >
+                <Eye className="h-5 w-5 shrink-0" />
+                プレビュー
+              </Button>
               <Button
                 variant="outline"
                 onClick={handlePrintInspectionRecord}
                 disabled={isGeneratingPDF}
-                className="gap-2"
+                className="gap-2 h-12 text-base"
               >
                 {isGeneratingPDF ? (
                   <>
@@ -2345,28 +2414,15 @@ function MechanicWorkPageContent() {
                 const reportUrl = `/customer/report/${jobId}`;
                 window.open(reportUrl, "_blank");
               }}
-              className="gap-2"
+              className="gap-2 h-12 text-base"
             >
               <Eye className="h-5 w-5 shrink-0" />
               顧客向けレポート画面をプレビュー
-              <ExternalLink className="h-4 w-4 shrink-0" />
+              <ExternalLink className="h-5 w-5 shrink-0" />
             </Button>
           </div>
         )}
       </AppHeader>
-
-      {/* 作業グループ一覧（複数作業がある場合のみ表示） */}
-      {workOrders && workOrders.length > 1 && (
-        <div className="max-w-4xl mx-auto px-4 mb-4">
-          <WorkOrderList
-            workOrders={workOrders}
-            selectedWorkOrderId={selectedWorkOrder?.id || null}
-            onSelectWorkOrder={handleWorkOrderSelect}
-            onAddWorkOrder={handleAddWorkOrder}
-            readOnly={false}
-          />
-        </div>
-      )}
 
       {/* メインコンテンツ */}
       <main className="max-w-4xl mx-auto px-4 py-6" style={{ paddingTop: 'calc(var(--header-height, 176px) + 1.5rem)' }}>
@@ -2511,17 +2567,81 @@ function MechanicWorkPageContent() {
               }
               photoDataMap={restoreWorkPhotoData}
               onPhotoCapture={async (position, file) => {
+                if (!job || !selectedWorkOrder?.id || !primaryServiceKind) {
+                  toast.error("ジョブ情報、ワークオーダー情報、またはサービス種類が不足しています");
+                  return;
+                }
+
+                setRestoreWorkPhotoData((prev) => ({
+                  ...prev,
+                  [position]: { ...prev[position], isCompressing: true },
+                }));
+
                 try {
                   const compressedFile = await compressImage(file);
                   const previewUrl = await getImagePreviewUrl(compressedFile);
+
+                  // 顧客情報と車両情報を取得
+                  const customerId = job.field4?.ID1 || job.field4?.id || "";
+                  const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+                  const vehicleId = job.field6?.Name || job.field6?.id || "";
+                  const vehicleName = job.field6?.Name || job.field6?.name || "車両";
+                  const vehicleNameForFile = extractVehicleName(vehicleName);
+                  const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
+
+                  // ワークオーダーフォルダを取得または作成
+                  const workOrderFolder = await getOrCreateWorkOrderFolder(
+                    customerId,
+                    customerName,
+                    vehicleId,
+                    vehicleNameForFile,
+                    jobId,
+                    jobDate,
+                    selectedWorkOrder.id
+                  );
+
+                  // 作業報告フォルダを取得または作成
+                  const subFolderType = getPhotoSubFolderType("general", false);
+                  const subFolder = await getOrCreateWorkOrderSubFolder(
+                    workOrderFolder.id,
+                    subFolderType
+                  );
+
+                  // 同じ位置の既存ファイル数をカウントしてindexを決定
+                  const existingPhotosCount = Object.values(restoreWorkPhotoData).filter(
+                    (p) => p.position === position && p.fileId
+                  ).length;
+
+                  // ファイル名を生成（ドキュメント仕様に準拠）
+                  const fileName = generateWorkOrderBeforeAfterPhotoFileName(
+                    jobDate,
+                    vehicleNameForFile,
+                    primaryServiceKind,
+                    position, // 位置名として使用
+                    existingPhotosCount + 1,
+                    compressedFile.name,
+                    "after" // レストアの作業中写真はafterとして扱う
+                  );
+
+                  // Google Driveに写真をアップロード
+                  const uploadedFile = await uploadFile({
+                    fileData: compressedFile,
+                    fileName,
+                    parentFolderId: subFolder.id,
+                    mimeType: "image/jpeg",
+                    driveId: subFolder.driveId,
+                  });
+
+                  const uploadedUrl = uploadedFile.webViewLink || uploadedFile.id;
 
                   setRestoreWorkPhotoData((prev) => ({
                     ...prev,
                     [position]: {
                       position,
                       file: compressedFile,
-                      previewUrl,
+                      previewUrl: uploadedUrl,
                       isCompressing: false,
+                      fileId: uploadedFile.id,
                     },
                   }));
 
@@ -2533,7 +2653,7 @@ function MechanicWorkPageContent() {
                         record.id === position
                           ? {
                             ...record,
-                            photoUrls: [...(record.photoUrls || []), previewUrl],
+                            photoUrls: [...(record.photoUrls || []), uploadedUrl],
                           }
                           : record
                       ),
@@ -2544,10 +2664,14 @@ function MechanicWorkPageContent() {
                     });
                   }
 
-                  toast.success("作業中の写真を撮影しました");
+                  toast.success("作業中の写真をアップロードしました");
                 } catch (error) {
-                  console.error("写真撮影エラー:", error);
-                  toast.error("写真の撮影に失敗しました");
+                  console.error("写真アップロードエラー:", error);
+                  setRestoreWorkPhotoData((prev) => ({
+                    ...prev,
+                    [position]: { ...prev[position], isCompressing: false },
+                  }));
+                  toast.error("写真のアップロードに失敗しました");
                 }
               }}
               disabled={isSubmitting}
@@ -2568,17 +2692,81 @@ function MechanicWorkPageContent() {
               onQualityCheckDataChange={setBodyPaintQualityCheckData}
               photoDataMap={bodyPaintPhotoData}
               onPhotoCapture={async (position, file) => {
+                if (!job || !selectedWorkOrder?.id || !primaryServiceKind) {
+                  toast.error("ジョブ情報、ワークオーダー情報、またはサービス種類が不足しています");
+                  return;
+                }
+
+                setBodyPaintPhotoData((prev) => ({
+                  ...prev,
+                  [position]: { ...prev[position], isCompressing: true },
+                }));
+
                 try {
                   const compressedFile = await compressImage(file);
                   const previewUrl = await getImagePreviewUrl(compressedFile);
+
+                  // 顧客情報と車両情報を取得
+                  const customerId = job.field4?.ID1 || job.field4?.id || "";
+                  const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
+                  const vehicleId = job.field6?.Name || job.field6?.id || "";
+                  const vehicleName = job.field6?.Name || job.field6?.name || "車両";
+                  const vehicleNameForFile = extractVehicleName(vehicleName);
+                  const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
+
+                  // ワークオーダーフォルダを取得または作成
+                  const workOrderFolder = await getOrCreateWorkOrderFolder(
+                    customerId,
+                    customerName,
+                    vehicleId,
+                    vehicleNameForFile,
+                    jobId,
+                    jobDate,
+                    selectedWorkOrder.id
+                  );
+
+                  // 作業報告フォルダを取得または作成
+                  const subFolderType = getPhotoSubFolderType("after", false);
+                  const subFolder = await getOrCreateWorkOrderSubFolder(
+                    workOrderFolder.id,
+                    subFolderType
+                  );
+
+                  // 同じ位置の既存ファイル数をカウントしてindexを決定
+                  const existingPhotosCount = Object.values(bodyPaintPhotoData).filter(
+                    (p) => p.position === position && p.fileId
+                  ).length;
+
+                  // ファイル名を生成（ドキュメント仕様に準拠）
+                  const fileName = generateWorkOrderBeforeAfterPhotoFileName(
+                    jobDate,
+                    vehicleNameForFile,
+                    primaryServiceKind,
+                    position, // 位置名として使用
+                    existingPhotosCount + 1,
+                    compressedFile.name,
+                    "after" // 板金・塗装の品質確認写真はafterとして扱う
+                  );
+
+                  // Google Driveに写真をアップロード
+                  const uploadedFile = await uploadFile({
+                    fileData: compressedFile,
+                    fileName,
+                    parentFolderId: subFolder.id,
+                    mimeType: "image/jpeg",
+                    driveId: subFolder.driveId,
+                  });
+
+                  const uploadedUrl = uploadedFile.webViewLink || uploadedFile.id;
 
                   setBodyPaintPhotoData((prev) => ({
                     ...prev,
                     [position]: {
                       position,
                       file: compressedFile,
-                      previewUrl,
+                      previewUrl: uploadedUrl,
                       isCompressing: false,
+                      fileId: uploadedFile.id,
                     },
                   }));
 
@@ -2587,15 +2775,19 @@ function MechanicWorkPageContent() {
                     checkItems: prev?.checkItems || [],
                     afterPhotoUrls: [
                       ...(prev?.afterPhotoUrls || []),
-                      previewUrl,
+                      uploadedUrl,
                     ],
                     comments: prev?.comments || "",
                   } as QualityCheckData));
 
-                  toast.success("After写真を撮影しました");
+                  toast.success("After写真をアップロードしました");
                 } catch (error) {
-                  console.error("写真撮影エラー:", error);
-                  toast.error("写真の撮影に失敗しました");
+                  console.error("写真アップロードエラー:", error);
+                  setBodyPaintPhotoData((prev) => ({
+                    ...prev,
+                    [position]: { ...prev[position], isCompressing: false },
+                  }));
+                  toast.error("写真のアップロードに失敗しました");
                 }
               }}
               onOrderClick={async () => {
@@ -2675,7 +2867,8 @@ function MechanicWorkPageContent() {
                         const customerId = job.field4?.ID1 || job.field4?.id || "";
                         const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
                         const vehicleId = job.field6?.Name || job.field6?.id || "";
-                        const vehicleName = job.field6?.Name || "車両";
+                        const vehicleName = job.field6?.Name || job.field6?.name || "車両";
+                        const vehicleNameForFile = extractVehicleName(vehicleName);
                         const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
 
                         // ワークオーダーフォルダを取得または作成
@@ -2683,18 +2876,41 @@ function MechanicWorkPageContent() {
                           customerId,
                           customerName,
                           vehicleId,
-                          vehicleName,
+                          vehicleNameForFile,
                           jobId,
                           jobDate,
                           selectedWorkOrder.id
                         );
 
+                        // 作業報告フォルダを取得または作成
+                        const subFolderType = getPhotoSubFolderType("before", false);
+                        const subFolder = await getOrCreateWorkOrderSubFolder(
+                          workOrderFolder.id,
+                          subFolderType
+                        );
+
+                        // サービス種類を取得
+                        const serviceKind = selectedWorkOrder?.serviceKind || job.serviceKind || "その他";
+
+                        // ファイル名を生成（ドキュメント仕様に準拠）
+                        const photoIndex = approvedWorkItems.find((item) => item.id === itemId)?.beforePhotos?.length || 0;
+                        const fileName = generateWorkOrderBeforeAfterPhotoFileName(
+                          jobDate,
+                          vehicleNameForFile,
+                          serviceKind,
+                          itemId, // 位置としてitemIdを使用
+                          photoIndex,
+                          file.name,
+                          "before"
+                        );
+
                         // Google Driveに写真をアップロード
                         const uploadedFile = await uploadFile({
                           fileData: compressedFile,
-                          fileName: `before-${itemId}-${Date.now()}.jpg`,
-                          parentFolderId: workOrderFolder.id,
+                          fileName,
+                          parentFolderId: subFolder.id,
                           mimeType: "image/jpeg",
+                          driveId: subFolder.driveId,
                         });
 
                         const uploadedUrl = uploadedFile.webViewLink || uploadedFile.id;
@@ -2793,7 +3009,8 @@ function MechanicWorkPageContent() {
                         const customerId = job.field4?.ID1 || job.field4?.id || "";
                         const customerName = job.field4?.Last_Name || job.field4?.name || "顧客";
                         const vehicleId = job.field6?.Name || job.field6?.id || "";
-                        const vehicleName = job.field6?.Name || "車両";
+                        const vehicleName = job.field6?.Name || job.field6?.name || "車両";
+                        const vehicleNameForFile = extractVehicleName(vehicleName);
                         const jobDate = job.field22 ? new Date(job.field22).toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
 
                         // ワークオーダーフォルダを取得または作成
@@ -2801,18 +3018,41 @@ function MechanicWorkPageContent() {
                           customerId,
                           customerName,
                           vehicleId,
-                          vehicleName,
+                          vehicleNameForFile,
                           jobId,
                           jobDate,
                           selectedWorkOrder.id
                         );
 
+                        // 作業報告フォルダを取得または作成
+                        const subFolderType = getPhotoSubFolderType("after", false);
+                        const subFolder = await getOrCreateWorkOrderSubFolder(
+                          workOrderFolder.id,
+                          subFolderType
+                        );
+
+                        // サービス種類を取得
+                        const serviceKind = selectedWorkOrder?.serviceKind || job.serviceKind || "その他";
+
+                        // ファイル名を生成（ドキュメント仕様に準拠）
+                        const photoIndex = approvedWorkItems.find((item) => item.id === itemId)?.afterPhotos?.length || 0;
+                        const fileName = generateWorkOrderBeforeAfterPhotoFileName(
+                          jobDate,
+                          vehicleNameForFile,
+                          serviceKind,
+                          itemId, // 位置としてitemIdを使用
+                          photoIndex,
+                          file.name,
+                          "after"
+                        );
+
                         // Google Driveに写真をアップロード
                         const uploadedFile = await uploadFile({
                           fileData: compressedFile,
-                          fileName: `after-${itemId}-${Date.now()}.jpg`,
-                          parentFolderId: workOrderFolder.id,
+                          fileName,
+                          parentFolderId: subFolder.id,
                           mimeType: "image/jpeg",
+                          driveId: subFolder.driveId,
                         });
 
                         const uploadedUrl = uploadedFile.webViewLink || uploadedFile.id;
@@ -3189,7 +3429,7 @@ function MechanicWorkPageContent() {
                   )}
                   <Button
                     variant="outline"
-                    className="w-full"
+                    className="w-full h-12 text-base"
                     onClick={() => setIsJobMemoDialogOpen(true)}
                     disabled={isSubmitting}
                   >
@@ -3222,6 +3462,41 @@ function MechanicWorkPageContent() {
       </div>
 
 
+      {/* 受付未完了確認ダイアログ */}
+      <AlertDialog open={showCheckInRequiredDialog} onOpenChange={setShowCheckInRequiredDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+              受付が完了していません
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-slate-700 pt-2">
+              この案件はまだ受付が完了していません。先に受付を完了してください。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-12 text-base">キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                router.push("/");
+              }}
+              className="h-12 text-base bg-primary hover:bg-primary/90"
+            >
+              受付を完了する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 点検記録簿プレビューダイアログ */}
+      <InspectionRecordPreviewDialog
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+        recordData={previewRecordData}
+        templateType={previewTemplateType}
+        onDownload={handlePrintInspectionRecord}
+      />
+
       {/* 作業メモダイアログ */}
       <JobMemoDialog
         open={isJobMemoDialogOpen}
@@ -3247,7 +3522,7 @@ export default function MechanicWorkPage() {
     <Suspense fallback={
       <div className="flex-1 bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-auto">
         <div className="text-center">
-          <div className="h-8 w-8 border-4 border-slate-300 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
+          <div className="h-12 w-12 border-4 border-slate-300 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
           <p className="text-slate-700">読み込み中...</p>
         </div>
       </div>

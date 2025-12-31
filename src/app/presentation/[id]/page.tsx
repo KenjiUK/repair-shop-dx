@@ -29,7 +29,6 @@ import { ComparisonCard } from "@/components/features/presentation-page/comparis
 import { CustomerInfoCard } from "@/components/features/presentation-page/customer-info-card";
 import { WorkSummaryTab } from "@/components/features/presentation-page/work-summary-tab";
 import { InvoiceTab } from "@/components/features/presentation-page/invoice-tab";
-import { uploadFile, getOrCreateJobFolder } from "@/lib/google-drive";
 import { updateJob } from "@/lib/zoho-api-client";
 import { useWorkOrders, updateWorkOrder } from "@/hooks/use-work-orders";
 import useSWR, { mutate } from "swr";
@@ -100,7 +99,7 @@ function formatDate(isoString: string): string {
 
 export default function PresentationPage() {
   const router = useRouter();
-  // Next.js 16対応: paramsをuseMemoでラップして列挙を防止
+  // Next.js 16対応: paramsは既に同期的に値を返す
   const params = useParams();
   const jobId = useMemo(() => (params?.id ?? "") as string, [params]);
 
@@ -318,7 +317,7 @@ export default function PresentationPage() {
   // 納車可能かどうかを判定（全作業グループが完了している場合のみ）
   const canCheckoutNow = useMemo(() => {
     // ワークオーダーがない場合（従来の単一作業）は常に納車可能
-    if (workOrders.length === 0) return true;
+    if (!workOrders || workOrders.length === 0) return true;
     // 複合業務の場合は全作業グループが完了している必要がある
     return checkWorkOrdersCompleted(workOrders);
   }, [workOrders]);
@@ -512,7 +511,7 @@ export default function PresentationPage() {
         />
 
         {/* 作業グループ一覧（複合業務の場合のみ表示） */}
-        {workOrders.length > 1 && (
+        {workOrders && workOrders.length > 1 && (
           <div className="mt-6">
             <WorkOrderList
               workOrders={workOrders}

@@ -10,6 +10,7 @@ import {
   parsePartsInfoFromField26,
   isLongPartsProcurement
 } from "@/lib/parts-info-utils";
+import { parseWorkOrdersFromZoho } from "@/lib/work-order-converter";
 
 /**
  * フィルター状態の型定義（複数選択対応）
@@ -89,11 +90,28 @@ export function applyFilters(jobs: ZohoJob[], filters: FilterState): ZohoJob[] {
     // 後方互換性のため、nullチェックを追加
     if (filters.status && Array.isArray(filters.status) && filters.status.length > 0) {
       const hasMatchingStatus = filters.status.some((status) => {
+        // 再入庫予定の特別処理
         if (status === "再入庫予定") {
           const hasSecondBooking = !!job.ID_BookingId_2 || !!job.bookingId2;
           return job.field5 === "見積提示済み" && hasSecondBooking;
         }
-        return job.field5 === status;
+        
+        // ジョブ全体のステータスをチェック
+        if (job.field5 === status) return true;
+        
+        // 複合作業の場合、WorkOrderのステータスもチェック
+        if (job.field_work_orders) {
+          try {
+            const workOrders = parseWorkOrdersFromZoho(job.field_work_orders);
+            const hasMatchingWorkOrderStatus = workOrders.some((wo) => wo.status === status);
+            if (hasMatchingWorkOrderStatus) return true;
+          } catch (error) {
+            // パースエラーの場合はjob.field5のみで判定（既存の動作を維持）
+            console.warn("WorkOrder parse error in status filter:", error);
+          }
+        }
+        
+        return false;
       });
       if (!hasMatchingStatus) return false;
     }
@@ -111,8 +129,26 @@ export function applyFilters(jobs: ZohoJob[], filters: FilterState): ZohoJob[] {
     // 整備士フィルター（複数選択対応）
     // 後方互換性のため、nullチェックを追加
     if (filters.mechanic && Array.isArray(filters.mechanic) && filters.mechanic.length > 0) {
+      // 複合業務の場合、workOrderごとに整備士が異なる可能性がある
+      // まず、job.assignedMechanicをチェック
       const jobMechanic = job.assignedMechanic || "未割り当て";
-      if (!filters.mechanic.includes(jobMechanic)) return false;
+      let hasMatchingMechanic = filters.mechanic.includes(jobMechanic);
+      
+      // workOrderがある場合、workOrderの整備士もチェック
+      if (!hasMatchingMechanic && job.field_work_orders) {
+        try {
+          const workOrders = parseWorkOrdersFromZoho(job.field_work_orders);
+          hasMatchingMechanic = workOrders.some((wo) => {
+            const woMechanic = wo.diagnosis?.mechanicName || wo.work?.mechanicName || jobMechanic;
+            return filters.mechanic!.includes(woMechanic);
+          });
+        } catch (error) {
+          // パースエラーの場合はjob.assignedMechanicのみで判定
+          console.warn("WorkOrder parse error in filter:", error);
+        }
+      }
+      
+      if (!hasMatchingMechanic) return false;
     }
     
     // 緊急案件フィルター

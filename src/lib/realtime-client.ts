@@ -87,7 +87,21 @@ class RealtimeClient {
       };
 
       this.eventSource.onerror = (error) => {
-        console.error("[SSE] 接続エラー:", error);
+        // EventSourceのonerrorイベントは通常エラーオブジェクトを提供しないため、
+        // readyStateをチェックして接続状態を確認
+        const readyState = this.eventSource?.readyState;
+        const readyStateText = readyState === EventSource.CONNECTING ? "CONNECTING" :
+                              readyState === EventSource.OPEN ? "OPEN" :
+                              readyState === EventSource.CLOSED ? "CLOSED" : "UNKNOWN";
+        
+        console.warn("[SSE] 接続エラー:", {
+          readyState: readyStateText,
+          readyStateValue: readyState,
+          isOnline: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+          url: this.eventSource?.url || "unknown",
+          error: error || "EventSource error event (no error object provided)",
+        });
+        
         this.isConnecting = false;
         
         // オフライン状態の場合は再接続を試みない
@@ -99,10 +113,27 @@ class RealtimeClient {
         // 接続が閉じられた場合は再接続を試行
         if (this.eventSource?.readyState === EventSource.CLOSED) {
           this.attemptReconnect();
+        } else if (this.eventSource?.readyState === EventSource.CONNECTING) {
+          // 接続中のエラーは、しばらく待ってから再接続を試行
+          console.log("[SSE] 接続中のエラーが発生しました。再接続を試行します");
+          setTimeout(() => {
+            if (this.eventSource?.readyState === EventSource.CLOSED) {
+              this.attemptReconnect();
+            }
+          }, 1000);
         }
       };
     } catch (error) {
-      console.error("[SSE] 接続エラー:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.error("[SSE] 接続エラー:", {
+        message: errorMessage,
+        stack: errorStack,
+        isOnline: typeof navigator !== "undefined" ? navigator.onLine : "unknown",
+        url: `/api/realtime/stream${this.lastEventId ? `?lastEventId=${encodeURIComponent(this.lastEventId)}` : ""}`,
+      });
+      
       this.isConnecting = false;
       
       // オフライン状態の場合は再接続を試みない

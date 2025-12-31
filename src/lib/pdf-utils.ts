@@ -175,3 +175,63 @@ export function drawRect(
 
     page.drawRectangle(rectOptions);
 }
+
+/**
+ * テキストを描画する（自動サイズ調整機能付き）
+ * 
+ * 入力されたテキストの幅を計算し、maxWidthが定義されており、
+ * 計算した幅がmaxWidthを超えている場合、幅がmaxWidthに収まるまで
+ * フォントサイズを0.5ptずつ小さくして再計算する（最小サイズは6pt）
+ * 
+ * @param page PDFページ
+ * @param text 描画するテキスト
+ * @param x X座標（ポイント、左下が原点）
+ * @param y Y座標（ポイント、左下が原点）
+ * @param font フォント
+ * @param fontSize 初期フォントサイズ（ポイント）
+ * @param maxWidth 最大幅（ポイント、オプション）
+ * @param color テキスト色（デフォルト: 黒）
+ * @returns 実際に使用されたフォントサイズ
+ */
+export function drawTextWithAutoSize(
+    page: PDFPage,
+    text: string,
+    x: number,
+    y: number,
+    font: PDFFont,
+    fontSize: number,
+    maxWidth?: number,
+    color: RGB = rgb(0, 0, 0)
+): number {
+    if (!text) return fontSize;
+
+    let finalSize = fontSize;
+    const minSize = 6; // 最小フォントサイズ
+
+    // maxWidthが指定されている場合、テキスト幅をチェック
+    if (maxWidth !== undefined) {
+        let textWidth = font.widthOfTextAtSize(text, finalSize);
+        
+        // 幅がmaxWidthを超えている場合、フォントサイズを小さくする
+        while (textWidth > maxWidth && finalSize > minSize) {
+            finalSize -= 0.5;
+            textWidth = font.widthOfTextAtSize(text, finalSize);
+        }
+        
+        // 最小サイズでも収まらない場合は、最小サイズで描画
+        if (finalSize < minSize) {
+            finalSize = minSize;
+        }
+    }
+
+    // テキストを描画
+    page.drawText(text, {
+        x: x,
+        y: y,
+        size: finalSize,
+        font: font,
+        color: color,
+    });
+
+    return finalSize;
+}

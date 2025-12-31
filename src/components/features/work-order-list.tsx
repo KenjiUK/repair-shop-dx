@@ -46,6 +46,7 @@ import { WorkOrder, WorkOrderStatus, ServiceKind } from "@/types";
  * 入庫区分ごとのアイコンと色
  */
 const SERVICE_KIND_CONFIG: Record<ServiceKind, { icon: React.ReactNode; color: string }> = {
+  "その他": { icon: <Wrench className="h-5 w-5" />, color: "bg-slate-600" },
   "車検": { icon: <Wrench className="h-5 w-5" />, color: "bg-blue-600" },
   "修理・整備": { icon: <Wrench className="h-5 w-5" />, color: "bg-amber-600" },
   "レストア": { icon: <Wrench className="h-5 w-5" />, color: "bg-purple-600" },

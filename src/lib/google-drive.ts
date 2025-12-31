@@ -15,10 +15,11 @@ import {
   SearchFileOptions,
   FolderPath,
   ApiResponse,
+  ServiceKind,
 } from "@/types";
+import { sanitizeForJapaneseFileName, generateInternalPhotoFileName, generateInternalVideoFileName } from "./photo-position";
 
 const DRIVE_API_BASE_URL = "/api/google-drive";
-const GOOGLE_DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
 
 /**
  * Google Drive API エラー
@@ -115,28 +116,46 @@ export async function findFolderByName(
   folderName: string,
   parentFolderId?: string
 ): Promise<DriveFolder | null> {
-  const query = parentFolderId
-    ? `name='${folderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-    : `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  try {
+    const query = parentFolderId
+      ? `name='${folderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+      : `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
 
-  const response = await fetch(
-    `${DRIVE_API_BASE_URL}/files/search?q=${encodeURIComponent(query)}`
-  );
-
-  if (!response.ok) {
-    throw await parseErrorResponse(response);
-  }
-
-  const result: ApiResponse<DriveFile[]> = await response.json();
-  if (!result.success || !result.data) {
-    throw new GoogleDriveError(
-      result.error?.message || "フォルダの検索に失敗しました",
-      result.error?.code || "UNKNOWN_ERROR"
+    const response = await fetch(
+      `${DRIVE_API_BASE_URL}/files/search?q=${encodeURIComponent(query)}`
     );
-  }
 
-  const folders = result.data as unknown as DriveFolder[];
-  return folders.length > 0 ? folders[0] : null;
+    if (!response.ok) {
+      // Google Drive APIの認証エラーの場合はnullを返す（開発環境での動作を保証）
+      const errorData = await response.json().catch(() => ({}));
+      if (errorData.error?.message?.includes("GOOGLE_DRIVE_ACCESS_TOKEN") || 
+          errorData.error?.message?.includes("Service Account")) {
+        console.warn("[findFolderByName] Google Drive API認証情報が設定されていません。開発環境ではnullを返します。");
+        return null;
+      }
+      throw await parseErrorResponse(response);
+    }
+
+    const result: ApiResponse<DriveFile[]> = await response.json();
+    if (!result.success || !result.data) {
+      throw new GoogleDriveError(
+        result.error?.message || "フォルダの検索に失敗しました",
+        result.error?.code || "UNKNOWN_ERROR"
+      );
+    }
+
+    const folders = result.data as unknown as DriveFolder[];
+    return folders.length > 0 ? folders[0] : null;
+  } catch (error) {
+    // Google Drive APIの認証エラーの場合はnullを返す（開発環境での動作を保証）
+    if (error instanceof GoogleDriveError && 
+        (error.message.includes("GOOGLE_DRIVE_ACCESS_TOKEN") || 
+         error.message.includes("Service Account"))) {
+      console.warn("[findFolderByName] Google Drive API認証情報が設定されていません。開発環境ではnullを返します。");
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -177,6 +196,9 @@ export async function uploadFile(
   }
   if (options.replaceExisting !== undefined) {
     formData.append("replaceExisting", String(options.replaceExisting));
+  }
+  if (options.driveId) {
+    formData.append("driveId", options.driveId);
   }
 
   // ファイルデータを追加
@@ -479,6 +501,182 @@ export async function getOrCreateWorkOrderFolder(
     parentFolderId: jobFolder.id,
     returnExisting: true,
   });
+}
+
+/**
+ * Work Orderフォルダ内のサブフォルダを取得または作成
+ * 
+ * @param workOrderFolderId - Work OrderフォルダのID
+ * @param subFolderType - サブフォルダの種類
+ * @returns サブフォルダ情報
+ */
+export async function getOrCreateWorkOrderSubFolder(
+  workOrderFolderId: string,
+  subFolderType: "01_入庫写真" | "02_証拠写真" | "03_作業報告"
+): Promise<DriveFolder> {
+  return getOrCreateFolder({
+    folderName: subFolderType,
+    parentFolderId: workOrderFolderId,
+    returnExisting: true,
+  });
+}
+
+/**
+ * 写真の種類に応じて適切なサブフォルダを返す
+ * 
+ * @param photoType - 写真の種類
+ * @param isCheckInPhoto - 入庫写真かどうか（前面、後面、左側面、右側面）
+ * @returns サブフォルダの種類
+ */
+export function getPhotoSubFolderType(
+  photoType: "diagnosis" | "before" | "after" | "general",
+  isCheckInPhoto: boolean = false
+): "01_入庫写真" | "02_証拠写真" | "03_作業報告" {
+  if (isCheckInPhoto) {
+    return "01_入庫写真";
+  }
+  
+  if (photoType === "diagnosis") {
+    return "02_証拠写真";
+  }
+  
+  // before, after, general は作業報告フォルダに保存
+  return "03_作業報告";
+}
+
+/**
+ * 社内用写真のファイル名を生成（ドキュメント仕様に準拠）
+ * 命名規則: {位置番号}_{位置名(日本語)}_{日付}_{サービス種類(日本語)}_{車種名(日本語)}.{拡張子}
+ * 
+ * @param date - 日付（YYYYMMDD形式）
+ * @param vehicleName - 車種名
+ * @param serviceKind - サービス種類
+ * @param position - 写真位置（英語キーまたは日本語ラベル）
+ * @param index - 位置番号（同じ位置から複数枚撮影する場合の連番）
+ * @param originalFileName - 元のファイル名（拡張子取得用）
+ * @returns 生成されたファイル名
+ */
+export function generateWorkOrderPhotoFileName(
+  date: string,
+  vehicleName: string,
+  serviceKind: ServiceKind | string,
+  position: string,
+  index: number,
+  originalFileName: string
+): string {
+  return generateInternalPhotoFileName(
+    date,
+    vehicleName,
+    serviceKind,
+    position,
+    index,
+    originalFileName
+  );
+}
+
+/**
+ * 社内用動画のファイル名を生成（ドキュメント仕様に準拠）
+ * 命名規則: {位置番号}_{位置名(日本語)}_{日付}_{サービス種類(日本語)}_{車種名(日本語)}.{拡張子}
+ * 
+ * @param date - 日付（YYYYMMDD形式）
+ * @param vehicleName - 車種名
+ * @param serviceKind - サービス種類
+ * @param position - 動画位置（英語キー、日本語ラベル、または診断項目名）
+ * @param index - 位置番号
+ * @param originalFileName - 元のファイル名（拡張子取得用）
+ * @returns 生成されたファイル名
+ */
+export function generateWorkOrderVideoFileName(
+  date: string,
+  vehicleName: string,
+  serviceKind: ServiceKind | string,
+  position: string,
+  index: number,
+  originalFileName: string
+): string {
+  return generateInternalVideoFileName(
+    date,
+    vehicleName,
+    serviceKind,
+    position,
+    index,
+    originalFileName
+  );
+}
+
+/**
+ * 作業前/作業後写真のファイル名を生成（afterプレフィックス付き）
+ * 命名規則: after_{位置番号}_{位置名(日本語)}_{日付}_{サービス種類(日本語)}_{車種名(日本語)}.{拡張子}
+ * 
+ * @param date - 日付（YYYYMMDD形式）
+ * @param vehicleName - 車種名
+ * @param serviceKind - サービス種類
+ * @param position - 写真位置（英語キーまたは日本語ラベル）
+ * @param index - 位置番号
+ * @param originalFileName - 元のファイル名（拡張子取得用）
+ * @param photoType - 写真の種類（"before" | "after"）
+ * @returns 生成されたファイル名
+ */
+export function generateWorkOrderBeforeAfterPhotoFileName(
+  date: string,
+  vehicleName: string,
+  serviceKind: ServiceKind | string,
+  position: string,
+  index: number,
+  originalFileName: string,
+  photoType: "before" | "after"
+): string {
+  const baseFileName = generateInternalPhotoFileName(
+    date,
+    vehicleName,
+    serviceKind,
+    position,
+    index,
+    originalFileName
+  );
+  
+  // afterの場合は"after_"プレフィックスを追加、beforeの場合は"before_"プレフィックスを追加
+  const prefix = photoType === "after" ? "after_" : "before_";
+  
+  return `${prefix}${baseFileName}`;
+}
+
+/**
+ * 診断PDFファイル名を生成（ドキュメント仕様に準拠）
+ * 命名規則: {位置番号}_{診断種類(日本語)}_{日付}_{サービス種類(日本語)}_{車種名(日本語)}.{拡張子}
+ * 
+ * @param date - 日付（YYYYMMDD形式）
+ * @param vehicleName - 車種名
+ * @param serviceKind - サービス種類
+ * @param diagnosticType - 診断種類（"OBD診断", "診断機結果", "故障診断"など）
+ * @param index - 位置番号（同じ種類の診断結果が複数ある場合の連番）
+ * @param originalFileName - 元のファイル名（拡張子取得用）
+ * @returns 生成されたファイル名
+ */
+export function generateDiagnosticPdfFileName(
+  date: string,
+  vehicleName: string,
+  serviceKind: ServiceKind | string,
+  diagnosticType: string,
+  index: number,
+  originalFileName: string
+): string {
+  // 拡張子を取得
+  const ext = originalFileName.split(".").pop() || "pdf";
+  
+  // 車種名をサニタイズ（特殊文字を削除、日本語はそのまま）
+  const sanitizedVehicle = sanitizeForJapaneseFileName(vehicleName);
+  
+  // 作業種類をサニタイズ（特殊文字を削除、日本語はそのまま）
+  const sanitizedService = sanitizeForJapaneseFileName(serviceKind);
+  
+  // 診断種類をサニタイズ
+  const sanitizedDiagnosticType = sanitizeForJapaneseFileName(diagnosticType);
+  
+  // 位置番号を2桁ゼロ埋め
+  const paddedIndex = String(index).padStart(2, "0");
+  
+  return `${paddedIndex}_${sanitizedDiagnosticType}_${date}_${sanitizedService}_${sanitizedVehicle}.${ext}`;
 }
 
 /**

@@ -129,8 +129,13 @@ export function DiagnosisAdditionalEstimateSection({
       <CardHeader className="pb-3">
         <CardTitle className="text-3xl font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
           <Calculator className="h-9 w-9 text-slate-600 shrink-0 dark:text-white" />
-          追加見積内容
+          車検外提案（車検とは切り分けて説明した方が分かりやすい内容）
         </CardTitle>
+        <p className="text-2xl text-slate-700 mt-2 dark:text-slate-300">
+          車検とは関係ない、車検とは切り分けて説明した方が分かりやすい内容を記録してください。
+          <br />
+          点検項目で発見された問題（車検の説明の中でそのまま伝えられる内容）は、点検項目のステータスで記録してください。
+        </p>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* 今回絶対必要セクション（旧: 必須整備） */}
@@ -178,9 +183,10 @@ export function DiagnosisAdditionalEstimateSection({
  * 見積サブセクション
  * 
  * 優先度別の作業項目を表示・編集するサブセクション
- * - 今回絶対必要（required）: 安全上・法規上、今回の整備で必須の作業
- * - やったほうがいい（recommended）: 整備士として推奨する作業
- * - お客さん次第（optional）: お客様の判断に委ねる作業
+ * 車検外提案（箱③）: 車検とは切り分けて説明した方が分かりやすい内容
+ * - 今回絶対必要（required）: 車検とは関係ないが、今回の整備で必須の作業
+ * - やったほうがいい（recommended）: 車検とは関係ないが、整備士として推奨する作業
+ * - お客さん次第（optional）: 車検とは関係ないが、お客様の判断に委ねる作業
  */
 function EstimateSubSection({
   title,

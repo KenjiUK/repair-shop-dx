@@ -646,6 +646,10 @@ export interface DriveFolder {
   createdTime?: string;
   /** 更新日時 */
   modifiedTime?: string;
+  /** Webでの表示リンク */
+  webViewLink?: string;
+  /** 共有ドライブID（共有ドライブ内のフォルダの場合） */
+  driveId?: string;
 }
 
 /**
@@ -662,6 +666,8 @@ export interface UploadFileOptions {
   parentFolderId?: string;
   /** 既存ファイルを置き換えるかどうか */
   replaceExisting?: boolean;
+  /** 共有ドライブID（共有ドライブ内のフォルダにアップロードする場合） */
+  driveId?: string;
 }
 
 /**
@@ -674,6 +680,8 @@ export interface CreateFolderOptions {
   parentFolderId?: string;
   /** 既存フォルダを返すかどうか */
   returnExisting?: boolean;
+  /** 共有ドライブID（共有ドライブに作成する場合） */
+  driveId?: string;
 }
 
 /**
@@ -1037,6 +1045,8 @@ export interface WorkOrder {
     mileage?: number;
     /** 診断担当者名 */
     mechanicName?: string | null;
+    /** 診断開始日時 */
+    startedAt?: string | null; // ISO8601
     [key: string]: unknown;
   } | null;
   /** 見積データ */
@@ -1058,6 +1068,8 @@ export interface WorkOrder {
   work?: {
     /** 作業担当者名（全体のデフォルト担当者、後方互換性のため残す） */
     mechanicName?: string;
+    /** 作業開始日時 */
+    startedAt?: string | null; // ISO8601
     /** 作業完了日時 */
     completedAt?: string;
     /** コーティング作業固有の情報 */

@@ -18,7 +18,9 @@ import {
   EnhancedOBDDiagnosticResult,
   QualityInspection,
   ManufacturerInquiry,
+  WorkOrder,
 } from "@/types";
+import { updateWorkOrder } from "@/hooks/use-work-orders";
 
 // =============================================================================
 // 同期処理の型定義
@@ -62,6 +64,68 @@ const syncHandlers: Record<string, SyncHandler> = {
       
       if (!result.success) {
         throw new Error(result.error?.message || "診断データの同期に失敗しました");
+      }
+    }
+  },
+  // 見積データの同期ハンドラー
+  [STORE_NAMES.ESTIMATES]: async (entry) => {
+    if (entry.type === "update" && entry.data) {
+      const estimateData = entry.data as {
+        estimate?: WorkOrder['estimate'];
+        diagnosisFee?: number | null;
+        diagnosisDuration?: number | null;
+        isDiagnosisFeePreDetermined?: boolean;
+        mechanicApproved?: boolean;
+        mechanicApprover?: string;
+        baseSystemItemId?: string;
+        workOrderId?: string;
+      };
+      
+      // dataIdはjobId、workOrderIdはsyncMetadataから取得
+      const jobId = entry.dataId;
+      const workOrderId = estimateData.workOrderId;
+      
+      if (!workOrderId) {
+        throw new Error("workOrderIdが指定されていません");
+      }
+      
+      const result = await updateWorkOrder(jobId, workOrderId, {
+        estimate: estimateData.estimate,
+        diagnosisFee: estimateData.diagnosisFee,
+        diagnosisDuration: estimateData.diagnosisDuration,
+        isDiagnosisFeePreDetermined: estimateData.isDiagnosisFeePreDetermined,
+        mechanicApproved: estimateData.mechanicApproved,
+        mechanicApprover: estimateData.mechanicApprover,
+        baseSystemItemId: estimateData.baseSystemItemId,
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || "見積データの同期に失敗しました");
+      }
+    }
+  },
+  // 作業データの同期ハンドラー
+  [STORE_NAMES.WORK]: async (entry) => {
+    if (entry.type === "update" && entry.data) {
+      const workData = entry.data as {
+        work?: WorkOrder['work'];
+        workOrderId?: string;
+      };
+      
+      // dataIdはjobId、workOrderIdはsyncMetadataから取得
+      const jobId = entry.dataId;
+      const workOrderId = workData.workOrderId;
+      
+      if (!workOrderId) {
+        throw new Error("workOrderIdが指定されていません");
+      }
+      
+      const result = await updateWorkOrder(jobId, workOrderId, {
+        work: workData.work,
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || "作業データの同期に失敗しました");
       }
     }
   },

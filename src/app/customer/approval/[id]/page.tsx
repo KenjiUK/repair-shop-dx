@@ -216,16 +216,24 @@ function SectionHeader({
   priority,
   count,
   total,
+  isInspection = false,
 }: {
   priority: EstimatePriority;
   count: number;
   total: number;
+  isInspection?: boolean;
 }) {
-  const descriptions = {
-    required: "安全上・法規上、今回の整備で必須の作業です",
-    recommended: "整備士として推奨する作業です",
-    optional: "ご希望に応じてお選びください",
-  };
+  const descriptions = isInspection
+    ? {
+        required: "安全上・法規上、今回の整備で必須の作業です",
+        recommended: "車検の説明の中でそのまま伝えられる内容",
+        optional: "車検とは切り分けて説明した方が分かりやすい内容",
+      }
+    : {
+        required: "安全上・法規上、今回の整備で必須の作業です",
+        recommended: "整備士として推奨する作業です",
+        optional: "ご希望に応じてお選びください",
+      };
 
   return (
     <div className="flex items-center justify-between mb-3">
@@ -649,6 +657,12 @@ export default function CustomerApprovalPage() {
     }
   };
 
+  // 車検・12ヵ月点検かどうかを判定
+  const isInspection = useMemo(() => {
+    if (!selectedWorkOrder?.serviceKind) return false;
+    return selectedWorkOrder.serviceKind === "車検" || selectedWorkOrder.serviceKind === "12ヵ月点検";
+  }, [selectedWorkOrder]);
+
   // セクション別の計算
   const requiredItems = items.filter((i) => i.priority === "required");
   const recommendedItems = items.filter((i) => i.priority === "recommended");
@@ -1006,6 +1020,7 @@ export default function CustomerApprovalPage() {
             priority="required"
             count={requiredItems.length}
             total={requiredTotal}
+            isInspection={isInspection}
           />
           <div className="space-y-3">
             {requiredItems.map((item) => (
@@ -1032,6 +1047,7 @@ export default function CustomerApprovalPage() {
             priority="recommended"
             count={recommendedItems.filter((i) => i.selected).length}
             total={recommendedTotal}
+            isInspection={isInspection}
           />
           <div className="space-y-3">
             {recommendedItems.map((item) => (
@@ -1054,6 +1070,7 @@ export default function CustomerApprovalPage() {
             priority="optional"
             count={optionalItems.filter((i) => i.selected).length}
             total={optionalTotal}
+            isInspection={isInspection}
           />
           <div className="space-y-3">
             {optionalItems.map((item) => (

@@ -135,6 +135,18 @@ export async function PATCH(
     // 指定されたワークオーダーを検索
     let workOrderIndex = workOrders.findIndex((wo) => wo.id === workOrderId);
 
+    // 作業開始時間を記録（statusが「作業待ち」から「作業中」に変更される場合）
+    if (updates.status === "作業中" && workOrderIndex !== -1) {
+      const currentWorkOrder = workOrders[workOrderIndex];
+      if (currentWorkOrder && currentWorkOrder.status !== "作業中" && !currentWorkOrder.work?.startedAt) {
+        updates.work = {
+          ...(updates.work || {}),
+          ...currentWorkOrder.work,
+          startedAt: new Date().toISOString(),
+        };
+      }
+    }
+
     // ワークオーダーが見つからない場合、新しく作成する（開発環境でのフォールバック）
     if (workOrderIndex === -1) {
       console.warn(`[API] ワークオーダー "${workOrderId}" が見つかりません。新しく作成します。`);

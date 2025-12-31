@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense, useCallback, memo, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ZohoJob, SmartTag, CourtesyCar, ServiceKind } from "@/types";
+import { ZohoJob, SmartTag, CourtesyCar, ServiceKind, WorkOrderStatus } from "@/types";
+import { serializeWorkOrdersForZoho } from "@/lib/work-order-converter";
 import { JobCard } from "@/components/features/job-card";
 import { JobList, JobCardSkeleton } from "@/components/features/job-list";
 import dynamic from "next/dynamic";
@@ -29,48 +30,8 @@ import { TagSelectionDialog } from "@/components/features/tag-selection-dialog";
 const TodayScheduleCard = dynamic(
   () => import("@/components/features/today-schedule-card").then(mod => mod.TodayScheduleCard),
   {
-    ssr: false,
-    loading: () => (
-      <div className="h-full flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 lg:p-5 pb-3 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-6 w-40" />
-            </div>
-            <Skeleton className="h-6 w-12 rounded-full" />
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col p-4 lg:p-5 pt-4">
-          <div className="space-y-2.5">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="p-3 lg:p-4 rounded-lg border border-slate-200 bg-slate-50">
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-5 w-16" />
-                        <Skeleton className="h-5 w-12 rounded-full" />
-                      </div>
-                      <Skeleton className="h-5 w-24" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-);
-const LongTermProjectCard = dynamic(
-  () => import("@/components/features/long-term-project-card").then(mod => mod.LongTermProjectCard),
-  {
-    ssr: false,
-    loading: () => <Skeleton className="h-[200px] w-full" />
+    ssr: true,
+    loading: () => <Skeleton className="h-[400px] w-full" />,
   }
 );
 import {
@@ -113,6 +74,7 @@ import { usePageTiming } from "@/hooks/use-page-timing";
 import { FilterState, applyFilters, resetFilters, getActiveFilterCount } from "@/lib/filter-utils";
 import { isImportantCustomer } from "@/lib/important-customer-flag";
 import { searchJobs } from "@/lib/search-utils";
+import { parseWorkOrdersFromZoho } from "@/lib/work-order-converter";
 
 // =============================================================================
 // SWR Fetcher Functions
@@ -221,6 +183,7 @@ function HomeContent() {
     data: jobs,
     error: jobsError,
     isLoading: isJobsLoading,
+    isValidating: isJobsValidating,
     mutate: mutateJobs,
   } = useSWR("today-jobs", withFetcherTiming(jobsFetcher, "fetchTodayJobs", "home"), {
     // グローバル設定を使用（swrGlobalConfig）
@@ -232,7 +195,7 @@ function HomeContent() {
   // 開発環境用：車検と12ヶ月点検のサンプルJOBカードを追加
   const jobsWithSamples = useMemo(() => {
     if (process.env.NODE_ENV !== "development" || !jobs) return jobs;
-    
+
     const sampleJobs: ZohoJob[] = [
       {
         id: "sample-shaken-001",
@@ -245,18 +208,36 @@ function HomeContent() {
         serviceKind: "車検",
         field_service_kinds: ["車検"],
         tagId: "T01",
-        field: JSON.stringify([{
-          id: "wo-001",
-          serviceKind: "車検",
-          status: "作業待ち",
-          createdAt: new Date().toISOString(),
-        }]),
+        assignedMechanic: "中村",
+        field: null,
+        workOrder: null,
         field7: null,
-        field10: null,
+        field10: 50000,
+        mileage: 50000,
         field13: null,
         field19: null,
         field12: null,
-        ID_BookingId: null,
+        ID_BookingId: "booking-sample-shaken-001",
+        bookingId: "booking-sample-shaken-001",
+        field_work_orders: serializeWorkOrdersForZoho([
+          {
+            id: "wo-sample-shaken-001",
+            jobId: "sample-shaken-001",
+            serviceKind: "車検" as ServiceKind,
+            status: "作業待ち" as WorkOrderStatus,
+            diagnosis: {
+              items: [],
+              photos: [],
+              startedAt: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(), // 1.5時間前に診断開始
+            },
+            estimate: {
+              items: [],
+            },
+            work: null,
+            createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+          },
+        ]),
       },
       {
         id: "sample-12month-001",
@@ -269,21 +250,42 @@ function HomeContent() {
         serviceKind: "12ヵ月点検",
         field_service_kinds: ["12ヵ月点検"],
         tagId: "T02",
-        field: JSON.stringify([{
-          id: "wo-002",
-          serviceKind: "12ヵ月点検",
-          status: "完了",
-          createdAt: new Date().toISOString(),
-        }]),
+        assignedMechanic: "中村",
+        field: null,
+        workOrder: null,
         field7: null,
-        field10: null,
+        field10: 30000,
+        mileage: 30000,
         field13: null,
         field19: null,
         field12: null,
-        ID_BookingId: null,
+        ID_BookingId: "booking-sample-12month-001",
+        bookingId: "booking-sample-12month-001",
+        field_work_orders: serializeWorkOrdersForZoho([
+          {
+            id: "wo-sample-12month-001",
+            jobId: "sample-12month-001",
+            serviceKind: "12ヵ月点検" as ServiceKind,
+            status: "完了" as WorkOrderStatus,
+            diagnosis: {
+              items: [],
+              photos: [],
+              startedAt: new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString(), // 3.5時間前に診断開始
+            },
+            estimate: {
+              items: [],
+            },
+            work: {
+              startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2時間前に作業開始
+              completedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30分前に作業完了
+            },
+            createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+          },
+        ]),
       },
     ];
-    
+
     return [...sampleJobs, ...jobs];
   }, [jobs]);
 
@@ -418,9 +420,8 @@ function HomeContent() {
     if (isFaultDiagnosis) {
       setIsErrorLampDialogOpen(true);
     } else {
-      // 代車データを再取得してからダイアログを開く
-      await mutateCourtesyCars();
-      setIsCourtesyCarDialogOpen(true); // 代車選択ダイアログを開く
+      // 代車選択ダイアログを開く（代車データは既にキャッシュされているため、再取得不要）
+      setIsCourtesyCarDialogOpen(true);
     }
   };
 
@@ -438,9 +439,8 @@ function HomeContent() {
   const handleErrorLampConfirm = async (info: ErrorLampInfo) => {
     setErrorLampInfo(info);
     setIsErrorLampDialogOpen(false);
-    // 代車データを再取得してからダイアログを開く
-    await mutateCourtesyCars();
-    setIsCourtesyCarDialogOpen(true); // 代車選択ダイアログを開く
+    // 代車選択ダイアログを開く（代車データは既にキャッシュされているため、再取得不要）
+    setIsCourtesyCarDialogOpen(true);
   };
 
   /**
@@ -488,33 +488,14 @@ function HomeContent() {
             throw new Error(result.error?.message || "チェックインに失敗しました");
           }
 
-          // 入庫完了のLINE通知を送信
-          try {
-            const customer = await fetchCustomerById(selectedJob.field4?.id || "");
-            if (customer.success && customer.data?.Business_Messaging_Line_Id) {
-              const serviceKinds = selectedJob.field_service_kinds || (selectedJob.serviceKind ? [selectedJob.serviceKind] : []);
-              const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
-
-              await sendLineNotification({
-                lineUserId: customer.data.Business_Messaging_Line_Id || "",
-                type: "check_in",
-                jobId: selectedJob.id,
-                data: {
-                  customerName: selectedJob.field4?.name || "お客様",
-                  vehicleName: selectedJob.field6?.name || "車両",
-                  licensePlate: selectedJob.field6?.name ? selectedJob.field6.name.split(" / ")[1] || undefined : undefined,
-                  serviceKind,
-                },
-              });
-            }
-          } catch (error) {
-            console.warn("LINE通知送信エラー（チェックイン）:", error);
-            // LINE通知の失敗はチェックイン処理を止めない
-          }
-
-          // 成功時は最新データを取得
-          const updatedJobs = await fetchTodayJobs();
-          return updatedJobs.data || [];
+          // checkIn APIの結果から直接更新されたジョブを返す（fetchTodayJobs()を呼ばない）
+          // オプティミスティック更新で既にUIは更新されているため、サーバーからの応答で上書きする
+          const currentJobs = jobs || [];
+          return currentJobs
+            .map((job) =>
+              job.id === selectedJob.id && result.data?.job ? result.data.job : job
+            )
+            .filter((job): job is ZohoJob => job !== undefined);
         },
         optimisticData: (currentJobs: ZohoJob[] | undefined) => {
           if (!currentJobs) return [];
@@ -523,7 +504,7 @@ function HomeContent() {
           );
         },
         errorMessage: "チェックインに失敗しました",
-        onSuccess: () => {
+        onSuccess: async () => {
           triggerHapticFeedback("success"); // 成功時のハプティックフィードバック
           const carInfo = carId ? ` + 代車` : "";
           const lampInfo = errorLampInfo?.hasErrorLamp
@@ -536,24 +517,97 @@ function HomeContent() {
               description: `${selectedJob.field4?.name}様 → タグ ${selectedTagId}${carInfo}${lampInfo}`,
             });
           }, 300); // Dialogのアニメーション完了を待つ（300ms）
+
+          // SWRキャッシュを再検証（最新データを取得、ただし非同期で実行してチェックイン処理をブロックしない）
+          mutateJobs(undefined, { revalidate: true }).catch((error) => {
+            console.warn("ジョブデータの再検証エラー:", error);
+            // 再検証の失敗はチェックイン処理を止めない
+          });
+
+          // LINE通知を非同期で送信（チェックイン処理をブロックしない）
+          (async () => {
+            try {
+              const customer = await fetchCustomerById(selectedJob.field4?.id || "");
+              if (customer.success && customer.data?.Business_Messaging_Line_Id) {
+                const serviceKinds = selectedJob.field_service_kinds || (selectedJob.serviceKind ? [selectedJob.serviceKind] : []);
+                const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
+
+                await sendLineNotification({
+                  lineUserId: customer.data.Business_Messaging_Line_Id || "",
+                  type: "check_in",
+                  jobId: selectedJob.id,
+                  data: {
+                    customerName: selectedJob.field4?.name || "お客様",
+                    vehicleName: selectedJob.field6?.name || "車両",
+                    licensePlate: selectedJob.field6?.name ? selectedJob.field6.name.split(" / ")[1] || undefined : undefined,
+                    serviceKind,
+                  },
+                });
+              }
+            } catch (error) {
+              console.warn("LINE通知送信エラー（チェックイン）:", error);
+              // LINE通知の失敗はチェックイン処理を止めない
+            }
+          })();
+
+          // Google Driveフォルダを作成してfield19を更新（フォールバック: field19がnullの場合のみ）
+          if (!selectedJob.field19 && selectedJob.field4?.id && selectedJob.field6?.id && selectedJob.field22) {
+            (async () => {
+              try {
+                const jobDate = new Date(selectedJob.field22).toISOString().slice(0, 10).replace(/-/g, "");
+                const { createJobFolderAction } = await import("@/app/actions/drive");
+                const { updateJobField19 } = await import("@/lib/api");
+                
+                const folderResult = await createJobFolderAction(
+                  selectedJob.id,
+                  jobDate,
+                  selectedJob.ID_BookingId || selectedJob.bookingId || selectedJob.id,
+                  selectedJob.field4?.id || "",
+                  selectedJob.field4?.name || "顧客",
+                  selectedJob.field6?.id || "",
+                  selectedJob.field6?.name || "車両"
+                );
+                
+                if (folderResult.success && folderResult.url) {
+                  const updateResult = await updateJobField19(selectedJob.id, folderResult.url);
+                  if (updateResult.success) {
+                    console.log("[Check-in] Google Driveフォルダを作成し、field19を更新しました:", folderResult.url);
+                    // ジョブデータを再取得してfield19を反映
+                    mutateJobs(undefined, { revalidate: true }).catch((error) => {
+                      console.warn("ジョブデータの再検証エラー（field19更新後）:", error);
+                    });
+                  } else {
+                    console.warn("[Check-in] field19の更新に失敗しました:", updateResult.error?.message);
+                  }
+                } else {
+                  console.warn("[Check-in] フォルダ作成に失敗しました:", folderResult.error);
+                }
+              } catch (error) {
+                console.error("[Check-in] フォルダ作成・更新エラー:", error);
+                // エラーが発生しても処理は続行（フォルダがなくても他の処理は可能）
+              }
+            })();
+          }
         },
         onError: () => {
           triggerHapticFeedback("error"); // エラー時のハプティックフィードバック
         },
       });
 
-      // タグと代車のキャッシュも更新
-      await mutateTags();
-      await mutateAllTags();
-      await mutateCourtesyCars();
+      // タグと代車のキャッシュを並列で更新（パフォーマンス改善）
+      await Promise.all([
+        mutateTags(),
+        mutateAllTags(),
+        mutateCourtesyCars(),
+      ]);
 
       setIsCourtesyCarDialogOpen(false);
       setErrorLampInfo(undefined);
       resetUrgentFlag(); // 緊急対応フラグをリセット
 
-      // 車検の場合、チェックリストダイアログを表示
+      // 車検・12ヵ月点検の場合、チェックリストダイアログを表示
       const serviceKinds = selectedJob.field_service_kinds || (selectedJob.serviceKind ? [selectedJob.serviceKind] : []);
-      const isInspection = serviceKinds.includes("車検" as ServiceKind);
+      const isInspection = serviceKinds.includes("車検" as ServiceKind) || serviceKinds.includes("12ヵ月点検" as ServiceKind);
 
       if (isInspection) {
         // 既存のチェックリストを読み込む
@@ -593,10 +647,12 @@ function HomeContent() {
         description: `タグ ${tagInUseError.tagId} の紐付けを解除しました`,
       });
 
-      // タグのキャッシュを更新
-      await mutateTags();
-      await mutateAllTags();
-      await mutateJobs();
+      // タグのキャッシュを並列で更新（パフォーマンス改善）
+      await Promise.all([
+        mutateTags(),
+        mutateAllTags(),
+        mutateJobs(),
+      ]);
 
       // ダイアログを閉じる
       setIsTagInUseDialogOpen(false);
@@ -630,31 +686,13 @@ function HomeContent() {
             throw new Error(result.error?.message || "チェックインに失敗しました");
           }
 
-          // 入庫完了のLINE通知を送信
-          try {
-            const customer = await fetchCustomerById(savedJob.field4?.id || "");
-            if (customer.success && customer.data?.Business_Messaging_Line_Id) {
-              const serviceKinds = savedJob.field_service_kinds || (savedJob.serviceKind ? [savedJob.serviceKind] : []);
-              const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
-
-              await sendLineNotification({
-                lineUserId: customer.data.Business_Messaging_Line_Id || "",
-                type: "check_in",
-                jobId: savedJob.id,
-                data: {
-                  customerName: savedJob.field4?.name || "お客様",
-                  vehicleName: savedJob.field6?.name || "車両",
-                  licensePlate: savedJob.field6?.name ? savedJob.field6.name.split(" / ")[1] || undefined : undefined,
-                  serviceKind,
-                },
-              });
-            }
-          } catch (error) {
-            console.warn("LINE通知送信エラー（チェックイン）:", error);
-          }
-
-          const updatedJobs = await fetchTodayJobs();
-          return updatedJobs.data || [];
+          // checkIn APIの結果から直接更新されたジョブを返す（fetchTodayJobs()を呼ばない）
+          const currentJobs = jobs || [];
+          return currentJobs
+            .map((job) =>
+              job.id === savedJob.id && result.data?.job ? result.data.job : job
+            )
+            .filter((job): job is ZohoJob => job !== undefined);
         },
         optimisticData: (currentJobs: ZohoJob[] | undefined) => {
           if (!currentJobs) return [];
@@ -663,21 +701,94 @@ function HomeContent() {
           );
         },
         errorMessage: "チェックインに失敗しました",
-        onSuccess: () => {
+        onSuccess: async () => {
           triggerHapticFeedback("success");
           toast.success("チェックイン完了", {
             description: `${savedJob.field4?.name}様 → タグ ${savedTagId}`,
           });
+
+          // SWRキャッシュを再検証（最新データを取得、ただし非同期で実行してチェックイン処理をブロックしない）
+          mutateJobs(undefined, { revalidate: true }).catch((error) => {
+            console.warn("ジョブデータの再検証エラー:", error);
+            // 再検証の失敗はチェックイン処理を止めない
+          });
+
+          // LINE通知を非同期で送信（チェックイン処理をブロックしない）
+          (async () => {
+            try {
+              const customer = await fetchCustomerById(savedJob.field4?.id || "");
+              if (customer.success && customer.data?.Business_Messaging_Line_Id) {
+                const serviceKinds = savedJob.field_service_kinds || (savedJob.serviceKind ? [savedJob.serviceKind] : []);
+                const serviceKind = serviceKinds.length > 0 ? serviceKinds[0] : "その他";
+
+                await sendLineNotification({
+                  lineUserId: customer.data.Business_Messaging_Line_Id || "",
+                  type: "check_in",
+                  jobId: savedJob.id,
+                  data: {
+                    customerName: savedJob.field4?.name || "お客様",
+                    vehicleName: savedJob.field6?.name || "車両",
+                    licensePlate: savedJob.field6?.name ? savedJob.field6.name.split(" / ")[1] || undefined : undefined,
+                    serviceKind,
+                  },
+                });
+              }
+            } catch (error) {
+              console.warn("LINE通知送信エラー（チェックイン）:", error);
+            }
+          })();
+
+          // Google Driveフォルダを作成してfield19を更新（フォールバック: field19がnullの場合のみ）
+          if (!savedJob.field19 && savedJob.field4?.id && savedJob.field6?.id && savedJob.field22) {
+            (async () => {
+              try {
+                const jobDate = new Date(savedJob.field22).toISOString().slice(0, 10).replace(/-/g, "");
+                const { createJobFolderAction } = await import("@/app/actions/drive");
+                const { updateJobField19 } = await import("@/lib/api");
+                
+                const folderResult = await createJobFolderAction(
+                  savedJob.id,
+                  jobDate,
+                  savedJob.ID_BookingId || savedJob.bookingId || savedJob.id,
+                  savedJob.field4?.id || "",
+                  savedJob.field4?.name || "顧客",
+                  savedJob.field6?.id || "",
+                  savedJob.field6?.name || "車両"
+                );
+                
+                if (folderResult.success && folderResult.url) {
+                  const updateResult = await updateJobField19(savedJob.id, folderResult.url);
+                  if (updateResult.success) {
+                    console.log("[Check-in Retry] Google Driveフォルダを作成し、field19を更新しました:", folderResult.url);
+                    // ジョブデータを再取得してfield19を反映
+                    mutateJobs(undefined, { revalidate: true }).catch((error) => {
+                      console.warn("ジョブデータの再検証エラー（field19更新後）:", error);
+                    });
+                  } else {
+                    console.warn("[Check-in Retry] field19の更新に失敗しました:", updateResult.error?.message);
+                  }
+                } else {
+                  console.warn("[Check-in Retry] フォルダ作成に失敗しました:", folderResult.error);
+                }
+              } catch (error) {
+                console.error("[Check-in Retry] フォルダ作成・更新エラー:", error);
+                // エラーが発生しても処理は続行（フォルダがなくても他の処理は可能）
+              }
+            })();
+          }
         },
         onError: () => {
           triggerHapticFeedback("error");
         },
       });
 
-      await mutateTags();
-      await mutateAllTags();
-      await mutateCourtesyCars();
-      await mutateJobs();
+      // キャッシュを並列で更新（パフォーマンス改善）
+      await Promise.all([
+        mutateTags(),
+        mutateAllTags(),
+        mutateCourtesyCars(),
+        mutateJobs(),
+      ]);
 
       setSelectedJob(null);
       setSelectedTagId(null);
@@ -786,9 +897,11 @@ function HomeContent() {
           if (!result.success) {
             throw new Error(result.error?.message || "整備士の割り当てに失敗しました");
           }
-          // 成功時は最新データを取得
-          const updatedJobs = await fetchTodayJobs();
-          return updatedJobs.data || [];
+          // assignMechanic APIの結果から直接更新されたジョブを返す（fetchTodayJobs()を呼ばない）
+          const currentJobs = jobs || [];
+          return currentJobs.map((job) =>
+            job.id === selectedJob.id && result.data ? result.data : job
+          );
         },
         optimisticData: (currentJobs: ZohoJob[] | undefined) => {
           if (!currentJobs) return [];
@@ -801,6 +914,12 @@ function HomeContent() {
           triggerHapticFeedback("success"); // 成功時のハプティックフィードバック
           toast.success("担当整備士を割り当てました", {
             description: `${selectedJob.field4?.name}様 → ${mechanicName}`,
+          });
+
+          // SWRキャッシュを再検証（最新データを取得、ただし非同期で実行して処理をブロックしない）
+          mutateJobs(undefined, { revalidate: true }).catch((error) => {
+            console.warn("ジョブデータの再検証エラー:", error);
+            // 再検証の失敗は処理を止めない
           });
 
           // 整備士名をlocalStorageに保存（診断画面での自動割り当て用）
@@ -877,39 +996,77 @@ function HomeContent() {
     return extractLongTermProjects(filteredJobs);
   }, [filteredJobs]);
 
-  // 優先度を計算（受付メモあり、事前入力ありを優先）
-  const getJobPriority = (job: ZohoJob): number => {
+  // WorkOrderのパース結果をメモ化（パフォーマンス改善）
+  const workOrdersCache = useMemo(() => {
+    const cache = new Map<string, ReturnType<typeof parseWorkOrdersFromZoho>>();
+    filteredJobs.forEach((job) => {
+      if (job.field_work_orders && !cache.has(job.id)) {
+        try {
+          cache.set(job.id, parseWorkOrdersFromZoho(job.field_work_orders));
+        } catch (error) {
+          console.warn(`[WorkOrder Cache] パースエラー (jobId: ${job.id}):`, error);
+          cache.set(job.id, []);
+        }
+      }
+    });
+    return cache;
+  }, [filteredJobs]);
+
+  // 優先度を計算する関数（メモ化）
+  const getJobPriority = useCallback((job: ZohoJob): number => {
     let priority = 0;
-    if (job.field) priority += 10; // 受付メモあり
-    if (job.field7) priority += 5; // 事前入力あり
+    // 緊急対応案件は優先度高
+    if (job.isUrgent || job.field7?.includes("【緊急対応】")) {
+      priority += 100;
+    }
+    // VIP顧客は優先度高
+    const customerId = job.field4?.id;
+    if (customerId && isImportantCustomer(customerId)) {
+      priority += 50;
+    }
+    // ステータスに応じた優先度
+    if (job.field5 === "見積作成待ち") {
+      priority += 30;
+    } else if (job.field5 === "作業待ち") {
+      priority += 20;
+    } else if (job.field5 === "入庫済み") {
+      priority += 10;
+    }
+
+    // 複合作業の場合、遅れているWorkOrderを考慮
+    const workOrders = workOrdersCache.get(job.id);
+    if (workOrders && workOrders.length > 0) {
+      const now = new Date();
+
+      // 遅れているWorkOrderがある場合、優先度を上げる
+      const delayedWorkOrders = workOrders.filter((wo) => {
+        // 診断中で開始から2時間以上経過
+        if (wo.status === "診断中" && wo.diagnosis?.startedAt) {
+          const startTime = new Date(wo.diagnosis.startedAt);
+          const hoursElapsed = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+          return hoursElapsed >= 2;
+        }
+
+        // 作業中で開始から4時間以上経過
+        if (wo.status === "作業中" && wo.work?.startedAt) {
+          const startTime = new Date(wo.work.startedAt);
+          const hoursElapsed = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+          return hoursElapsed >= 4;
+        }
+
+        return false;
+      });
+
+      if (delayedWorkOrders.length > 0) {
+        priority += 15; // 遅れているWorkOrderがある場合、優先度を上げる
+      }
+    }
+
     return priority;
-  };
+  }, [workOrdersCache]);
 
   // 並び替えと優先表示
   const sortedJobs = useMemo(() => {
-    // 優先度を計算する関数
-    const getJobPriority = (job: ZohoJob): number => {
-      let priority = 0;
-      // 緊急対応案件は優先度高
-      if (job.isUrgent || job.field7?.includes("【緊急対応】")) {
-        priority += 100;
-      }
-      // VIP顧客は優先度高
-      const customerId = job.field4?.id;
-      if (customerId && isImportantCustomer(customerId)) {
-        priority += 50;
-      }
-      // ステータスに応じた優先度
-      if (job.field5 === "見積作成待ち") {
-        priority += 30;
-      } else if (job.field5 === "作業待ち") {
-        priority += 20;
-      } else if (job.field5 === "入庫済み") {
-        priority += 10;
-      }
-      return priority;
-    };
-
     const jobsWithPriority = filteredJobs.map((job) => ({
       job,
       priority: getJobPriority(job),
@@ -922,16 +1079,45 @@ function HomeContent() {
       }
 
       // 優先度が同じ場合は、選択した並び替えオプションに従う
+      // 複合作業の場合、WorkOrderの開始時間を考慮するヘルパー関数
+      const getEarliestStartTime = (job: ZohoJob): number => {
+        const arrivalTime = job.field22 ? new Date(job.field22).getTime() : 0;
+
+        // WorkOrderがある場合、最も早く開始されたWorkOrderの開始時間を取得
+        const workOrders = workOrdersCache.get(job.id);
+        if (workOrders && workOrders.length > 0) {
+          const startTimes = workOrders
+            .map((wo) => {
+              const diagnosisStart = wo.diagnosis?.startedAt
+                ? new Date(wo.diagnosis.startedAt).getTime()
+                : null;
+              const workStart = wo.work?.startedAt
+                ? new Date(wo.work.startedAt).getTime()
+                : null;
+              return diagnosisStart || workStart || null;
+            })
+            .filter((time): time is number => time !== null);
+
+          if (startTimes.length > 0) {
+            return Math.min(...startTimes);
+          }
+        }
+
+        return arrivalTime;
+      };
+
       switch (sortOption) {
         case "arrivalTime":
           // 入庫時間順（古い順）
-          const timeA = a.job.field22 ? new Date(a.job.field22).getTime() : 0;
-          const timeB = b.job.field22 ? new Date(b.job.field22).getTime() : 0;
+          // 複合作業の場合、最も早く開始されたWorkOrderの開始時間を考慮
+          const timeA = getEarliestStartTime(a.job);
+          const timeB = getEarliestStartTime(b.job);
           return timeA - timeB;
         case "arrivalTimeDesc":
           // 入庫時間順（新しい順）
-          const timeADesc = a.job.field22 ? new Date(a.job.field22).getTime() : 0;
-          const timeBDesc = b.job.field22 ? new Date(b.job.field22).getTime() : 0;
+          // 複合作業の場合、最も早く開始されたWorkOrderの開始時間を考慮
+          const timeADesc = getEarliestStartTime(a.job);
+          const timeBDesc = getEarliestStartTime(b.job);
           return timeBDesc - timeADesc;
         case "bookingTime":
           // 予約時間順（field22を使用、予約時間がない場合は入庫時間を使用）
@@ -960,28 +1146,7 @@ function HomeContent() {
     });
 
     return jobsWithPriority.map((item) => item.job);
-  }, [filteredJobs, sortOption]);
-
-  // ステータス別にグループ化
-  const groupedJobs = sortedJobs.reduce((acc, job) => {
-    const status = job.field5;
-    if (!acc[status]) acc[status] = [];
-    acc[status].push(job);
-    return acc;
-  }, {} as Record<string, ZohoJob[]>);
-
-  // 担当整備士別にグループ化
-  const jobsByMechanic = useMemo(() => {
-    const grouped: Record<string, ZohoJob[]> = {};
-    sortedJobs.forEach((job) => {
-      const mechanicName = job.assignedMechanic || "未割り当て";
-      if (!grouped[mechanicName]) {
-        grouped[mechanicName] = [];
-      }
-      grouped[mechanicName].push(job);
-    });
-    return grouped;
-  }, [sortedJobs]);
+  }, [filteredJobs, sortOption, getJobPriority, workOrdersCache]);
 
   // 明日の作業予定を抽出
   const tomorrowJobs = useMemo(() => {
@@ -1082,12 +1247,21 @@ function HomeContent() {
 
         {/* 本日入出庫予定カード（最重要、最上部に配置） */}
         <div className="mb-6">
-          {isJobsLoading ? (
+          {/* 初回ロード時のみスケルトンを表示 */}
+          {isJobsLoading && !jobs ? (
             <Skeleton className="h-[400px] w-full" />
           ) : (
-            <TodayScheduleCard
-              jobs={jobs ?? []}
-              onJobClick={(jobId) => {
+            <div className="relative">
+              {/* 再検証中は更新中であることを示す */}
+              {isJobsValidating && jobs && (
+                <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"></div>
+                  <span className="text-xs text-slate-600">更新中...</span>
+                </div>
+              )}
+              <TodayScheduleCard
+                jobs={jobs ?? []}
+                onJobClick={(jobId) => {
                 // 該当ジョブがフィルター結果に含まれているか確認
                 const targetJob = filteredJobs.find(j => j.id === jobId);
 
@@ -1157,6 +1331,7 @@ function HomeContent() {
                 }
               }}
             />
+            </div>
           )}
         </div>
 
@@ -1167,14 +1342,14 @@ function HomeContent() {
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-slate-600 shrink-0" strokeWidth={2.5} />
               <h2 className="text-xl font-bold text-slate-900">入庫管理一覧</h2>
-              {!isJobsLoading && jobs && (
+              {jobs && (
                 <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300 text-base font-medium px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
                   {filteredJobs.length}件
                 </Badge>
               )}
             </div>
             <div className="flex items-center gap-2">
-              {!isJobsLoading && jobs && (
+              {jobs && (
                 <span className="text-base text-slate-700">
                   {getActiveFilterCount(filters) > 0 || searchQuery.trim() ? (
                     <>
@@ -1291,7 +1466,7 @@ function HomeContent() {
                     : "bg-white border-slate-200 text-slate-900 hover:bg-slate-50"
                 )}
               >
-                <span>整備士</span>
+                <span>担当整備士</span>
                 {filters.mechanic.length > 0 && (
                   <>
                     <span className="text-base text-amber-700">
@@ -1383,7 +1558,7 @@ function HomeContent() {
           </div>
 
           {/* 件数表示 */}
-          {!isJobsLoading && jobs && (
+          {jobs && (
             <div className="mb-4 text-base text-slate-800">
               {getActiveFilterCount(filters) === 0 && !searchQuery.trim()
                 ? `全 ${jobs.length}件`
@@ -1392,59 +1567,70 @@ function HomeContent() {
           )}
 
           {/* 入庫車両管理コンテンツ */}
-          {/* ローディング状態 */}
-          {isJobsLoading && (
+          {/* 初回ロード時のみスケルトンを表示 */}
+          {isJobsLoading && !jobs ? (
             <div className="space-y-4">
               <JobCardSkeleton />
               <JobCardSkeleton />
               <JobCardSkeleton />
             </div>
-          )}
-
-          {/* ジョブカードリスト */}
-          {!isJobsLoading && jobs && sortedJobs.length > 0 && (
-            <JobList
-              jobs={sortedJobs}
-              onCheckIn={(jobId: string) => {
-                const job = jobs?.find(j => j.id === jobId);
-                if (job) {
-                  handleCheckIn(job);
-                }
-              }}
-              courtesyCars={courtesyCars ?? []}
-            />
-          )}
-
-          {/* 空の場合の表示 */}
-          {!isJobsLoading && (
+          ) : (
             <>
-              {jobs?.length === 0 ? (
-                <div className="text-center py-12">
-                  <Car className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-700">本日の入庫予定はありません</p>
-                </div>
-              ) : filteredJobs.length === 0 ? (
-                <div className="text-center py-12">
-                  <Car className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-                  <p className="text-base font-medium text-slate-900">該当する案件がありません</p>
-                  <p className="text-base text-slate-700 mt-2">
-                    フィルター条件を変更してください
-                  </p>
-                  {(getActiveFilterCount(filters) > 0 || searchQuery.trim()) && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setFilters(resetFilters());
-                        setSearchQuery("");
-                      }}
-                      className="mt-4 gap-2"
-                    >
-                      <X className="h-5 w-5 shrink-0" />
-                      フィルターを解除
-                    </Button>
+              {/* ジョブカードリスト */}
+              {jobs && sortedJobs.length > 0 && (
+                <div className="relative">
+                  {/* 再検証中は更新中であることを示す */}
+                  {isJobsValidating && (
+                    <div className="absolute top-0 right-0 z-10 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm mb-4">
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"></div>
+                      <span className="text-xs text-slate-600">更新中...</span>
+                    </div>
                   )}
+                  <JobList
+                    jobs={sortedJobs}
+                    onCheckIn={(jobId: string) => {
+                      const job = jobs?.find(j => j.id === jobId);
+                      if (job) {
+                        handleCheckIn(job);
+                      }
+                    }}
+                    courtesyCars={courtesyCars ?? []}
+                  />
                 </div>
-              ) : null}
+              )}
+
+              {/* 空の場合の表示 */}
+              {jobs && (
+                <>
+                  {jobs.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Car className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+                      <p className="text-slate-700">本日の入庫予定はありません</p>
+                    </div>
+                  ) : sortedJobs.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Car className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+                      <p className="text-base font-medium text-slate-900">該当する案件がありません</p>
+                      <p className="text-base text-slate-700 mt-2">
+                        フィルター条件を変更してください
+                      </p>
+                      {(getActiveFilterCount(filters) > 0 || searchQuery.trim()) && (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setFilters(resetFilters());
+                            setSearchQuery("");
+                          }}
+                          className="mt-4 gap-2"
+                        >
+                          <X className="h-5 w-5 shrink-0" />
+                          フィルターを解除
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </>
+              )}
             </>
           )}
         </div>
@@ -1517,14 +1703,12 @@ function HomeContent() {
             </div>
             <div className="space-y-4">
               {longTermProjects.map((project) => (
-                <LongTermProjectCard
+                <JobCard
                   key={project.jobId}
-                  project={project}
+                  job={project.job}
+                  onCheckIn={handleCheckIn}
+                  isCheckingIn={isCheckingIn}
                   courtesyCars={courtesyCars ?? []}
-                  onClick={() => {
-                    // 作業画面に遷移
-                    window.location.href = `/mechanic/work/${project.jobId}`;
-                  }}
                 />
               ))}
             </div>
@@ -1675,13 +1859,5 @@ function HomeContent() {
 }
 
 export default function Home() {
-  return (
-    <Suspense fallback={
-      <div className="flex-1 bg-slate-50 flex items-center justify-center overflow-auto">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-700" />
-      </div>
-    }>
-      <HomeContent />
-    </Suspense>
-  );
+  return <HomeContent />;
 }

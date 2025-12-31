@@ -184,11 +184,19 @@ export function NotificationBell({ jobs, refreshInterval = 60000 }: Notification
               {notifications.map((notification) => {
                 const typeConfig = getNotificationTypeConfig(notification.type);
                 return (
-                  <button
+                  <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleNotificationClick(notification);
+                      }
+                    }}
                     className={cn(
-                      "w-full text-left p-4 rounded-lg border transition-colors",
+                      "w-full text-left p-4 rounded-lg border transition-colors cursor-pointer",
                       notification.read
                         ? "bg-white border-slate-200 hover:bg-slate-50"
                         : "bg-blue-50 border-blue-200 hover:bg-blue-100",
@@ -235,7 +243,7 @@ export function NotificationBell({ jobs, refreshInterval = 60000 }: Notification
                         </button>
                       )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

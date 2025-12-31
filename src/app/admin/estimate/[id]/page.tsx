@@ -2,7 +2,7 @@
 
 // Note: クライアントコンポーネントはデフォルトで動的レンダリングされるため、force-dynamicは不要
 
-import { useState, useMemo, useEffect, Suspense, useRef } from "react";
+import { useState, useMemo, useEffect, Suspense, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -58,11 +68,17 @@ import { AudioInputButton, AudioData } from "@/components/features/audio-input-b
 import { useWorkOrders, updateWorkOrder, createWorkOrder } from "@/hooks/use-work-orders";
 import { WorkOrderList } from "@/components/features/work-order-list";
 import { InvoiceUpload } from "@/components/features/invoice-upload";
+import { useAutoSaveWithOffline } from "@/hooks/use-auto-save-with-offline";
+import { SaveStatusIndicator } from "@/components/features/save-status-indicator";
+import { STORE_NAMES } from "@/lib/offline-storage";
+import { useDirtyCheck } from "@/lib/dirty-check";
 import { BodyPaintEstimateView, BodyPaintEstimateData } from "@/components/features/body-paint-estimate-view";
 import { VendorEstimate } from "@/components/features/body-paint-diagnosis-view";
 import { RestoreEstimateView, RestoreEstimateData } from "@/components/features/restore-estimate-view";
 import { OtherServiceEstimateView, OtherServiceEstimateData } from "@/components/features/other-service-estimate-view";
 import { EstimateChangeHistorySection } from "@/components/features/estimate-change-history-section";
+import { EstimateHistoryDiffSection, type EstimateVersion } from "@/components/features/estimate-history-diff-section";
+import { getEstimateHistory, saveEstimateHistory, getNextVersionNumber, generateVersionLabel } from "@/lib/estimate-history-storage";
 import { PhotoManager, PhotoItem } from "@/components/features/photo-manager";
 import type { AdditionalEstimateItem } from "@/components/features/additional-estimate-view";
 import dynamic from "next/dynamic";
@@ -75,7 +91,6 @@ const PartsArrivalDialog = dynamic(
     ssr: false
   }
 );
-
 
 const JobMemoDialog = dynamic(
   () => import("@/components/features/job-memo-dialog").then(mod => ({ default: mod.JobMemoDialog })),
@@ -137,6 +152,7 @@ import {
   Mic,
   ChevronDown,
   CheckCircle2,
+  Workflow,
   History,
   FileText,
   ExternalLink,
@@ -175,9 +191,6 @@ function formatTime(isoString: string): string {
   });
 }
 
-/**
- * ステータスバッジのスタイルを取得
- */
 /**
  * ステータスバッジのスタイルを取得
  * セマンティックカラーシステムに基づく統一ルール
@@ -392,6 +405,8 @@ function EstimateLineRow({
   canDelete,
   disabled,
   onPhotoClick,
+  isInspection,
+  onConvertToWorkOrder,
 }: {
   item: EstimateLineItem;
   photos: DiagnosisPhoto[];
@@ -401,11 +416,15 @@ function EstimateLineRow({
   canDelete: boolean;
   disabled?: boolean;
   onPhotoClick?: (photoUrl: string, itemName: string) => void;
+  isInspection?: boolean;
+  onConvertToWorkOrder?: (itemId: string, itemName: string) => void;
 }) {
   // サジェスト表示の状態
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [inputValue, setInputValue] = useState(item.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 独立作業にする確認ダイアログの状態
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
 
   // inputValueをitem.nameと同期
   useEffect(() => {
@@ -487,8 +506,38 @@ function EstimateLineRow({
     }
   };
 
+  // 独立作業にするハンドラ
+  const handleConvertToWorkOrder = () => {
+    if (onConvertToWorkOrder) {
+      onConvertToWorkOrder(item.id, item.name || "未入力");
+      setShowConvertDialog(false);
+    }
+  };
+
   return (
     <>
+      {/* 独立作業にする確認ダイアログ */}
+      {isInspection && onConvertToWorkOrder && (
+        <AlertDialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>独立作業にする</AlertDialogTitle>
+              <AlertDialogDescription>
+                「{item.name || "未入力"}」を独立した作業として作成しますか？
+                <br />
+                この項目は見積から削除され、新しい作業として追加されます。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={disabled}>キャンセル</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConvertToWorkOrder} disabled={disabled}>
+                独立作業にする
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       {/* モバイル時: シンプルなカード型レイアウト（sm以下） */}
       <div
         className="block sm:hidden border border-slate-200 rounded-lg p-4 mb-3 bg-white"
@@ -525,16 +574,31 @@ function EstimateLineRow({
               </div>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onDelete(item.id)}
-            disabled={!canDelete || disabled}
-            className="h-12 w-12 text-slate-500 hover:text-red-600 hover:bg-red-50 shrink-0"
-            aria-label={`${item.name || "項目"}を削除`}
-          >
-            <Trash2 className="h-5 w-5" />
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            {isInspection && onConvertToWorkOrder && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowConvertDialog(true)}
+                disabled={disabled}
+                className="h-12 w-12 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                aria-label={`${item.name || "項目"}を独立作業にする`}
+                title="独立作業にする"
+              >
+                <Workflow className="h-5 w-5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(item.id)}
+              disabled={!canDelete || disabled}
+              className="h-12 w-12 text-slate-500 hover:text-red-600 hover:bg-red-50"
+              aria-label={`${item.name || "項目"}を削除`}
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -820,8 +884,21 @@ function EstimateLineRow({
             />
           </div>
 
-          {/* 削除ボタン */}
-          <div role="gridcell">
+          {/* アクションボタン */}
+          <div role="gridcell" className="flex gap-1">
+            {isInspection && onConvertToWorkOrder && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowConvertDialog(true)}
+                disabled={disabled}
+                className="h-12 w-12 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                aria-label={`${item.name || "項目"}を独立作業にする`}
+                title="独立作業にする"
+              >
+                <Workflow className="h-5 w-5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -855,6 +932,8 @@ function EstimateSection({
   disabled,
   isTaxIncluded = true,
   onPhotoClick,
+  isInspection,
+  onConvertToWorkOrder,
 }: {
   title: string;
   priority: EstimatePriority;
@@ -868,6 +947,8 @@ function EstimateSection({
   disabled?: boolean;
   isTaxIncluded?: boolean;
   onPhotoClick?: (photoUrl: string, itemName: string) => void;
+  isInspection?: boolean;
+  onConvertToWorkOrder?: (itemId: string, itemName: string) => void;
 }) {
   const sectionItems = items.filter((item) => item.priority === priority);
   // 部品代合計
@@ -942,6 +1023,8 @@ function EstimateSection({
             canDelete={priority !== "required" || sectionItems.length > 1}
             disabled={disabled}
             onPhotoClick={onPhotoClick}
+            isInspection={isInspection}
+            onConvertToWorkOrder={onConvertToWorkOrder}
           />
         ))}
 
@@ -1175,6 +1258,15 @@ function EstimatePageContent() {
   // ワークオーダーを取得
   const { workOrders, isLoading: isLoadingWorkOrders, mutate: mutateWorkOrders } = useWorkOrders(jobId);
 
+  // 見積履歴を取得
+  const [estimateHistory, setEstimateHistory] = useState<EstimateVersion[]>([]);
+  useEffect(() => {
+    if (jobId) {
+      const history = getEstimateHistory(jobId, workOrderId || undefined);
+      setEstimateHistory(history);
+    }
+  }, [jobId, workOrderId]);
+
   // 代車情報を取得（グローバルキャッシュを活用）
   const {
     data: courtesyCarsResponse,
@@ -1226,9 +1318,6 @@ function EstimatePageContent() {
         // 履歴を記録（前の画面のパスとタイプを記録）
         setNavigationHistory(previousPath, referrerType);
         
-        if (process.env.NODE_ENV === "development") {
-          console.log("[Estimate] Navigation history saved from sessionStorage:", { previousPath, referrerType });
-        }
       } catch (error) {
         console.error("[Estimate] Failed to parse previous path:", error);
         // エラーが発生した場合は、document.referrerを使用
@@ -1252,9 +1341,6 @@ function EstimatePageContent() {
             // 履歴を記録（前の画面のパスとタイプを記録）
             setNavigationHistory(referrerPath, referrerType);
             
-            if (process.env.NODE_ENV === "development") {
-              console.log("[Estimate] Navigation history saved from referrer:", { referrerPath, referrerType });
-            }
           } else {
             // 同じページへの遷移（リロードなど）は履歴を保持
             // 既存の履歴があればそのまま使用
@@ -1325,17 +1411,6 @@ function EstimatePageContent() {
     return serviceKinds.length > 0 ? (serviceKinds[0] as ServiceKind) : undefined;
   }, [selectedWorkOrder, serviceKinds]);
 
-  // デバッグログ（開発環境のみ）
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("[見積画面] サービス種類判定:", {
-        serviceKinds,
-        primaryServiceKind,
-        selectedWorkOrderId: selectedWorkOrder?.id,
-        selectedWorkOrderServiceKind: selectedWorkOrder?.serviceKind,
-      });
-    }
-  }, [serviceKinds, primaryServiceKind, selectedWorkOrder]);
 
   // エンジンオイル交換かどうかを判定
   const isEngineOilChange = useMemo(() => {
@@ -2390,10 +2465,6 @@ function EstimatePageContent() {
 
   // selectedWorkOrderが変更されたときにphotosを更新
   useEffect(() => {
-    // デバッグ: initialPhotosの内容を確認
-    if (isInspection && initialPhotos.length > 0) {
-      console.log("[Estimate] initialPhotos:", initialPhotos);
-    }
     setPhotos(initialPhotos);
   }, [initialPhotos, isInspection]);
 
@@ -2834,6 +2905,282 @@ function EstimatePageContent() {
       transcription: null,
     };
     setEstimateItems((prev) => [...prev, newItem]);
+  };
+
+  /**
+   * 現在の見積データを構築する関数（途中保存用）
+   */
+  const buildEstimateData = useCallback((): any => {
+    if (!job || !selectedWorkOrder?.id) return null;
+
+    // 見積項目をEstimateItem形式に変換
+    const estimateData: EstimateItem[] = estimateItems.map((item) => {
+      const linkedPhotoUrls = item.linkedPhotoId
+        ? photos.filter((p) => p.id === item.linkedPhotoId).map((p) => p.url)
+        : [];
+      const linkedVideoUrl = item.linkedVideoId
+        ? videos.find((v) => v.id === item.linkedVideoId)?.url || null
+        : null;
+
+      return {
+        id: item.id,
+        name: item.name,
+        price: (item.partQuantity || 0) * (item.partUnitPrice || 0) + (item.laborCost || 0),
+        priority: item.priority,
+        selected: item.priority === "required" || item.priority === "recommended",
+        linkedPhotoUrls,
+        linkedVideoUrl,
+        transcription: item.transcription || null,
+        note: null,
+      };
+    });
+
+    // 小計、消費税、合計を計算
+    const subtotal = estimateData.reduce((sum, item) => sum + item.price, 0);
+    const taxCalculation = calculateTax(subtotal);
+    const tax = taxCalculation.tax;
+    const total = taxCalculation.total;
+
+    // サービス種類固有の情報を準備
+    const estimateDataWithExtras: any = {
+      items: estimateData,
+      subtotal,
+      tax,
+      total,
+      createdAt: new Date().toISOString(),
+      // 故障診断固有情報
+      faultDiagnosisInfo: isFaultDiagnosis ? {
+        causeExplanation: causeExplanation.trim() || undefined,
+        repairProposal: repairProposal.trim() || undefined,
+        diagnosticToolResultUrl: diagnosticToolResult?.fileUrl || undefined,
+        diagnosticToolResultFileId: diagnosticToolResult?.fileId || undefined,
+      } : undefined,
+      // 修理・整備固有情報
+      repairInfo: isRepair ? {
+        audioUrl: audioData?.audioUrl || undefined,
+        partsList: partsList.map((part) => ({
+          id: part.id,
+          name: part.name,
+          quantity: part.quantity,
+          unitPrice: part.unitPrice,
+          note: part.note,
+          vendor: part.vendor,
+          arrivalStatus: part.arrivalStatus,
+          arrivalDate: part.arrivalDate,
+          storageLocation: part.storageLocation,
+        })),
+      } : undefined,
+      // 板金・塗装固有情報
+      bodyPaintInfo: isBodyPaint && bodyPaintEstimateData ? {
+        workDuration: bodyPaintEstimateData.workDuration,
+        hasInsurance: bodyPaintHasInsurance,
+        insuranceCompany: bodyPaintHasInsurance ? bodyPaintInsuranceCompany.trim() || undefined : undefined,
+      } : undefined,
+      // レストア固有情報
+      restoreInfo: isRestore && restoreEstimateData ? {
+        workDuration: restoreEstimateData.workDuration,
+        changeHistory: restoreEstimateData.changeHistory.map((history: any) => ({
+          changedAt: history.changedAt,
+          description: history.description,
+          previousTotal: history.previousTotal,
+          newTotal: history.newTotal,
+          reason: history.reason || undefined,
+        })),
+      } : undefined,
+      // その他固有情報
+      otherInfo: isOther && otherEstimateData ? {
+        items: otherEstimateData.items,
+        parts: otherEstimateData.parts || [],
+        total: otherEstimateData.total,
+      } : undefined,
+    };
+
+    return {
+      estimate: estimateDataWithExtras,
+      diagnosisFee: diagnosisFee !== null ? diagnosisFee : undefined,
+      diagnosisDuration: diagnosisDuration !== null ? diagnosisDuration : undefined,
+      isDiagnosisFeePreDetermined: isDiagnosisFeePreDetermined || undefined,
+      mechanicApproved: mechanicApproved || undefined,
+      mechanicApprover: mechanicApprover.trim() || undefined,
+      baseSystemItemId: baseSystemItemId.trim() || undefined,
+    };
+  }, [
+    job,
+    selectedWorkOrder?.id,
+    estimateItems,
+    photos,
+    videos,
+    isFaultDiagnosis,
+    causeExplanation,
+    repairProposal,
+    diagnosticToolResult,
+    isRepair,
+    audioData,
+    partsList,
+    isBodyPaint,
+    bodyPaintEstimateData,
+    bodyPaintHasInsurance,
+    bodyPaintInsuranceCompany,
+    isRestore,
+    restoreEstimateData,
+    isOther,
+    otherEstimateData,
+    diagnosisFee,
+    diagnosisDuration,
+    isDiagnosisFeePreDetermined,
+    mechanicApproved,
+    mechanicApprover,
+    baseSystemItemId,
+  ]);
+
+  /**
+   * 見積データを下書き保存する関数
+   */
+  const saveDraftEstimate = useCallback(async (estimateData: any) => {
+    if (!job || !estimateData || !selectedWorkOrder?.id) return;
+
+    const updateResult = await updateWorkOrder(jobId, selectedWorkOrder.id, {
+      estimate: estimateData.estimate,
+      // ステータスは変更しない（下書き保存）
+      diagnosisFee: estimateData.diagnosisFee,
+      diagnosisDuration: estimateData.diagnosisDuration,
+      isDiagnosisFeePreDetermined: estimateData.isDiagnosisFeePreDetermined,
+      mechanicApproved: estimateData.mechanicApproved,
+      mechanicApprover: estimateData.mechanicApprover,
+      baseSystemItemId: estimateData.baseSystemItemId,
+    });
+
+    if (!updateResult.success) {
+      throw new Error(updateResult.error?.message || "下書き保存に失敗しました");
+    }
+
+    // ワークオーダーリストを再取得
+    await mutateWorkOrders();
+  }, [job, jobId, selectedWorkOrder?.id, mutateWorkOrders]);
+
+  /**
+   * 自動保存フック
+   * 見積データのスナップショットを作成し、変更を検知して自動保存
+   */
+  const estimateDataSnapshot = useMemo(() => {
+    return buildEstimateData();
+  }, [
+    job,
+    selectedWorkOrder?.id,
+    estimateItems,
+    photos,
+    videos,
+    isFaultDiagnosis,
+    causeExplanation,
+    repairProposal,
+    diagnosticToolResult,
+    isRepair,
+    audioData,
+    partsList,
+    isBodyPaint,
+    bodyPaintEstimateData,
+    bodyPaintHasInsurance,
+    bodyPaintInsuranceCompany,
+    isRestore,
+    restoreEstimateData,
+    isOther,
+    otherEstimateData,
+    diagnosisFee,
+    diagnosisDuration,
+    isDiagnosisFeePreDetermined,
+    mechanicApproved,
+    mechanicApprover,
+    baseSystemItemId,
+  ]);
+
+  const { saveStatus, saveManually, hasUnsavedChanges, isOffline, pendingSyncCount } = useAutoSaveWithOffline({
+    data: estimateDataSnapshot,
+    onSave: saveDraftEstimate,
+    debounceMs: 3000, // 見積ページは項目が多いため、少し長めに設定
+    disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
+    enableOffline: true,
+    storeName: STORE_NAMES.ESTIMATES,
+    dataId: jobId,
+    syncMetadata: {
+      workOrderId: selectedWorkOrder?.id,
+    },
+    onSaveSuccess: () => {
+      // 自動保存成功時はトースト通知を表示しない（保存状態インジケーターで十分）
+    },
+    onSaveError: (error) => {
+      console.error("見積データの下書き保存エラー:", error);
+      // 保存失敗時のトースト通知
+      toast.error("保存に失敗しました", {
+        description: error.message || "エラーが発生しました",
+      });
+    },
+  });
+
+  // Dirty Check（未保存変更の検知）
+  useDirtyCheck(hasUnsavedChanges, {
+    message: "入力中の内容が保存されていません。このまま移動しますか？",
+    disabled: !selectedWorkOrder?.id || !job, // ワークオーダーがない場合は無効化
+  });
+
+  /**
+   * 独立作業にする
+   */
+  const handleConvertToWorkOrder = async (itemId: string, itemName: string) => {
+    try {
+      // 見積項目を取得
+      const item = estimateItems.find((i) => i.id === itemId);
+      if (!item) {
+        toast.error("項目が見つかりません");
+        return;
+      }
+
+      // ServiceKindの有効な値を定義
+      const validServiceKinds: ServiceKind[] = [
+        "車検",
+        "修理・整備",
+        "レストア",
+        "チューニング",
+        "パーツ取付",
+        "コーティング",
+        "板金・塗装",
+        "その他",
+        "その他のメンテナンス",
+        "12ヵ月点検",
+        "エンジンオイル交換",
+        "タイヤ交換・ローテーション",
+        "故障診断",
+      ];
+
+      // 項目名がServiceKindに該当するかチェック
+      const serviceKind = validServiceKinds.includes(itemName as ServiceKind)
+        ? (itemName as ServiceKind)
+        : ("その他" as ServiceKind);
+
+      // 新しいワークオーダーを作成
+      const result = await createWorkOrder(jobId, serviceKind);
+
+      if (!result.success) {
+        toast.error("独立作業の作成に失敗しました", {
+          description: result.error?.message || "エラーが発生しました",
+        });
+        return;
+      }
+
+      // 見積項目から削除
+      handleDeleteItem(itemId);
+
+      // ワークオーダーを再取得
+      await mutateWorkOrders();
+
+      toast.success("独立作業を作成しました", {
+        description: `「${itemName}」を独立した作業として追加しました`,
+      });
+    } catch (error) {
+      console.error("独立作業作成エラー:", error);
+      toast.error("独立作業の作成に失敗しました", {
+        description: error instanceof Error ? error.message : "エラーが発生しました",
+      });
+    }
   };
 
   /**
@@ -3845,8 +4192,8 @@ function EstimatePageContent() {
 
   const selectedPhoto = photos.find((p: DiagnosisPhoto) => p.id === selectedPhotoId);
 
-  // 車検の場合は「追加見積」、それ以外は「見積作成」
-  const estimateTitle = isInspection ? "追加見積" : "見積作成";
+  // 車検の場合は「車検外提案（車検とは切り分けて説明した方が分かりやすい内容）」、それ以外は「見積作成」
+  const estimateTitle = isInspection ? "車検外提案（車検とは切り分けて説明した方が分かりやすい内容）" : "見積作成";
 
   // 現在の作業名を取得（選択中のワークオーダーから、またはserviceKindsから）
   const currentWorkOrderName = selectedWorkOrder?.serviceKind || (serviceKinds.length > 0 ? serviceKinds[0] : "見積");
@@ -3960,21 +4307,13 @@ function EstimatePageContent() {
                     {(() => {
                       // デバッグ: photosの内容を確認
                       const validPhotos = photos
-                        .filter((photo) => photo.url && photo.url.trim() !== ""); // URLが空でないもののみフィルタリング
-                      
-                      if (isInspection && validPhotos.length === 0 && photos.length > 0) {
-                        console.warn("[Estimate] photosにURLが空の項目があります:", photos);
-                      }
+                        .filter((photo) => photo.url && photo.url.trim() !== "");
                       
                       const photoItems = validPhotos.map((photo) => ({
                         id: photo.id,
                         previewUrl: photo.url,
                         position: photo.position,
                       }));
-                      
-                      if (isInspection && photoItems.length > 0) {
-                        console.log("[Estimate] PhotoManagerに渡すphotos:", photoItems);
-                      }
                       
                       return (
                         <PhotoManager
@@ -4494,6 +4833,8 @@ function EstimatePageContent() {
                         disabled={isSubmitting}
                         isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
                       />
                       <Separator />
                       <EstimateSection
@@ -4509,6 +4850,8 @@ function EstimatePageContent() {
                         disabled={isSubmitting}
                         isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
                       />
                       <Separator />
                       <EstimateSection
@@ -4524,6 +4867,8 @@ function EstimatePageContent() {
                         disabled={isSubmitting}
                         isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
                       />
                     </div>
                   </div>
@@ -4531,6 +4876,14 @@ function EstimatePageContent() {
                   /* 車検の場合はスクロールなしで全表示、それ以外はScrollArea */
                   isInspection ? (
                     <div className="space-y-6">
+                      {/* 車検外提案の説明 */}
+                      <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <p className="text-base text-slate-700">
+                          車検とは関係ない、車検とは切り分けて説明した方が分かりやすい内容を記録してください。
+                          <br />
+                          点検項目で発見された問題（車検の説明の中でそのまま伝えられる内容）は、点検項目のステータスで記録してください。
+                        </p>
+                      </div>
                       <EstimateSection
                         title="今回絶対必要"
                         priority="required"
@@ -4544,6 +4897,8 @@ function EstimatePageContent() {
                         disabled={isSubmitting}
                         isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
                       />
 
                       <Separator />
@@ -4561,6 +4916,8 @@ function EstimatePageContent() {
                         disabled={isSubmitting}
                         isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
                       />
 
                       <Separator />
@@ -4578,65 +4935,87 @@ function EstimatePageContent() {
                         disabled={isSubmitting}
                         isTaxIncluded={isTaxIncluded}
                         onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
                       />
                     </div>
                   ) : (
                     <ScrollArea className="h-[400px] pr-4">
                       <div className="space-y-6">
-                        <EstimateSection
-                          title="今回絶対必要"
-                          priority="required"
-                          items={estimateItems}
-                          photos={photos}
-                          videos={videos}
-                          onUpdate={handleUpdateItem}
-                          onDelete={handleDeleteItem}
-                          onAdd={() => handleAddItem("required")}
-                          badgeVariant="default"
-                          disabled={isSubmitting}
-                          isTaxIncluded={isTaxIncluded}
-                          onPhotoClick={handleEstimateLinePhotoClick}
-                        />
+                      <EstimateSection
+                        title="今回絶対必要"
+                        priority="required"
+                        items={estimateItems}
+                        photos={photos}
+                        videos={videos}
+                        onUpdate={handleUpdateItem}
+                        onDelete={handleDeleteItem}
+                        onAdd={() => handleAddItem("required")}
+                        badgeVariant="default"
+                        disabled={isSubmitting}
+                        isTaxIncluded={isTaxIncluded}
+                        onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
+                      />
 
-                        <Separator />
+                      <Separator />
 
-                        <EstimateSection
-                          title="やったほうがいい"
-                          priority="recommended"
-                          items={estimateItems}
-                          photos={photos}
-                          videos={videos}
-                          onUpdate={handleUpdateItem}
-                          onDelete={handleDeleteItem}
-                          onAdd={() => handleAddItem("recommended")}
-                          badgeVariant="secondary"
-                          disabled={isSubmitting}
-                          isTaxIncluded={isTaxIncluded}
-                          onPhotoClick={handleEstimateLinePhotoClick}
-                        />
+                      <EstimateSection
+                        title="やったほうがいい"
+                        priority="recommended"
+                        items={estimateItems}
+                        photos={photos}
+                        videos={videos}
+                        onUpdate={handleUpdateItem}
+                        onDelete={handleDeleteItem}
+                        onAdd={() => handleAddItem("recommended")}
+                        badgeVariant="secondary"
+                        disabled={isSubmitting}
+                        isTaxIncluded={isTaxIncluded}
+                        onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
+                      />
 
-                        <Separator />
+                      <Separator />
 
-                        <EstimateSection
-                          title="お客さん次第"
-                          priority="optional"
-                          items={estimateItems}
-                          photos={photos}
-                          videos={videos}
-                          onUpdate={handleUpdateItem}
-                          onDelete={handleDeleteItem}
-                          onAdd={() => handleAddItem("optional")}
-                          badgeVariant="outline"
-                          disabled={isSubmitting}
-                          isTaxIncluded={isTaxIncluded}
-                          onPhotoClick={handleEstimateLinePhotoClick}
-                        />
+                      <EstimateSection
+                        title="お客さん次第"
+                        priority="optional"
+                        items={estimateItems}
+                        photos={photos}
+                        videos={videos}
+                        onUpdate={handleUpdateItem}
+                        onDelete={handleDeleteItem}
+                        onAdd={() => handleAddItem("optional")}
+                        badgeVariant="outline"
+                        disabled={isSubmitting}
+                        isTaxIncluded={isTaxIncluded}
+                        onPhotoClick={handleEstimateLinePhotoClick}
+                        isInspection={isInspection}
+                        onConvertToWorkOrder={handleConvertToWorkOrder}
+                      />
                       </div>
                     </ScrollArea>
                   )
                 )}
               </CardContent>
             </Card>
+
+            {/* 見積履歴の差分表示セクション */}
+            <EstimateHistoryDiffSection
+              jobId={jobId}
+              workOrderId={workOrderId || undefined}
+              currentEstimateItems={estimateItems}
+              estimateHistory={estimateHistory}
+              onSaveHistory={async (version: EstimateVersion) => {
+                saveEstimateHistory(jobId, workOrderId || undefined, version);
+                const updatedHistory = getEstimateHistory(jobId, workOrderId || undefined);
+                setEstimateHistory(updatedHistory);
+              }}
+              disabled={isSubmitting}
+            />
 
             {/* 見積変更履歴セクション */}
             <EstimateChangeHistorySection
@@ -4934,6 +5313,18 @@ function EstimatePageContent() {
                 />
               );
             })()}
+
+            {/* 保存状態インジケーター */}
+            <div className="flex items-center justify-end">
+              <SaveStatusIndicator
+                status={saveStatus}
+                hasUnsavedChanges={hasUnsavedChanges}
+                onSave={saveManually}
+                showSaveButton={true}
+                isOffline={isOffline}
+                pendingSyncCount={pendingSyncCount}
+              />
+            </div>
 
             {/* アクションボタン */}
             <div className="flex flex-col sm:flex-row gap-3">

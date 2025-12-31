@@ -83,14 +83,6 @@ export function parseWorkOrdersFromZoho(
         updatedAt: wo.updatedAt || new Date().toISOString(),
       };
       
-      if (process.env.NODE_ENV === "development" && wo.vendor) {
-        console.log("[work-order-converter] vendor情報をマッピング:", {
-          workOrderId: mapped.id,
-          serviceKind: mapped.serviceKind,
-          vendor: mapped.vendor,
-        });
-      }
-      
       return mapped;
     });
   } catch (error) {

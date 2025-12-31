@@ -11,8 +11,9 @@ import { ZohoJob, ServiceKind, CourtesyCar } from "@/types";
 import { cn } from "@/lib/utils";
 import { fetchAllLongTermProjectJobs, fetchAllCourtesyCars } from "@/lib/api";
 import { AppHeader } from "@/components/layout/app-header";
-import { LongTermProjectCard, LongTermProjectData } from "@/components/features/long-term-project-card";
+import { LongTermProjectData } from "@/components/features/long-term-project-card";
 import { extractLongTermProjects } from "@/lib/long-term-project-utils";
+import { JobCard } from "@/components/features/job-card";
 
 type ServiceFilter = "all" | "レストア" | "板金・塗装";
 type DelayFilter = "all" | "delayed" | "on_time";
@@ -276,11 +277,12 @@ export default function LongTermProjectsPage() {
             ) : (
               <div className="space-y-4">
                 {filteredProjects.map((project) => (
-                  <LongTermProjectCard
+                  <JobCard
                     key={project.jobId}
-                    project={project}
+                    job={project.job}
+                    onCheckIn={() => {}}
+                    isCheckingIn={false}
                     courtesyCars={courtesyCars}
-                    showDetailButton={true}
                   />
                 ))}
               </div>

@@ -9,7 +9,8 @@ import { ApiResponse } from "@/types";
 import { InspectionItem } from "./inspection-items";
 import { InspectionRecordData } from "./inspection-pdf-generator";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { loadCustomFont, mmToPt } from "./pdf-utils";
+import { loadCustomFont, mmToPt, drawTextWithAutoSize } from "./pdf-utils";
+import { PDF_COORDINATES } from "@/const/pdfCoordinates";
 
 // =============================================================================
 // 型定義
@@ -330,201 +331,295 @@ export async function generateInspectionTemplatePDF(
     // const fontBoldToUse = japaneseFont || helveticaBoldFont; 
 
     // =============================================================================
-    // テキストフィールドにデータを書き込む
+    // テキストフィールドにデータを書き込む（ユーザー提供の座標を使用）
     // =============================================================================
+    const coords = PDF_COORDINATES;
 
-    // 依頼者(使用者)
-    firstPage.drawText(data.vehicle.ownerName || "", {
-      x: mmToPt(textFields.ownerName.x),
-      y: pageHeight - mmToPt(textFields.ownerName.y),
-      size: textFields.ownerName.fontSize || 10,
-      font: fontToUse,
-    });
-
-    // 車名及び型式
-    firstPage.drawText(data.vehicle.vehicleName || "", {
-      x: mmToPt(textFields.vehicleName.x),
-      y: pageHeight - mmToPt(textFields.vehicleName.y),
-      size: textFields.vehicleName.fontSize || 10,
-      font: fontToUse,
-    });
-
-    // 自動車登録番号又は車両番号
-    firstPage.drawText(data.vehicle.licensePlate || "", {
-      x: mmToPt(textFields.licensePlate.x),
-      y: pageHeight - mmToPt(textFields.licensePlate.y),
-      size: textFields.licensePlate.fontSize || 10,
-      font: fontToUse,
-    });
-
-    // 原動機の型式（ある場合）
-    if (data.vehicle.engineType && textFields.engineType) {
-      firstPage.drawText(data.vehicle.engineType, {
-        x: mmToPt(textFields.engineType.x),
-        y: pageHeight - mmToPt(textFields.engineType.y),
-        size: textFields.engineType.fontSize || 10,
-        font: fontToUse,
-      });
+    // 依頼者(使用者) - 座標: { x: 100, y: 805, size: 10 }
+    if (data.vehicle.ownerName) {
+      drawTextWithAutoSize(
+        firstPage,
+        data.vehicle.ownerName,
+        coords.header.ownerName.x,
+        coords.header.ownerName.y,
+        fontToUse,
+        coords.header.ownerName.size,
+        undefined, // maxWidth未指定（必要に応じて調整）
+        rgb(0, 0, 0)
+      );
     }
 
-    // 初度登録年又は初度検査年（ある場合）
-    if (data.vehicle.firstRegistrationYear && textFields.firstRegistrationYear) {
-      firstPage.drawText(data.vehicle.firstRegistrationYear, {
-        x: mmToPt(textFields.firstRegistrationYear.x),
-        y: pageHeight - mmToPt(textFields.firstRegistrationYear.y),
-        size: textFields.firstRegistrationYear.fontSize || 10,
-        font: fontToUse,
-      });
+    // 車名及び型式 - 座標: { x: 320, y: 805, size: 10 }
+    if (data.vehicle.vehicleName) {
+      drawTextWithAutoSize(
+        firstPage,
+        data.vehicle.vehicleName,
+        coords.header.carModel.x,
+        coords.header.carModel.y,
+        fontToUse,
+        coords.header.carModel.size,
+        undefined,
+        rgb(0, 0, 0)
+      );
     }
 
-    // 車台番号（ある場合）
-    if (data.vehicle.chassisNumber && textFields.chassisNumber) {
-      firstPage.drawText(data.vehicle.chassisNumber, {
-        x: mmToPt(textFields.chassisNumber.x),
-        y: pageHeight - mmToPt(textFields.chassisNumber.y),
-        size: textFields.chassisNumber.fontSize || 10,
-        font: fontToUse,
-      });
+    // 自動車登録番号又は車両番号 - 座標: { x: 460, y: 805, size: 10 }
+    if (data.vehicle.licensePlate) {
+      drawTextWithAutoSize(
+        firstPage,
+        data.vehicle.licensePlate,
+        coords.header.registrationNumber.x,
+        coords.header.registrationNumber.y,
+        fontToUse,
+        coords.header.registrationNumber.size,
+        undefined,
+        rgb(0, 0, 0)
+      );
     }
 
-    // 整備主任者
-    firstPage.drawText(data.mechanicName || "", {
-      x: mmToPt(textFields.mechanicName.x),
-      y: pageHeight - mmToPt(textFields.mechanicName.y),
-      size: textFields.mechanicName.fontSize || 10,
-      font: fontToUse,
-    });
+    // 原動機の型式（ある場合） - 座標: { x: 320, y: 780, size: 10 }
+    if (data.vehicle.engineType) {
+      drawTextWithAutoSize(
+        firstPage,
+        data.vehicle.engineType,
+        coords.header.engineType.x,
+        coords.header.engineType.y,
+        fontToUse,
+        coords.header.engineType.size,
+        undefined,
+        rgb(0, 0, 0)
+      );
+    }
 
-    // 点検(整備)時の総走行距離（顧客申告があればその値、無ければ空欄）
-    const mileageText = data.mileage !== null && data.mileage !== undefined
-      ? `${data.mileage.toLocaleString()} km`
-      : "";
-    firstPage.drawText(mileageText, {
-      x: mmToPt(textFields.mileage.x),
-      y: pageHeight - mmToPt(textFields.mileage.y),
-      size: textFields.mileage.fontSize || 10,
-      font: fontToUse,
-    });
+    // 車台番号（ある場合） - 座標: { x: 460, y: 780, size: 10 }
+    if (data.vehicle.chassisNumber) {
+      drawTextWithAutoSize(
+        firstPage,
+        data.vehicle.chassisNumber,
+        coords.header.chassisNumber.x,
+        coords.header.chassisNumber.y,
+        fontToUse,
+        coords.header.chassisNumber.size,
+        undefined,
+        rgb(0, 0, 0)
+      );
+    }
 
-    // 点検日
+    // 点検(整備)時の総走行距離 - 座標: { x: 430, y: 760, size: 10 }
+    if (data.mileage !== null && data.mileage !== undefined) {
+      const mileageText = `${data.mileage.toLocaleString()} km`;
+      drawTextWithAutoSize(
+        firstPage,
+        mileageText,
+        coords.header.mileage.x,
+        coords.header.mileage.y,
+        fontToUse,
+        coords.header.mileage.size,
+        undefined,
+        rgb(0, 0, 0)
+      );
+    }
+
+    // 点検日 - フッター座標を使用
     const inspectionDate = new Date(data.inspectionDate);
-    const dateStr = inspectionDate.toLocaleDateString("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    firstPage.drawText(dateStr, {
-      x: mmToPt(textFields.inspectionDate.x),
-      y: pageHeight - mmToPt(textFields.inspectionDate.y),
-      size: textFields.inspectionDate.fontSize || 10,
-      font: fontToUse,
-    });
+    const dateYear = inspectionDate.getFullYear().toString();
+    const dateMonth = (inspectionDate.getMonth() + 1).toString().padStart(2, "0");
+    const dateDay = inspectionDate.getDate().toString().padStart(2, "0");
+    
+    // 点検日（年）
+    drawTextWithAutoSize(
+      firstPage,
+      dateYear,
+      coords.footer.dateYear.x,
+      coords.footer.dateYear.y,
+      fontToUse,
+      coords.footer.dateYear.size,
+      undefined,
+      rgb(0, 0, 0)
+    );
+    
+    // 点検日（月）
+    drawTextWithAutoSize(
+      firstPage,
+      dateMonth,
+      coords.footer.dateMonth.x,
+      coords.footer.dateMonth.y,
+      fontToUse,
+      coords.footer.dateMonth.size,
+      undefined,
+      rgb(0, 0, 0)
+    );
+    
+    // 点検日（日）
+    drawTextWithAutoSize(
+      firstPage,
+      dateDay,
+      coords.footer.dateDay.x,
+      coords.footer.dateDay.y,
+      fontToUse,
+      coords.footer.dateDay.size,
+      undefined,
+      rgb(0, 0, 0)
+    );
+
+    // 整備主任者 - 座標: { x: 440, y: 45, size: 11 }
+    if (data.mechanicName) {
+      drawTextWithAutoSize(
+        firstPage,
+        data.mechanicName,
+        coords.footer.mechanicName.x,
+        coords.footer.mechanicName.y,
+        fontToUse,
+        coords.footer.mechanicName.size,
+        undefined,
+        rgb(0, 0, 0)
+      );
+    }
 
     // =============================================================================
-    // 測定値を書き込む（24ヶ月点検リデザイン版）
+    // 測定値を書き込む（ユーザー提供の座標を使用）
     // =============================================================================
-    if (data.measurements && textFields.measurements) {
+    if (data.measurements) {
       const m = data.measurements;
-      const mf = textFields.measurements;
 
-      // CO濃度
-      if (m.coConcentration !== undefined && mf.coConcentration) {
-        firstPage.drawText(`${m.coConcentration}%`, {
-          x: mmToPt(mf.coConcentration.x),
-          y: pageHeight - mmToPt(mf.coConcentration.y),
-          size: mf.coConcentration.fontSize || 9,
-          font: fontToUse,
-        });
+      // CO濃度 - 座標: { x: 90, y: 108, size: 11 }
+      if (m.coConcentration !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.coConcentration}%`,
+          coords.measurements.coConcentration.x,
+          coords.measurements.coConcentration.y,
+          fontToUse,
+          coords.measurements.coConcentration.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // HC濃度
-      if (m.hcConcentration !== undefined && mf.hcConcentration) {
-        firstPage.drawText(`${m.hcConcentration}ppm`, {
-          x: mmToPt(mf.hcConcentration.x),
-          y: pageHeight - mmToPt(mf.hcConcentration.y),
-          size: mf.hcConcentration.fontSize || 9,
-          font: fontToUse,
-        });
+      // HC濃度 - 座標: { x: 90, y: 85, size: 11 }
+      if (m.hcConcentration !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.hcConcentration}ppm`,
+          coords.measurements.hcConcentration.x,
+          coords.measurements.hcConcentration.y,
+          fontToUse,
+          coords.measurements.hcConcentration.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // ブレーキパッド（前輪左）
-      if (m.brakePadFrontLeft !== undefined && mf.brakePadFrontLeft) {
-        firstPage.drawText(`${m.brakePadFrontLeft}mm`, {
-          x: mmToPt(mf.brakePadFrontLeft.x),
-          y: pageHeight - mmToPt(mf.brakePadFrontLeft.y),
-          size: mf.brakePadFrontLeft.fontSize || 9,
-          font: fontToUse,
-        });
+      // タイヤ溝（前輪左） - 座標: { x: 260, y: 120, size: 10 }
+      if (m.tireDepthFrontLeft !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.tireDepthFrontLeft}mm`,
+          coords.inspectData.tire.frontLeft.x,
+          coords.inspectData.tire.frontLeft.y,
+          fontToUse,
+          coords.inspectData.tire.frontLeft.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // ブレーキパッド（前輪右）
-      if (m.brakePadFrontRight !== undefined && mf.brakePadFrontRight) {
-        firstPage.drawText(`${m.brakePadFrontRight}mm`, {
-          x: mmToPt(mf.brakePadFrontRight.x),
-          y: pageHeight - mmToPt(mf.brakePadFrontRight.y),
-          size: mf.brakePadFrontRight.fontSize || 9,
-          font: fontToUse,
-        });
+      // タイヤ溝（前輪右） - 座標: { x: 350, y: 120, size: 10 }
+      if (m.tireDepthFrontRight !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.tireDepthFrontRight}mm`,
+          coords.inspectData.tire.frontRight.x,
+          coords.inspectData.tire.frontRight.y,
+          fontToUse,
+          coords.inspectData.tire.frontRight.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // ブレーキパッド（後輪左）
-      if (m.brakePadRearLeft !== undefined && mf.brakePadRearLeft) {
-        firstPage.drawText(`${m.brakePadRearLeft}mm`, {
-          x: mmToPt(mf.brakePadRearLeft.x),
-          y: pageHeight - mmToPt(mf.brakePadRearLeft.y),
-          size: mf.brakePadRearLeft.fontSize || 9,
-          font: fontToUse,
-        });
+      // タイヤ溝（後輪左） - 座標: { x: 260, y: 105, size: 10 }
+      if (m.tireDepthRearLeft !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.tireDepthRearLeft}mm`,
+          coords.inspectData.tire.rearLeft.x,
+          coords.inspectData.tire.rearLeft.y,
+          fontToUse,
+          coords.inspectData.tire.rearLeft.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // ブレーキパッド（後輪右）
-      if (m.brakePadRearRight !== undefined && mf.brakePadRearRight) {
-        firstPage.drawText(`${m.brakePadRearRight}mm`, {
-          x: mmToPt(mf.brakePadRearRight.x),
-          y: pageHeight - mmToPt(mf.brakePadRearRight.y),
-          size: mf.brakePadRearRight.fontSize || 9,
-          font: fontToUse,
-        });
+      // タイヤ溝（後輪右） - 座標: { x: 350, y: 105, size: 10 }
+      if (m.tireDepthRearRight !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.tireDepthRearRight}mm`,
+          coords.inspectData.tire.rearRight.x,
+          coords.inspectData.tire.rearRight.y,
+          fontToUse,
+          coords.inspectData.tire.rearRight.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // タイヤ溝（前輪左）
-      if (m.tireDepthFrontLeft !== undefined && mf.tireDepthFrontLeft) {
-        firstPage.drawText(`${m.tireDepthFrontLeft}mm`, {
-          x: mmToPt(mf.tireDepthFrontLeft.x),
-          y: pageHeight - mmToPt(mf.tireDepthFrontLeft.y),
-          size: mf.tireDepthFrontLeft.fontSize || 9,
-          font: fontToUse,
-        });
+      // ブレーキパッド（前輪左） - 座標: { x: 260, y: 80, size: 10 }
+      if (m.brakePadFrontLeft !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.brakePadFrontLeft}mm`,
+          coords.inspectData.brake.frontLeft.x,
+          coords.inspectData.brake.frontLeft.y,
+          fontToUse,
+          coords.inspectData.brake.frontLeft.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // タイヤ溝（前輪右）
-      if (m.tireDepthFrontRight !== undefined && mf.tireDepthFrontRight) {
-        firstPage.drawText(`${m.tireDepthFrontRight}mm`, {
-          x: mmToPt(mf.tireDepthFrontRight.x),
-          y: pageHeight - mmToPt(mf.tireDepthFrontRight.y),
-          size: mf.tireDepthFrontRight.fontSize || 9,
-          font: fontToUse,
-        });
+      // ブレーキパッド（前輪右） - 座標: { x: 350, y: 80, size: 10 }
+      if (m.brakePadFrontRight !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.brakePadFrontRight}mm`,
+          coords.inspectData.brake.frontRight.x,
+          coords.inspectData.brake.frontRight.y,
+          fontToUse,
+          coords.inspectData.brake.frontRight.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // タイヤ溝（後輪左）
-      if (m.tireDepthRearLeft !== undefined && mf.tireDepthRearLeft) {
-        firstPage.drawText(`${m.tireDepthRearLeft}mm`, {
-          x: mmToPt(mf.tireDepthRearLeft.x),
-          y: pageHeight - mmToPt(mf.tireDepthRearLeft.y),
-          size: mf.tireDepthRearLeft.fontSize || 9,
-          font: fontToUse,
-        });
+      // ブレーキパッド（後輪左） - 座標: { x: 260, y: 65, size: 10 }
+      if (m.brakePadRearLeft !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.brakePadRearLeft}mm`,
+          coords.inspectData.brake.rearLeft.x,
+          coords.inspectData.brake.rearLeft.y,
+          fontToUse,
+          coords.inspectData.brake.rearLeft.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
 
-      // タイヤ溝（後輪右）
-      if (m.tireDepthRearRight !== undefined && mf.tireDepthRearRight) {
-        firstPage.drawText(`${m.tireDepthRearRight}mm`, {
-          x: mmToPt(mf.tireDepthRearRight.x),
-          y: pageHeight - mmToPt(mf.tireDepthRearRight.y),
-          size: mf.tireDepthRearRight.fontSize || 9,
-          font: fontToUse,
-        });
+      // ブレーキパッド（後輪右） - 座標: { x: 350, y: 65, size: 10 }
+      if (m.brakePadRearRight !== undefined) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${m.brakePadRearRight}mm`,
+          coords.inspectData.brake.rearRight.x,
+          coords.inspectData.brake.rearRight.y,
+          fontToUse,
+          coords.inspectData.brake.rearRight.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
     }
 
@@ -631,22 +726,67 @@ export async function generateInspectionTemplatePDF(
     }
 
     // =============================================================================
-    // 交換部品を書き込む（別ページまたは指定位置に）
+    // 交換部品を書き込む（ユーザー提供の座標を使用）
     // =============================================================================
     if (data.replacementParts && data.replacementParts.length > 0) {
-      // 2ページ目を作成するか、1ページ目の指定位置に書き込む
-      // ここでは1ページ目の下部に書き込む例
-      let partsY = pageHeight - mmToPt(250); // 下部から250mmの位置
+      // エンジンオイル
+      const engineOil = data.replacementParts.find((p) => p.name.includes("エンジンオイル"));
+      if (engineOil) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${engineOil.quantity}${engineOil.unit}`,
+          coords.exchangeParts.engineOilQty.x,
+          coords.exchangeParts.engineOilQty.y,
+          fontToUse,
+          coords.exchangeParts.engineOilQty.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
+      }
 
-      for (const part of data.replacementParts) {
-        const partText = `${part.name}: ${part.quantity}${part.unit}`;
-        firstPage.drawText(partText, {
-          x: mmToPt(30),
-          y: partsY,
-          size: 9,
-          font: fontToUse,
-        });
-        partsY -= mmToPt(10); // 次の行へ
+      // オイルフィルター
+      const oilFilter = data.replacementParts.find((p) => p.name.includes("オイルフィルター") || p.name.includes("フィルター"));
+      if (oilFilter) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${oilFilter.quantity}${oilFilter.unit}`,
+          coords.exchangeParts.oilFilterQty.x,
+          coords.exchangeParts.oilFilterQty.y,
+          fontToUse,
+          coords.exchangeParts.oilFilterQty.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
+      }
+
+      // LLC（ロングライフクーラント）
+      const llc = data.replacementParts.find((p) => p.name.includes("LLC") || p.name.includes("クーラント"));
+      if (llc) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${llc.quantity}${llc.unit}`,
+          coords.exchangeParts.llcQty.x,
+          coords.exchangeParts.llcQty.y,
+          fontToUse,
+          coords.exchangeParts.llcQty.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
+      }
+
+      // ブレーキフルード
+      const brakeFluid = data.replacementParts.find((p) => p.name.includes("ブレーキフルード") || p.name.includes("ブレーキ"));
+      if (brakeFluid) {
+        drawTextWithAutoSize(
+          firstPage,
+          `${brakeFluid.quantity}${brakeFluid.unit}`,
+          coords.exchangeParts.brakeFluidQty.x,
+          coords.exchangeParts.brakeFluidQty.y,
+          fontToUse,
+          coords.exchangeParts.brakeFluidQty.size,
+          undefined,
+          rgb(0, 0, 0)
+        );
       }
     }
 

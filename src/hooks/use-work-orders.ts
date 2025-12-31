@@ -26,33 +26,106 @@ export function useWorkOrders(jobId: string | null) {
       if (process.env.NODE_ENV === "development") {
         console.log("[useWorkOrders] フェッチ開始:", url);
       }
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorText = await response.text();
+      
+      try {
+        const response = await fetch(url);
+        
+        // レスポンスのステータスとステータステキストを先に取得
+        const status = response.status;
+        const statusText = response.statusText;
+        
+        if (!response.ok) {
+          let errorText = "";
+          let errorJson: unknown = null;
+          
+          try {
+            // レスポンスボディをクローンして読み取る（一度しか読み取れないため）
+            const clonedResponse = response.clone();
+            errorText = await clonedResponse.text();
+            
+            // JSONとしてパースを試みる
+            if (errorText && errorText.trim()) {
+              try {
+                errorJson = JSON.parse(errorText);
+              } catch (parseError) {
+                // JSONでない場合はそのまま使用
+                if (process.env.NODE_ENV === "development") {
+                  console.warn("[useWorkOrders] エラーレスポンスのJSONパースに失敗:", parseError);
+                }
+              }
+            }
+          } catch (readError) {
+            // テキスト取得に失敗した場合
+            const errorMessage = readError instanceof Error ? readError.message : String(readError);
+            errorText = `Failed to read error response: ${errorMessage}`;
+            if (process.env.NODE_ENV === "development") {
+              console.warn("[useWorkOrders] エラーレスポンスの読み取りに失敗:", readError);
+            }
+          }
+          
+          // 404エラーの場合は空配列を返す（ジョブが存在しない場合）
+          if (status === 404) {
+            if (process.env.NODE_ENV === "development") {
+              console.warn("[useWorkOrders] ジョブが見つかりません（404）。空配列を返します。", {
+                url,
+                status,
+                statusText: statusText || "(empty)",
+              });
+            }
+            return { success: true, data: [] };
+          }
+          
+          // 詳細なエラーログを出力
+          const errorInfo: Record<string, unknown> = {
+            url,
+            status,
+            statusText: statusText || "(empty)",
+            hasErrorText: !!errorText,
+            errorTextLength: errorText?.length || 0,
+          };
+          
+          if (errorText) {
+            errorInfo.errorText = errorText.substring(0, 500); // 最初の500文字のみ
+          }
+          
+          if (errorJson) {
+            errorInfo.errorJson = errorJson;
+          }
+          
+          if (process.env.NODE_ENV === "development") {
+            console.error("[useWorkOrders] フェッチエラー:", JSON.stringify(errorInfo, null, 2));
+          }
+          
+          // エラーメッセージを構築
+          const errorMessage = errorJson && typeof errorJson === "object" && "error" in errorJson
+            ? (errorJson.error as { message?: string })?.message || statusText
+            : errorText || statusText || `HTTP ${status}`;
+          
+          throw new Error(`Failed to fetch work orders (${status}): ${errorMessage}`);
+        }
+        
+        const json = await response.json();
+        
         if (process.env.NODE_ENV === "development") {
-          console.error("[useWorkOrders] フェッチエラー:", {
-            status: response.status,
-            statusText: response.statusText,
-            errorText,
+          console.log("[useWorkOrders] フェッチ成功:", {
+            url,
+            success: json.success,
+            dataLength: json.data?.length,
           });
         }
-        // 404エラーの場合は空配列を返す（ジョブが存在しない場合）
-        if (response.status === 404) {
-          if (process.env.NODE_ENV === "development") {
-            console.warn("[useWorkOrders] ジョブが見つかりません（404）。空配列を返します。");
-          }
-          return { success: true, data: [] };
+        
+        return json;
+      } catch (error) {
+        // fetch自体が失敗した場合（ネットワークエラーなど）
+        if (process.env.NODE_ENV === "development") {
+          console.error("[useWorkOrders] フェッチ例外:", {
+            url,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
         }
-        throw new Error(`Failed to fetch work orders: ${response.statusText}`);
+        throw error;
       }
-      const json = await response.json();
-      if (process.env.NODE_ENV === "development") {
-        console.log("[useWorkOrders] フェッチ成功:", {
-          success: json.success,
-          dataLength: json.data?.length,
-        });
-      }
-      return json;
     },
     {
       ...swrConfig,
@@ -67,7 +140,12 @@ export function useWorkOrders(jobId: string | null) {
   );
 
   if (process.env.NODE_ENV === "development" && error) {
-    console.error("[useWorkOrders] SWRエラー:", error);
+    console.error("[useWorkOrders] SWRエラー:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : typeof error,
+      error: error,
+    });
   }
 
   return {

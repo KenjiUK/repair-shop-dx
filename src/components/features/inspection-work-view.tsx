@@ -310,17 +310,17 @@ export function InspectionWorkView({
   return (
     <div className="space-y-6">
       {/* =================================================================== */}
-      {/* 受入点検結果（Phase 2からの引き継ぎ） */}
+      {/* 受入れ点検結果（診断結果からの引き継ぎ） */}
       {/* =================================================================== */}
       {acceptanceData && (
         <Collapsible open={isAcceptanceOpen} onOpenChange={setIsAcceptanceOpen}>
           <Card className="border-slate-200 shadow-md">
             <CollapsibleTrigger asChild>
               <CardHeader className="cursor-pointer hover:bg-slate-50 transition-colors">
-                <CardTitle className="text-lg font-semibold flex items-center justify-between">
+                <CardTitle className="text-2xl font-semibold flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ClipboardCheck className="h-5 w-5 text-slate-600 shrink-0" />
-                    受入点検結果（Phase 2）
+                    受入れ点検結果
                     <Badge variant="outline" className="ml-2">
                       {flaggedItems.length > 0 ? `${flaggedItems.length}件の要対応` : "問題なし"}
                     </Badge>
@@ -421,7 +421,7 @@ export function InspectionWorkView({
       {approvedWorkItems.length > 0 && (
         <Card className="border-slate-200 shadow-md">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <CardTitle className="text-2xl font-semibold flex items-center gap-2">
               <Wrench className="h-5 w-5 text-slate-600 shrink-0" />
               承認済み作業
               <Badge variant="outline" className="ml-2">
@@ -476,7 +476,7 @@ export function InspectionWorkView({
                             )
                           }
                           disabled={disabled}
-                          className="w-20 h-8 text-sm"
+                          className="w-24 h-12 text-base"
                           placeholder="mm"
                         />
                         <span className="text-green-600 font-medium">
@@ -503,7 +503,7 @@ export function InspectionWorkView({
           <Card className="border-slate-200 shadow-md">
             <CollapsibleTrigger asChild>
               <CardHeader className="cursor-pointer hover:bg-slate-50 transition-colors">
-                <CardTitle className="text-lg font-semibold flex items-center justify-between">
+                <CardTitle className="text-2xl font-semibold flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Gauge className="h-5 w-5 text-blue-600 shrink-0" />
                     完成検査（テスター値入力）
@@ -520,7 +520,7 @@ export function InspectionWorkView({
               <CardContent className="pt-0 space-y-4">
                 {/* サイドスリップ */}
                 <div>
-                  <Label htmlFor="sideSlip" className="text-base">サイドスリップ (mm/m)</Label>
+                  <Label htmlFor="sideSlip" className="text-base font-medium text-slate-700 mb-2 block">サイドスリップ (mm/m)</Label>
                   <Input
                     id="sideSlip"
                     type="number"
@@ -532,17 +532,17 @@ export function InspectionWorkView({
                       )
                     }
                     disabled={disabled}
-                    className="mt-1"
+                    className="h-16 text-xl"
                     placeholder="例: 2.5"
                   />
                 </div>
 
                 {/* ブレーキ制動力 */}
                 <div>
-                  <Label className="text-base mb-2 block">ブレーキ制動力 (N)</Label>
+                  <Label className="text-base font-medium text-slate-700 mb-2 block">ブレーキ制動力 (N)</Label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="brakeFrontLeft" className="text-sm text-slate-500">前輪左</Label>
+                      <Label htmlFor="brakeFrontLeft" className="text-base text-slate-700 mb-1 block">前輪左</Label>
                       <Input
                         id="brakeFrontLeft"
                         type="number"
@@ -554,10 +554,11 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="brakeFrontRight" className="text-sm text-slate-500">前輪右</Label>
+                      <Label htmlFor="brakeFrontRight" className="text-base text-slate-700 mb-1 block">前輪右</Label>
                       <Input
                         id="brakeFrontRight"
                         type="number"
@@ -569,10 +570,11 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="brakeRearLeft" className="text-sm text-slate-500">後輪左</Label>
+                      <Label htmlFor="brakeRearLeft" className="text-base text-slate-700 mb-1 block">後輪左</Label>
                       <Input
                         id="brakeRearLeft"
                         type="number"
@@ -584,10 +586,11 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="brakeRearRight" className="text-sm text-slate-500">後輪右</Label>
+                      <Label htmlFor="brakeRearRight" className="text-base text-slate-700 mb-1 block">後輪右</Label>
                       <Input
                         id="brakeRearRight"
                         type="number"
@@ -599,6 +602,7 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                   </div>
@@ -606,7 +610,7 @@ export function InspectionWorkView({
 
                 {/* スピードメーター */}
                 <div>
-                  <Label htmlFor="speedometer" className="text-base">スピードメーター誤差 (km/h)</Label>
+                  <Label htmlFor="speedometer" className="text-base font-medium text-slate-700 mb-2 block">スピードメーター誤差 (km/h)</Label>
                   <Input
                     id="speedometer"
                     type="number"
@@ -618,17 +622,17 @@ export function InspectionWorkView({
                       )
                     }
                     disabled={disabled}
-                    className="mt-1"
+                    className="h-16 text-xl"
                     placeholder="例: 0.5"
                   />
                 </div>
 
                 {/* ヘッドライト */}
                 <div>
-                  <Label className="text-base mb-2 block">ヘッドライト光度 (cd)</Label>
+                  <Label className="text-base font-medium text-slate-700 mb-2 block">ヘッドライト光度 (cd)</Label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="headlightLeft" className="text-sm text-slate-500">左</Label>
+                      <Label htmlFor="headlightLeft" className="text-base text-slate-700 mb-1 block">左</Label>
                       <Input
                         id="headlightLeft"
                         type="number"
@@ -640,10 +644,11 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="headlightRight" className="text-sm text-slate-500">右</Label>
+                      <Label htmlFor="headlightRight" className="text-base text-slate-700 mb-1 block">右</Label>
                       <Input
                         id="headlightRight"
                         type="number"
@@ -655,6 +660,7 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                   </div>
@@ -662,10 +668,10 @@ export function InspectionWorkView({
 
                 {/* 排ガス */}
                 <div>
-                  <Label className="text-base mb-2 block">排ガス（アイドリング時）</Label>
+                  <Label className="text-base font-medium text-slate-700 mb-2 block">排ガス（アイドリング時）</Label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="exhaustCO" className="text-sm text-slate-500">CO (%)</Label>
+                      <Label htmlFor="exhaustCO" className="text-base text-slate-700 mb-1 block">CO (%)</Label>
                       <Input
                         id="exhaustCO"
                         type="number"
@@ -678,10 +684,11 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="exhaustHC" className="text-sm text-slate-500">HC (ppm)</Label>
+                      <Label htmlFor="exhaustHC" className="text-base text-slate-700 mb-1 block">HC (ppm)</Label>
                       <Input
                         id="exhaustHC"
                         type="number"
@@ -693,6 +700,7 @@ export function InspectionWorkView({
                           )
                         }
                         disabled={disabled}
+                        className="h-16 text-xl"
                       />
                     </div>
                   </div>
@@ -710,7 +718,7 @@ export function InspectionWorkView({
         <Card className="border-slate-200 shadow-md hover:shadow-lg transition-shadow">
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-slate-50 transition-colors">
-              <CardTitle className="text-lg font-semibold flex items-center justify-between">
+              <CardTitle className="text-2xl font-semibold flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Wrench className="h-5 w-5 text-slate-600 shrink-0" />
                   交換部品等
@@ -768,7 +776,7 @@ export function InspectionWorkView({
                                 onChange={(e) => handlePartNameChange(part.id, e.target.value)}
                                 placeholder="部品名を入力"
                                 disabled={disabled}
-                                className="mt-1"
+                                className="mt-1 h-12 text-base"
                               />
                             )}
                           </div>
@@ -784,7 +792,7 @@ export function InspectionWorkView({
                                   value={part.quantity}
                                   onChange={(e) => handlePartQuantityChange(part.id, parseInt(e.target.value) || 1)}
                                   disabled={disabled}
-                                  className="w-20"
+                                  className="w-24 h-12 text-base"
                                 />
                                 <span className="text-base text-slate-600">{part.unit}</span>
                               </div>
@@ -796,7 +804,7 @@ export function InspectionWorkView({
                                 onChange={(e) => handlePartNumberChange(part.id, e.target.value)}
                                 placeholder="例: 12345-ABCDE"
                                 disabled={disabled}
-                                className="mt-1"
+                                className="mt-1 h-12 text-base"
                               />
                             </div>
                           </div>
@@ -825,7 +833,7 @@ export function InspectionWorkView({
                 variant="outline"
                 onClick={handleAddPart}
                 disabled={disabled}
-                className="w-full border-dashed border-2 h-12 text-base"
+                className="w-full border-dashed border-2 h-12 text-base font-medium"
               >
                 ＋ 部品を追加
               </Button>
@@ -841,7 +849,7 @@ export function InspectionWorkView({
         <Card className="border-slate-200 shadow-md">
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-slate-50 transition-colors">
-              <CardTitle className="text-lg font-semibold flex items-center justify-between">
+              <CardTitle className="text-2xl font-semibold flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ClipboardCheck className="h-5 w-5 text-green-600 shrink-0" />
                   品質管理・最終検査
